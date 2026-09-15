@@ -11,7 +11,7 @@ import { ChecksRing } from "./checks-ring";
 import { summarizeChecks, type ChecksGroup } from "./checks-summary";
 import { canAddPullRequestCheckLogsToChat } from "./context-attachment";
 import type { PrPaneCheck } from "./data";
-import { foregroundMutedColorMapping, sectionKitStyles } from "./section-kit";
+import { foregroundMutedColorMapping, sectionKitStyles } from "@/components/ui/section";
 import { useCheckGroupState } from "./check-group-state";
 
 const ThemedChevronDown = withUnistyles(ChevronDown);

@@ -25,7 +25,14 @@ function TaskStatusIcon({ isCompleted, isRunning }: { isCompleted: boolean; isRu
   return <ThemedCircle size={16} uniProps={extraMutedIcon} />;
 }
 
-export const TaskListRow = memo(function TaskListRow({ task }: { task: TodoEntry }) {
+export const TaskListRow = memo(function TaskListRow({
+  task,
+  lines = 1,
+}: {
+  task: TodoEntry;
+  /** The rail's rows wrap; the composer's panel measures against a pill and cannot. */
+  lines?: number;
+}) {
   const isCompleted = task.completed || task.status === "completed";
   const isRunning = !isCompleted && task.status === "in_progress";
   const text = isRunning && task.activeForm ? task.activeForm : task.text;
@@ -34,7 +41,7 @@ export const TaskListRow = memo(function TaskListRow({ task }: { task: TodoEntry
     <View style={styles.row} accessibilityLabel={text}>
       <TaskStatusIcon isCompleted={isCompleted} isRunning={isRunning} />
       <Text
-        numberOfLines={1}
+        numberOfLines={lines}
         style={[styles.text, isRunning && styles.runningText, isCompleted && styles.completedText]}
       >
         {text}

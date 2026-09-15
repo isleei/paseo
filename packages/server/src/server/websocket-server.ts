@@ -1661,6 +1661,10 @@ export class VoiceAssistantWebSocketServer {
         // feature gate and legacy fallback after 2027-01-17 once the supported
         // daemon floor is >= v0.2.0.
         checkoutForgeSetAutoMerge: true,
+        // COMPAT(checkoutGitGenerateCommitMessage): added in v0.8.0 for the
+        // commit sheet's auto-generate preview. Remove the gate after
+        // 2027-09-14 once the supported daemon floor serves it.
+        checkoutGitGenerateCommitMessage: true,
         // COMPAT(checkoutGithubSetAutoMerge): added in v0.1.75 and retained as
         // the fallback for checkoutForgeSetAutoMerge. Stop advertising it after
         // 2027-01-17 once supported floors are >= v0.2.0.

@@ -21,13 +21,33 @@ export const successColorMapping = (theme: Theme) => ({ color: theme.colors.stat
 export const dangerColorMapping = (theme: Theme) => ({ color: theme.colors.statusDanger });
 export const warningColorMapping = (theme: Theme) => ({ color: theme.colors.statusWarning });
 
+/**
+ * `default` is the pull-request pane's density: a muted small title, sized to sit inside a
+ * scrolling document.
+ *
+ * `rail` is the floating rail's: a larger bright title with the chevron against it, matching the
+ * panel it was modelled on, where the header is a landmark rather than a row in a list.
+ */
+export type SectionVariant = "default" | "rail";
+
 interface SectionProps {
   title: string;
   open: boolean;
   onToggle: () => void;
-  summary: ReactNode;
+  summary?: ReactNode;
   children: ReactNode;
   accessibilityLabel?: string;
+  variant?: SectionVariant;
+  /** Draws the hairline above the header. The rail separates its sections with one. */
+  divided?: boolean;
+}
+
+function FoldChevron({ open }: { open: boolean }) {
+  return open ? (
+    <ThemedChevronDown size={14} uniProps={foregroundMutedColorMapping} />
+  ) : (
+    <ThemedChevronRight size={14} uniProps={foregroundMutedColorMapping} />
+  );
 }
 
 export function Section({
@@ -37,23 +57,40 @@ export function Section({
   summary,
   children,
   accessibilityLabel,
+  variant = "default",
+  divided = false,
 }: SectionProps) {
+  const isRail = variant === "rail";
   return (
     <View>
+      {divided ? <View style={sectionKitStyles.divider} /> : null}
       <Pressable
         accessibilityLabel={accessibilityLabel}
-        style={sectionKitStyles.sectionHeader}
+        style={isRail ? sectionKitStyles.railHeader : sectionKitStyles.sectionHeader}
         onPress={onToggle}
       >
-        {open ? (
-          <ThemedChevronDown size={14} uniProps={foregroundMutedColorMapping} />
-        ) : (
-          <ThemedChevronRight size={14} uniProps={foregroundMutedColorMapping} />
-        )}
-        <Text style={sectionKitStyles.sectionTitle}>{title}</Text>
-        <View style={sectionKitStyles.summaryWrap}>{summary}</View>
+        {/* Rail headers read as "a title that folds", so the chevron sits against the label it
+            folds. The PR pane's sections read as rows, where the leading chevron is the gutter. */}
+        {isRail ? null : <FoldChevron open={open} />}
+        <Text style={isRail ? sectionKitStyles.railTitle : sectionKitStyles.sectionTitle}>
+          {title}
+        </Text>
+        {isRail ? <FoldChevron open={open} /> : null}
+        {summary ? <View style={sectionKitStyles.summaryWrap}>{summary}</View> : null}
       </Pressable>
       {open ? <View style={sectionKitStyles.sectionBody}>{children}</View> : null}
+    </View>
+  );
+}
+
+/**
+ * The count a section reports, as the chip the rail's reference design puts in the header's
+ * trailing corner — `2/3` tasks done, `24` references.
+ */
+export function CountChip({ label, testID }: { label: string; testID?: string }) {
+  return (
+    <View style={sectionKitStyles.countChip} testID={testID}>
+      <Text style={sectionKitStyles.countChipText}>{label}</Text>
     </View>
   );
 }
@@ -120,6 +157,36 @@ export const sectionKitStyles = StyleSheet.create((theme) => ({
   },
   sectionBody: {
     paddingBottom: theme.spacing[3],
+  },
+  railHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+    paddingHorizontal: theme.spacing[4],
+    paddingTop: theme.spacing[3],
+    paddingBottom: theme.spacing[2],
+  },
+  divider: {
+    height: theme.borderWidth[1],
+    backgroundColor: theme.colors.border,
+  },
+  railTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.foreground,
+  },
+  countChip: {
+    backgroundColor: theme.colors.interactionHighlight,
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: 1,
+    minWidth: 22,
+    alignItems: "center",
+  },
+  countChipText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.medium,
+    color: theme.colors.foregroundMuted,
   },
   summaryWrap: {
     marginLeft: "auto",

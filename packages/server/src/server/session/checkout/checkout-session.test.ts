@@ -831,6 +831,66 @@ describe("CheckoutSession", () => {
     });
   });
 
+  describe("generate commit message", () => {
+    it("returns the generated message without committing", async () => {
+      const { checkout, emitted, generatorCalls, gitMutationCalls } = makeCheckoutSession({
+        gitMetadataGenerator: {
+          generateCommitMessage: async (cwd: string) => {
+            generatorCalls.generateCommitMessage.push(cwd);
+            return "fix: tighten checkout retry";
+          },
+        },
+      });
+
+      await checkout.handleCheckoutGitGenerateCommitMessageRequest({
+        type: "checkout.git.generate_commit_message.request",
+        cwd: "/repo",
+        requestId: "g1",
+      });
+
+      expect(generatorCalls.generateCommitMessage).toEqual(["/repo"]);
+      expect(gitMutationCalls.notifyGitMutation).toEqual([]);
+      expect(emitted).toEqual([
+        {
+          type: "checkout.git.generate_commit_message.response",
+          payload: {
+            cwd: "/repo",
+            message: "fix: tighten checkout retry",
+            success: true,
+            error: null,
+            requestId: "g1",
+          },
+        },
+      ]);
+    });
+
+    it("fails when no message can be generated", async () => {
+      const { checkout, emitted } = makeCheckoutSession();
+
+      await checkout.handleCheckoutGitGenerateCommitMessageRequest({
+        type: "checkout.git.generate_commit_message.request",
+        cwd: "/repo",
+        requestId: "g2",
+      });
+
+      expect(emitted).toEqual([
+        {
+          type: "checkout.git.generate_commit_message.response",
+          payload: {
+            cwd: "/repo",
+            message: null,
+            success: false,
+            error: {
+              code: "UNKNOWN",
+              message: "Unable to generate a commit message for the current changes",
+            },
+            requestId: "g2",
+          },
+        },
+      ]);
+    });
+  });
+
   describe("merge preflight", () => {
     it("fails when the target is not a git repository", async () => {
       const { checkout, emitted } = makeCheckoutSession({

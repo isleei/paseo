@@ -24,6 +24,16 @@ const CATALOG_DATA = [
     command: ["npx", "-y", "agoragentic-mcp@1.3.6", "--acp"],
   },
   {
+    id: "agy-acp",
+    title: "Antigravity ACP",
+    description:
+      "Google's official Antigravity ACP kernel via the paseo-agy-acp adapter. Requires the official kernel binary — set PASEO_AGY_ACP_OFFICIAL_BIN on the installed provider.",
+    version: "2.3.1",
+    iconId: "agy",
+    installLink: "https://github.com/tiezbro/paseo-agy-acp",
+    command: ["npx", "-y", "paseo-agy-acp@2.3.1"],
+  },
+  {
     id: "amp-acp",
     title: "Amp",
     description: "ACP wrapper for Amp - the frontier coding agent",
@@ -59,10 +69,10 @@ const CATALOG_DATA = [
     title: "Cline",
     description:
       "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
-    version: "3.0.46",
+    version: "3.0.61",
     iconId: "cline",
     installLink: "https://cline.bot/cli",
-    command: ["npx", "-y", "cline@3.0.46", "--acp"],
+    command: ["npx", "-y", "cline@3.0.61", "--acp"],
   },
   {
     id: "codebuddy-code",

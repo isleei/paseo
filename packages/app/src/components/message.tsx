@@ -354,6 +354,22 @@ const userMessageStylesheet = StyleSheet.create((theme) => ({
     minWidth: 0,
     flexShrink: 1,
   },
+  // Codex-style user block, desktop only: full-width left-aligned block
+  // instead of the right-aligned chat bubble. Compact keeps the bubble.
+  containerDesktop: {
+    justifyContent: "flex-start",
+  },
+  contentDesktop: {
+    alignItems: "stretch",
+    flex: 1,
+  },
+  bubbleDesktop: {
+    borderTopRightRadius: theme.borderRadius["2xl"],
+    borderTopLeftRadius: theme.borderRadius.sm,
+  },
+  trailingRowDesktop: {
+    alignSelf: "flex-start",
+  },
   text: {
     color: theme.colors.foreground,
     fontSize: theme.fontSize.content,
@@ -469,13 +485,14 @@ export const UserMessage = memo(function UserMessage({
   const containerStyle = useMemo(
     () => [
       userMessageStylesheet.container,
+      !isCompact && userMessageStylesheet.containerDesktop,
       !resolvedDisableOuterSpacing && [
         isFirstInGroup ? userMessageStylesheet.containerFirstInGroup : null,
         isLastInGroup ? userMessageStylesheet.containerLastInGroup : null,
         !isFirstInGroup || !isLastInGroup ? userMessageStylesheet.containerSpacing : null,
       ],
     ],
-    [resolvedDisableOuterSpacing, isFirstInGroup, isLastInGroup],
+    [isCompact, resolvedDisableOuterSpacing, isFirstInGroup, isLastInGroup],
   );
   const imagePreviewContainerStyle = useMemo(
     () => [
@@ -494,21 +511,24 @@ export const UserMessage = memo(function UserMessage({
   const trailingRowStyle = useMemo(
     () => [
       userMessageStylesheet.trailingRow,
+      !isCompact && userMessageStylesheet.trailingRowDesktop,
       showTrailingRow
         ? userMessageStylesheet.trailingRowVisible
         : userMessageStylesheet.trailingRowHidden,
     ],
-    [showTrailingRow],
+    [isCompact, showTrailingRow],
   );
 
   return (
     <View style={containerStyle} testID="user-message" aria-busy={isPending}>
       <View
-        style={userMessageStylesheet.content}
+        style={[userMessageStylesheet.content, !isCompact && userMessageStylesheet.contentDesktop]}
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}
       >
-        <View style={userMessageStylesheet.bubble}>
+        <View
+          style={[userMessageStylesheet.bubble, !isCompact && userMessageStylesheet.bubbleDesktop]}
+        >
           {hasImages ? (
             <View style={imagePreviewContainerStyle}>
               {images.map((image) => (
@@ -1202,6 +1222,16 @@ const expandableBadgeStylesheet = StyleSheet.create((theme) => ({
     borderColor: theme.colors.border,
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
+  },
+  // Codex-style card chrome, desktop only: tool rows read as cards instead of
+  // quiet lines. Compact keeps the borderless badge (density + touch space).
+  pressableDesktopCard: {
+    backgroundColor: theme.colors.surface1,
+    borderColor: theme.colors.border,
+    paddingVertical: theme.spacing[2],
+  },
+  iconBadgeDesktopCard: {
+    backgroundColor: theme.colors.surface3,
   },
   detailWrapperBorderless: {
     borderWidth: 0,
@@ -2685,6 +2715,7 @@ export const ExpandableBadge = memo(function ExpandableBadge({
   testID,
 }: ExpandableBadgeProps) {
   const resolvedDisableOuterSpacing = useDisableOuterSpacing(disableOuterSpacing);
+  const isCompact = useIsCompactFormFactor();
   const [isHovered, setIsHovered] = useState(false);
   const [isOpenFileHovered, setIsOpenFileHovered] = useState(false);
   const [isPressed, setIsPressed] = useState(false);
@@ -2850,11 +2881,12 @@ export const ExpandableBadge = memo(function ExpandableBadge({
   const pressableStyle = useMemo(
     () => [
       expandableBadgeStylesheet.pressable,
+      !isCompact && expandableBadgeStylesheet.pressableDesktopCard,
       isPressed && isInteractive ? expandableBadgeStylesheet.pressablePressed : null,
       isExpanded && expandableBadgeStylesheet.pressableExpanded,
       isExpanded && !borderlessWhenExpanded && expandableBadgeStylesheet.pressableExpandedAttached,
     ],
-    [borderlessWhenExpanded, isExpanded, isInteractive, isPressed],
+    [borderlessWhenExpanded, isCompact, isExpanded, isInteractive, isPressed],
   );
 
   const detailWrapperStyle = useMemo(
@@ -2950,7 +2982,14 @@ export const ExpandableBadge = memo(function ExpandableBadge({
         style={pressableStyle}
       >
         <View style={expandableBadgeStylesheet.headerRow}>
-          <View style={expandableBadgeStylesheet.iconBadge}>{iconSlotNode}</View>
+          <View
+            style={[
+              expandableBadgeStylesheet.iconBadge,
+              !isCompact && expandableBadgeStylesheet.iconBadgeDesktopCard,
+            ]}
+          >
+            {iconSlotNode}
+          </View>
           <ExpandableBadgeLabelRow
             label={label}
             labelStyle={labelStyle}

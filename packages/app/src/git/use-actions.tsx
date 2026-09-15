@@ -8,6 +8,7 @@ import type { Theme } from "@/styles/theme";
 import { getForgePresentation, type Forge } from "@/git/forge";
 import { ForgeBrandIcon, getForgeBrandColorMapping } from "@/git/forge-icon";
 import { type CheckoutGitActionStatus, useCheckoutGitActionsStore } from "@/git/actions-store";
+import { useCommitSheetStore } from "@/git/commit-sheet-store";
 import { type CheckoutStatusPayload, useCheckoutStatusQuery } from "@/git/use-status-query";
 import { type CheckoutPrStatusPayload, useCheckoutPrStatusQuery } from "@/git/use-pr-status-query";
 import {
@@ -443,7 +444,6 @@ export function useGitActions({ serverId, cwd, icons }: UseGitActionsInput): Use
     s.getStatus({ serverId, cwd, actionId: "merge-from-base" }),
   );
 
-  const runCommit = useCheckoutGitActionsStore((s) => s.commit);
   const runPull = useCheckoutGitActionsStore((s) => s.pull);
   const runPush = useCheckoutGitActionsStore((s) => s.push);
   const runPullAndPush = useCheckoutGitActionsStore((s) => s.pullAndPush);
@@ -475,16 +475,11 @@ export function useGitActions({ serverId, cwd, icons }: UseGitActionsInput): Use
   );
 
   // Handlers
+  // Commit opens the sheet (message input + auto-generate) instead of
+  // committing blindly; the sheet drives the store's commit with a message.
   const handleCommit = useCallback(() => {
-    void runCommit({ serverId, cwd })
-      .then(() => {
-        toastActionSuccess(t("workspace.git.actions.commit.success"));
-        return;
-      })
-      .catch((err) => {
-        toastActionError(err, t("workspace.git.actions.toasts.failedCommit"));
-      });
-  }, [cwd, runCommit, serverId, t, toastActionError, toastActionSuccess]);
+    useCommitSheetStore.getState().openCommitSheet({ serverId, cwd });
+  }, [cwd, serverId]);
 
   const handlePull = useCallback(() => {
     void runPull({ serverId, cwd })

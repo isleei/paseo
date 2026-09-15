@@ -1,5 +1,6 @@
 import type { OpenInSidePanePreferences, PullRequestOpenLocation } from "@/hooks/use-settings";
 import type { ExplorerCheckoutContext } from "@/stores/explorer-checkout-context";
+import type { WorkspaceTabTarget } from "@/workspace-tabs/model";
 import {
   isExplorerSidebarOpen,
   openExplorerSidebarView,
@@ -20,6 +21,8 @@ interface WorkspaceViewInput {
 
 interface OpenWorkspaceChangesInput extends WorkspaceViewInput {
   preferences: OpenInSidePanePreferences;
+  /** Scrolls the Changes view to a file. Ignored by the explorer overlay, which has no diff list. */
+  focusPath?: string;
 }
 
 interface OpenWorkspacePullRequestInput extends WorkspaceViewInput {
@@ -39,10 +42,20 @@ export function openWorkspaceChanges(input: OpenWorkspaceChangesInput): string |
   return openPreferredWorkspaceTarget({
     isCompact: input.isCompact,
     workspaceKey: input.workspaceKey,
-    target: { kind: "working_diff" },
+    target: buildWorkingDiffTarget(input.focusPath),
     source: "diffs",
     preferences: input.preferences,
   });
+}
+
+/**
+ * `focusRequestId` is stamped per press, not per path: asking for the file already on screen has to
+ * arrive as a new request, otherwise re-pressing the row looks like nothing happened.
+ */
+function buildWorkingDiffTarget(focusPath: string | undefined): WorkspaceTabTarget {
+  return focusPath
+    ? { kind: "working_diff", focusPath, focusRequestId: Date.now() }
+    : { kind: "working_diff" };
 }
 
 /** Reveals Changes from the composer, then opens its diff on a subsequent desktop action. */

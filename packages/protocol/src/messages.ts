@@ -2143,6 +2143,15 @@ export const CheckoutCommitRequestSchema = z.object({
   requestId: z.string(),
 });
 
+// COMPAT(checkoutGitGenerateCommitMessage): added in v0.8.0 for the commit
+// sheet's auto-generate preview. Remove the feature gate after 2027-09-14
+// once the supported daemon floor serves it.
+export const CheckoutGitGenerateCommitMessageRequestSchema = z.object({
+  type: z.literal("checkout.git.generate_commit_message.request"),
+  cwd: z.string(),
+  requestId: z.string(),
+});
+
 export const CheckoutMergeRequestSchema = z.object({
   type: z.literal("checkout_merge_request"),
   cwd: z.string(),
@@ -3214,6 +3223,7 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   SubscribeCheckoutDiffRequestSchema,
   UnsubscribeCheckoutDiffRequestSchema,
   CheckoutCommitRequestSchema,
+  CheckoutGitGenerateCommitMessageRequestSchema,
   CheckoutMergeRequestSchema,
   CheckoutMergeFromBaseRequestSchema,
   CheckoutPullRequestSchema,
@@ -3497,6 +3507,10 @@ export const ServerInfoStatusPayloadSchema = z
         // feature gate and checkoutGithubSetAutoMerge fallback after 2027-01-17
         // once the supported daemon floor is >= v0.2.0.
         checkoutForgeSetAutoMerge: z.boolean().optional(),
+        // COMPAT(checkoutGitGenerateCommitMessage): added in v0.8.0 for the
+        // commit sheet's auto-generate preview. Remove the gate after
+        // 2027-09-14 once the supported daemon floor serves it.
+        checkoutGitGenerateCommitMessage: z.boolean().optional(),
         // COMPAT(checkoutGithubSetAutoMerge): added in v0.1.75 and retained as
         // the fallback for checkoutForgeSetAutoMerge. Stop advertising and
         // consuming it after 2027-01-17 once supported floors are >= v0.2.0.
@@ -5256,6 +5270,20 @@ export const CheckoutCommitResponseSchema = z.object({
   }),
 });
 
+// COMPAT(checkoutGitGenerateCommitMessage): added in v0.8.0 for the commit
+// sheet's auto-generate preview. Remove the feature gate after 2027-09-14
+// once the supported daemon floor serves it.
+export const CheckoutGitGenerateCommitMessageResponseSchema = z.object({
+  type: z.literal("checkout.git.generate_commit_message.response"),
+  payload: z.object({
+    cwd: z.string(),
+    message: z.string().nullable(),
+    success: z.boolean(),
+    error: CheckoutErrorSchema.nullable(),
+    requestId: z.string(),
+  }),
+});
+
 export const CheckoutMergeResponseSchema = z.object({
   type: z.literal("checkout_merge_response"),
   payload: z.object({
@@ -6677,6 +6705,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   SubscribeCheckoutDiffResponseSchema,
   CheckoutDiffUpdateSchema,
   CheckoutCommitResponseSchema,
+  CheckoutGitGenerateCommitMessageResponseSchema,
   CheckoutMergeResponseSchema,
   CheckoutMergeFromBaseResponseSchema,
   CheckoutPullResponseSchema,
@@ -7030,6 +7059,12 @@ export type SubscribeCheckoutDiffResponse = z.infer<typeof SubscribeCheckoutDiff
 export type CheckoutDiffUpdate = z.infer<typeof CheckoutDiffUpdateSchema>;
 export type CheckoutCommitRequest = z.infer<typeof CheckoutCommitRequestSchema>;
 export type CheckoutCommitResponse = z.infer<typeof CheckoutCommitResponseSchema>;
+export type CheckoutGitGenerateCommitMessageRequest = z.infer<
+  typeof CheckoutGitGenerateCommitMessageRequestSchema
+>;
+export type CheckoutGitGenerateCommitMessageResponse = z.infer<
+  typeof CheckoutGitGenerateCommitMessageResponseSchema
+>;
 export type CheckoutMergeRequest = z.infer<typeof CheckoutMergeRequestSchema>;
 export type CheckoutMergeResponse = z.infer<typeof CheckoutMergeResponseSchema>;
 export type CheckoutMergeFromBaseRequest = z.infer<typeof CheckoutMergeFromBaseRequestSchema>;

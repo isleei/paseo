@@ -46,6 +46,7 @@ import type {
   CheckoutCommit,
   ParsedDiffFile,
   CheckoutCommitResponse,
+  CheckoutGitGenerateCommitMessageResponse,
   CheckoutMergeResponse,
   CheckoutMergeFromBaseResponse,
   CheckoutPullResponse,
@@ -411,6 +412,7 @@ type SubscribeCheckoutDiffPayload = Extract<
 >["payload"];
 type CheckoutDiffPayload = Omit<SubscribeCheckoutDiffPayload, "subscriptionId">;
 type CheckoutCommitPayload = CheckoutCommitResponse["payload"];
+type CheckoutGitGenerateCommitMessagePayload = CheckoutGitGenerateCommitMessageResponse["payload"];
 type CheckoutMergePayload = CheckoutMergeResponse["payload"];
 type CheckoutMergeFromBasePayload = CheckoutMergeFromBaseResponse["payload"];
 type CheckoutPullPayload = CheckoutPullResponse["payload"];
@@ -3935,6 +3937,22 @@ export class DaemonClient {
       },
       responseType: "checkout_commit_response",
     });
+  }
+
+  async checkoutGitGenerateCommitMessage(
+    cwd: string,
+    requestId?: string,
+  ): Promise<CheckoutGitGenerateCommitMessagePayload> {
+    return this.sendNamespacedCorrelatedSessionRequest<"checkout.git.generate_commit_message.response">(
+      {
+        requestId,
+        message: {
+          type: "checkout.git.generate_commit_message.request",
+          cwd,
+        },
+        timeout: 120000,
+      },
+    );
   }
 
   async checkoutMerge(

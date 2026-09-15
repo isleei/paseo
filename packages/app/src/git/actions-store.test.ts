@@ -303,4 +303,73 @@ describe("checkout-git-actions-store", () => {
         .getStatus({ serverId, cwd, actionId: "enable-pr-auto-merge-merge" }),
     ).toBe("idle");
   });
+
+  it("forwards the sheet message to checkoutCommit", async () => {
+    const client = {
+      checkoutCommit: vi.fn(async () => ({})),
+    };
+    useSessionStore.setState((state) => ({
+      ...state,
+      sessions: {
+        ...state.sessions,
+        [serverId]: { client } as unknown as (typeof state.sessions)[string],
+      },
+    }));
+
+    await useCheckoutGitActionsStore
+      .getState()
+      .commit({ serverId, cwd, message: "fix: tighten checkout retry" });
+
+    expect(client.checkoutCommit).toHaveBeenCalledWith(cwd, {
+      addAll: true,
+      message: "fix: tighten checkout retry",
+    });
+  });
+
+  it("returns the generated commit message preview", async () => {
+    const client = {
+      checkoutGitGenerateCommitMessage: vi.fn(async () => ({
+        cwd,
+        message: "fix: tighten checkout retry",
+        success: true,
+        error: null,
+        requestId: "g1",
+      })),
+    };
+    useSessionStore.setState((state) => ({
+      ...state,
+      sessions: {
+        ...state.sessions,
+        [serverId]: { client } as unknown as (typeof state.sessions)[string],
+      },
+    }));
+
+    await expect(
+      useCheckoutGitActionsStore.getState().generateCommitMessage({ serverId, cwd }),
+    ).resolves.toBe("fix: tighten checkout retry");
+    expect(client.checkoutGitGenerateCommitMessage).toHaveBeenCalledWith(cwd);
+  });
+
+  it("throws the daemon error when generation fails", async () => {
+    const client = {
+      checkoutGitGenerateCommitMessage: vi.fn(async () => ({
+        cwd,
+        message: null,
+        success: false,
+        error: { message: "no changes" },
+        requestId: "g1",
+      })),
+    };
+    useSessionStore.setState((state) => ({
+      ...state,
+      sessions: {
+        ...state.sessions,
+        [serverId]: { client } as unknown as (typeof state.sessions)[string],
+      },
+    }));
+
+    await expect(
+      useCheckoutGitActionsStore.getState().generateCommitMessage({ serverId, cwd }),
+    ).rejects.toThrow("no changes");
+  });
 });

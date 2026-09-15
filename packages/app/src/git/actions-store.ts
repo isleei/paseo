@@ -102,7 +102,8 @@ interface CheckoutGitActionsStoreState {
     actionId: CheckoutGitAsyncActionId;
   }) => CheckoutGitActionStatus;
 
-  commit: (params: { serverId: string; cwd: string }) => Promise<void>;
+  commit: (params: { serverId: string; cwd: string; message?: string }) => Promise<void>;
+  generateCommitMessage: (params: { serverId: string; cwd: string }) => Promise<string>;
   pull: (params: { serverId: string; cwd: string }) => Promise<void>;
   push: (params: { serverId: string; cwd: string }) => Promise<void>;
   pullAndPush: (params: { serverId: string; cwd: string }) => Promise<void>;
@@ -182,19 +183,30 @@ export const useCheckoutGitActionsStore = create<CheckoutGitActionsStoreState>()
     return get().statusByCheckout[key]?.[actionId] ?? "idle";
   },
 
-  commit: async ({ serverId, cwd }) => {
+  commit: async ({ serverId, cwd, message }) => {
     await runCheckoutAction({
       serverId,
       cwd,
       actionId: "commit",
       run: async () => {
         const client = resolveClient(serverId);
-        const payload = await client.checkoutCommit(cwd, { addAll: true });
+        const payload = await client.checkoutCommit(cwd, { addAll: true, message });
         if (payload.error) {
           throw new Error(payload.error.message);
         }
       },
     });
+  },
+
+  generateCommitMessage: async ({ serverId, cwd }) => {
+    const client = resolveClient(serverId);
+    const payload = await client.checkoutGitGenerateCommitMessage(cwd);
+    if (!payload.success || !payload.message) {
+      throw new Error(
+        payload.error?.message ?? i18n.t("workspace.git.actions.commit.generateFailed"),
+      );
+    }
+    return payload.message;
   },
 
   pull: async ({ serverId, cwd }) => {

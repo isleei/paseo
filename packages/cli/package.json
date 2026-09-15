@@ -3,6 +3,7 @@
   "version": "0.8.0",
   "description": "Paseo CLI - control your AI coding agents from the command line",
   "bin": {
+    "paimon": "bin/paseo",
     "paseo": "bin/paseo"
   },
   "files": [

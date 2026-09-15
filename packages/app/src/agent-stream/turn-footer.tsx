@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useMemo, type ReactNode } from "react";
 import { View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { MAX_CONTENT_WIDTH } from "@/constants/layout";
+import { MAX_CONTENT_WIDTH, useIsCompactFormFactor } from "@/constants/layout";
 import { SPACING, type Theme } from "@/styles/theme";
 import type { TurnTiming } from "@/timeline/turn-time";
 import type { StreamItem } from "@/types/stream";
@@ -208,7 +208,15 @@ function CompletedTurnFooter({
 }
 
 function TurnFooterRow({ children }: { children: ReactNode }) {
-  const rowStyle = useMemo(() => [stylesheet.streamItemWrapper, stylesheet.turnFooterRow], []);
+  const isCompact = useIsCompactFormFactor();
+  const rowStyle = useMemo(
+    () => [
+      stylesheet.streamItemWrapper,
+      stylesheet.turnFooterRow,
+      !isCompact && stylesheet.turnFooterDesktopDivider,
+    ],
+    [isCompact],
+  );
   return <View style={rowStyle}>{children}</View>;
 }
 
@@ -221,6 +229,13 @@ const stylesheet = StyleSheet.create((theme) => ({
   },
   turnFooterRow: {
     marginTop: theme.spacing[2] + 5,
+  },
+  // Codex-style turn grouping, desktop only: a hairline above the completed /
+  // working footer separates one assistant turn from the next user message.
+  turnFooterDesktopDivider: {
+    borderTopWidth: theme.borderWidth[1],
+    borderTopColor: theme.colors.border,
+    paddingTop: theme.spacing[3],
   },
   turnFooterSlot: {
     flexDirection: "row",

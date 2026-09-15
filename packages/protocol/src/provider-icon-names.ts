@@ -11,6 +11,7 @@ export const BUILTIN_PROVIDER_ICON_NAMES = [
 
 export const ACP_PROVIDER_ICON_NAMES = [
   "agoragentic-acp",
+  "agy-acp",
   "amp-acp",
   "auggie",
   "autohand",

@@ -20,7 +20,7 @@ import {
   foregroundMutedColorMapping,
   sectionKitStyles,
   successColorMapping,
-} from "@/git/pull-request-panel/section-kit";
+} from "@/components/ui/section";
 import { useGitLabPipeline } from "@/git/pull-request-panel/use-pipeline";
 import {
   classifyGitlabPipelineJob,

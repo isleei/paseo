@@ -41,6 +41,8 @@ import { WorkspaceActions } from "@/git/workspace-actions";
 import { WorkspaceOpenInEditorButton } from "@/workspace/open-in-editor/button";
 import { WorkspaceScriptsButton } from "@/screens/workspace/workspace-scripts-button";
 import { ImportSessionSheet } from "@/components/import-session-sheet";
+import { CommitSheetHost } from "@/git/commit-sheet";
+import { WorkspaceInfoRail } from "@/workspace-rail";
 import { useNavigateToImportedAgent } from "@/hooks/use-import-session";
 import { useToast } from "@/contexts/toast-context";
 import { getOrCreateClientId } from "@/utils/client-id";
@@ -234,6 +236,12 @@ function getWorkspaceFileLocationFields(
     return { path: null };
   }
   return { path: target.path, lineStart: target.lineStart, lineEnd: target.lineEnd };
+}
+
+/** The rail describes the active agent, so a non-agent tab leaves it with no task list to show. */
+function getWorkspaceActiveAgentId(tab: WorkspaceTabDescriptor | null): string | null {
+  const target = tab?.target;
+  return target?.kind === "agent" ? target.agentId : null;
 }
 
 function buildWorkspaceFileLocation(
@@ -4029,6 +4037,20 @@ function WorkspaceScreenContent({
     />
   );
 
+  // Hoisted out of `centerContent` rather than inlined: the JSX nesting there is already at the
+  // linter's ceiling, and this file's habit is to name big subtrees as consts.
+  const workspaceInfoRail = (
+    <WorkspaceInfoRail
+      serverId={normalizedServerId}
+      workspaceId={normalizedWorkspaceId}
+      cwd={workspaceDirectory}
+      agentId={getWorkspaceActiveAgentId(activeTabDescriptor)}
+      checkout={activeExplorerCheckout}
+      preferences={openInSidePane}
+      workspaceKey={persistenceKey}
+    />
+  );
+
   const workspaceCenterColumn = (
     <View style={styles.centerColumn}>
       {rendersDesktopSplitContent ? null : renderWorkspaceScreenHeader()}
@@ -4084,7 +4106,10 @@ function WorkspaceScreenContent({
         </NewTabLauncherProvider>
       ) : null}
 
-      <View style={styles.centerContent}>{workspacePanelContent}</View>
+      <View style={styles.centerContent}>
+        {workspacePanelContent}
+        {workspaceInfoRail}
+      </View>
     </View>
   );
 
@@ -4113,6 +4138,7 @@ function WorkspaceScreenContent({
           onImportedAgent={handleImportedAgent}
           onImported={navigateToImportedAgent}
         />
+        <CommitSheetHost />
         <WorkspaceTabRenameModal
           renamingTab={isRouteFocused ? renamingTab : null}
           onSubmit={handleRenameModalSubmit}

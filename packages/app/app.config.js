@@ -89,6 +89,21 @@ const variants = {
       fallbackRelativePath: "./.secrets/GoogleService-Info.debug.plist",
     }),
   },
+  // Fork-local variant for side-by-side installs alongside production Paseo.
+  // Keeps the paseo:// scheme + protocol untouched so upstream merges stay clean.
+  // Usage: APP_VARIANT=paimon npm run dev:app
+  paimon: {
+    name: "Paimon",
+    packageId: "sh.paimon",
+    googleServicesFile: resolveSecretFile({
+      envKey: "GOOGLE_SERVICES_FILE_PAIMON",
+      fallbackRelativePath: "./.secrets/google-services.paimon.json",
+    }),
+    googleServiceInfoPlist: resolveSecretFile({
+      envKey: "GOOGLE_SERVICE_INFO_PLIST_PAIMON",
+      fallbackRelativePath: "./.secrets/GoogleService-Info.paimon.plist",
+    }),
+  },
 };
 
 const variant = variants[appVariant] ?? variants.production;

@@ -776,6 +776,41 @@ export class CheckoutSession {
     }
   }
 
+  async handleCheckoutGitGenerateCommitMessageRequest(
+    msg: Extract<SessionInboundMessage, { type: "checkout.git.generate_commit_message.request" }>,
+  ): Promise<void> {
+    const { cwd, requestId } = msg;
+
+    try {
+      const message = await this.gitMetadataGenerator.generateCommitMessage(cwd);
+      if (!message) {
+        throw new Error("Unable to generate a commit message for the current changes");
+      }
+
+      this.host.emit({
+        type: "checkout.git.generate_commit_message.response",
+        payload: {
+          cwd,
+          message,
+          success: true,
+          error: null,
+          requestId,
+        },
+      });
+    } catch (error) {
+      this.host.emit({
+        type: "checkout.git.generate_commit_message.response",
+        payload: {
+          cwd,
+          message: null,
+          success: false,
+          error: toCheckoutError(error),
+          requestId,
+        },
+      });
+    }
+  }
+
   async handleCheckoutMergeRequest(
     msg: Extract<SessionInboundMessage, { type: "checkout_merge_request" }>,
   ): Promise<void> {

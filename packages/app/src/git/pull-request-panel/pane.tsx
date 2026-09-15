@@ -80,7 +80,7 @@ import {
   foregroundMutedColorMapping,
   sectionKitStyles,
   successColorMapping,
-} from "./section-kit";
+} from "@/components/ui/section";
 
 const ThemedCircleCheck = withUnistyles(CircleCheck);
 const ThemedCircleX = withUnistyles(CircleX);
