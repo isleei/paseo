@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useGlobalSearchParams } from "expo-router";
+import { router, useGlobalSearchParams } from "expo-router";
 import { getIsElectronRuntimeMac } from "@/constants/layout";
 import { isNative } from "@/constants/platform";
 import { getDesktopHost, type DesktopIslandAgentPush } from "@/desktop/host";
@@ -7,6 +7,7 @@ import { listenToDesktopEvent } from "@/desktop/electron/events";
 import { useAggregatedAgents } from "@/hooks/use-aggregated-agents";
 import { useSessionStore } from "@/stores/session-store";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
+import { buildNewWorkspaceRoute, buildSettingsSectionRoute } from "@/utils/host-routes";
 import type { AgentPermissionResponse } from "@getpaseo/protocol/agent-types";
 
 const PUSH_DEBOUNCE_MS = 500;
@@ -182,12 +183,20 @@ export function useIslandSync() {
             navigateToAgent({ serverId, agentId });
           },
         );
+        const unlistenNewMessage = await listenToDesktopEvent("island-new-message", () => {
+          router.push(buildNewWorkspaceRoute());
+        });
+        const unlistenOpenSettings = await listenToDesktopEvent("island-open-settings", () => {
+          router.push(buildSettingsSectionRoute("notifications"));
+        });
         if (disposed) {
           unlistenPermission();
           unlistenFocus();
+          unlistenNewMessage();
+          unlistenOpenSettings();
           return;
         }
-        unlistens.push(unlistenPermission, unlistenFocus);
+        unlistens.push(unlistenPermission, unlistenFocus, unlistenNewMessage, unlistenOpenSettings);
       } catch (error) {
         console.warn("[island] event subscription failed", error);
       }
