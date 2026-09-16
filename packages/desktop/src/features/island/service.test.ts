@@ -60,6 +60,7 @@ interface TestDisplayState {
 interface TestHostOptions {
   onPermissionAction: (action: { requestId: string; action: string }) => void;
   onFocusSession: (sessionId: string) => void;
+  onDismissSession: (sessionId: string) => void;
   [key: string]: unknown;
 }
 
@@ -220,6 +221,32 @@ describe("PaseoIslandService", () => {
     ]);
     const latest = published[published.length - 1]?.state;
     expect(latest?.sessions[0]).toMatchObject({ sessionId: "a1", phase: "error" });
+    service.shutdown();
+  });
+
+  it("dismisses an error card via the island dismiss action", () => {
+    const { service } = makeService();
+    const base = {
+      agentId: "a1",
+      serverId: "s1",
+      title: "hello",
+      projectName: null,
+      agentKind: "opencode",
+      pendingPermissions: [],
+      lastAssistantText: null,
+      statusText: null,
+    } as const;
+    service.pushAgents([
+      { ...base, status: "running", requiresAttention: false, attentionReason: null },
+    ]);
+    service.pushAgents([
+      { ...base, status: "idle", requiresAttention: true, attentionReason: "error" },
+    ]);
+    expect(published[published.length - 1]?.state.sessions).toHaveLength(1);
+    hostOptions?.onDismissSession?.("a1");
+    const latest = published[published.length - 1]?.state;
+    expect(latest?.sessions).toHaveLength(0);
+    expect(latest?.pillSnapshot.attentionCount).toBe(0);
     service.shutdown();
   });
 });

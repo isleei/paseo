@@ -68,6 +68,7 @@ interface MacAgentIslandNativeHostOptions {
   onExpand: (displayId?: number | null) => void;
   onCollapse: (displayId?: number | null) => void;
   onFocusSession: (sessionId: string) => void;
+  onDismissSession: (sessionId: string) => void;
   onOpenSettings: () => void;
   onNewMessage: () => void;
   onToggleSound: () => void;
@@ -529,6 +530,16 @@ export class MacAgentIslandNativeHost {
     ) {
       log.info("native helper focus-session", { sessionId: payload.sessionId });
       this.options.onFocusSession(payload.sessionId);
+      return;
+    }
+
+    if (
+      payload.type === "dismiss-session" &&
+      this.child === child &&
+      typeof payload.sessionId === "string"
+    ) {
+      log.info("native helper dismiss-session", { sessionId: payload.sessionId });
+      this.options.onDismissSession(payload.sessionId);
       return;
     }
 

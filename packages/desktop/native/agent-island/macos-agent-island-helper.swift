@@ -3345,6 +3345,9 @@ struct ExpandedSessionsView: View {
         onFocus: {
           eventSink(["type": "focus-session", "sessionId": current.sessionId])
         },
+        onDismiss: {
+          eventSink(["type": "dismiss-session", "sessionId": current.sessionId])
+        },
         onPermissionAction: emitPermissionAction
       )
       .equatable()
@@ -3385,6 +3388,9 @@ struct ExpandedSessionsView: View {
           onFocus: {
             eventSink(["type": "focus-session", "sessionId": session.sessionId])
           },
+          onDismiss: {
+            eventSink(["type": "dismiss-session", "sessionId": session.sessionId])
+          },
           onPermissionAction: emitPermissionAction
         )
         .equatable()
@@ -3409,12 +3415,14 @@ struct ExpandedSessionRow: View, Equatable {
   let strings: AgentIslandStrings
   let mascotSkin: String
   let onFocus: () -> Void
+  let onDismiss: () -> Void
   let onPermissionAction: (AgentIslandPermissionAction, String) -> Void
   @State private var isHovered = false
 
   static func == (lhs: ExpandedSessionRow, rhs: ExpandedSessionRow) -> Bool {
-    // Callbacks are intentionally excluded: onFocus is keyed by sessionId and
-    // onPermissionAction only forwards to eventSink. Re-evaluate new callbacks here.
+    // Callbacks are intentionally excluded: onFocus/onDismiss are keyed by
+    // sessionId and onPermissionAction only forwards to eventSink.
+    // Re-evaluate new callbacks here.
     lhs.session == rhs.session
       && lhs.updatedAt == rhs.updatedAt
       && lhs.strings == rhs.strings
@@ -3463,6 +3471,17 @@ struct ExpandedSessionRow: View, Equatable {
       if session.permissionAction == nil {
         onFocus()
       }
+    }
+    .overlay(alignment: .topTrailing) {
+      Button(action: onDismiss) {
+        Image(systemName: "xmark")
+          .font(.system(size: 10, weight: .semibold))
+          .foregroundColor(.secondary)
+          .opacity(isHovered ? 0.9 : 0.45)
+      }
+      .buttonStyle(.plain)
+      .padding(.top, 8)
+      .padding(.trailing, 10)
     }
     .animation(.easeOut(duration: 0.12), value: isHovered)
   }

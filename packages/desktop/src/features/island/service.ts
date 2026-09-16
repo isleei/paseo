@@ -157,6 +157,11 @@ export class PaseoIslandService {
       onFocusSession: (sessionId) => {
         this.options.onEvent({ type: "focus-agent", agentId: sessionId });
       },
+      onDismissSession: (sessionId) => {
+        // Explicit user dismissal: force-clear unread/reveal/dwell even for
+        // errors, then republish so the card drops the same cycle.
+        this.acknowledgeRead(sessionId);
+      },
       onOpenSettings: () => this.options.onEvent({ type: "open-settings" }),
       onNewMessage: () => this.options.onEvent({ type: "new-message" }),
       onToggleSound: () => {
@@ -488,12 +493,19 @@ export class PaseoIslandService {
     }
     const displayState = this.decorateDisplayState(buildAgentIslandDisplayState(this.state, now));
     this.playTransitionSounds(displayState);
-    const frame = this.computeFrame(displayState);
-    if (!frame) {
+    const displays = this.getTargetDisplays();
+    if (displays.length === 0) {
       this.nativeHost.suspend();
       return;
     }
-    this.nativeHost.publish(displayState, frame);
+    const statesByDisplayId = this.computeStatesByDisplayId(displayState, displays);
+    const frames = displays.map((display) => {
+      const stateForDisplay =
+        (statesByDisplayId?.[String(display.id)] as AgentIslandDisplayState | undefined) ??
+        displayState;
+      return this.computeFrame(stateForDisplay, display);
+    });
+    this.nativeHost.publish(displayState, frames, statesByDisplayId);
     const nextAt = getNextAgentIslandTimerAt(this.state, Date.now());
     if (nextAt !== null) {
       const delay = Math.max(0, nextAt - Date.now());
@@ -530,10 +542,10 @@ export class PaseoIslandService {
     };
   }
 
-  private computeFrame(displayState: AgentIslandDisplayState): AgentIslandNativeFrame | null {
-    const displays = screen.getAllDisplays();
-    if (displays.length === 0) return null;
-    const target = this.resolveTargetDisplay(displays);
+  private computeFrame(
+    displayState: AgentIslandDisplayState,
+    target: Display,
+  ): AgentIslandNativeFrame {
     const expanded = displayState.mode === "expanded";
     const hasSession = displayState.sessions.length > 0;
     const preferences = readAgentIslandLayoutPreferences();
@@ -601,12 +613,63 @@ export class PaseoIslandService {
     };
   }
 
-  private resolveTargetDisplay(displays: Display[]): Display {
+  private getAvailableDisplays(): Display[] {
+    const displays = screen.getAllDisplays();
+    return displays.length > 0 ? displays : [screen.getPrimaryDisplay()];
+  }
+
+  private getTargetDisplays(displays: Display[] = this.getAvailableDisplays()): Display[] {
     const selected = this.displayTarget;
     if (selected.mode === "display") {
       const match = displays.find((d) => d.id === selected.displayId);
-      if (match) return match;
+      // A temporary disconnect renders on primary; the saved identity is kept
+      // so reconnecting restores the user's choice.
+      return [match ?? screen.getPrimaryDisplay()];
     }
-    return screen.getPrimaryDisplay();
+    return displays;
   }
+
+  /**
+   * Per-display states for manual expand: the expanded card stays on the
+   * display it was opened on, every other display falls back to compact.
+   */
+  private computeStatesByDisplayId(
+    displayState: AgentIslandDisplayState,
+    displays: Display[],
+  ): Record<string, AgentIslandDisplayState> | undefined {
+    if (
+      displayState.mode !== "expanded" ||
+      displayState.displayPolicy !== "manualExpanded" ||
+      typeof displayState.expandedDisplayId !== "number" ||
+      displays.length <= 1
+    ) {
+      return undefined;
+    }
+    if (!displays.some((display) => display.id === displayState.expandedDisplayId)) {
+      return undefined;
+    }
+    return Object.fromEntries(
+      displays.map((display) => [
+        String(display.id),
+        display.id === displayState.expandedDisplayId
+          ? displayState
+          : collapseManualExpandedStateForInactiveDisplay(displayState),
+      ]),
+    );
+  }
+}
+
+function collapseManualExpandedStateForInactiveDisplay(
+  displayState: AgentIslandDisplayState,
+): AgentIslandDisplayState {
+  return {
+    ...displayState,
+    mode: "compact",
+    notchStatus: displayState.currentSessionId ? "peek" : "closed",
+    displayPolicy: displayState.currentSessionId ? "peek" : "closed",
+    displaySurface: "collapsed",
+    layoutMode: "compact",
+    shadowVisible: false,
+    expandedDisplayId: null,
+  };
 }
