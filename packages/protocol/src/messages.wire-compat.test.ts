@@ -2,13 +2,14 @@ import { describe, expect, test } from "vitest";
 import { z } from "zod";
 import {
   AgentSnapshotPayloadSchema,
+  AgentTimelineEntryPayloadSchema,
   AgentTimelineItemPayloadSchema,
+  ClearAgentAttentionMessageSchema,
   ServerInfoStatusPayloadSchema,
   SessionOutboundMessageSchema,
-  WSHelloMessageSchema,
-  WorkspaceSetupSnapshotSchema,
   WorkspaceSetupProgressMessageSchema,
-  AgentTimelineEntryPayloadSchema,
+  WorkspaceSetupSnapshotSchema,
+  WSHelloMessageSchema,
 } from "./messages.js";
 
 test("terminal listings accept older rows and retain new per-terminal directories", () => {
@@ -67,6 +68,22 @@ const LegacyAgentSnapshotPayloadSchema = AgentSnapshotPayloadSchema.extend({
 });
 
 describe("wire schema compatibility", () => {
+  test("clear_agent_attention carries opt-in error settling", () => {
+    expect(
+      ClearAgentAttentionMessageSchema.parse({
+        type: "clear_agent_attention",
+        agentId: "agent-1",
+      }),
+    ).toEqual({ type: "clear_agent_attention", agentId: "agent-1" });
+    expect(
+      ClearAgentAttentionMessageSchema.parse({
+        type: "clear_agent_attention",
+        agentId: ["agent-1"],
+        settleErrorStatus: true,
+      }),
+    ).toEqual({ type: "clear_agent_attention", agentId: ["agent-1"], settleErrorStatus: true });
+  });
+
   test("hello parses with and without the project update capability", () => {
     const legacy = WSHelloMessageSchema.parse({
       type: "hello",

@@ -2080,10 +2080,31 @@ export class AgentManager {
     this.emitState(agent);
   }
 
-  async clearAgentAttention(agentId: string): Promise<void> {
+  async clearAgentAttention(
+    agentId: string,
+    options?: { settleErrorStatus?: boolean },
+  ): Promise<void> {
     const agent = this.requireAgent(agentId);
+    // Read through a widened local: matching lifecycle below must not narrow
+    // `agent` itself, or the idle write trips the discriminated union.
+    const lifecycle: AgentLifecycleStatus = agent.lifecycle;
+    let changed = false;
     if (agent.attention.requiresAttention) {
       agent.attention = { requiresAttention: false };
+      changed = true;
+    }
+    // Viewing settles a terminal error display back to idle. The failure stays
+    // recorded in lastError; only the nagging row state is dropped. Agents
+    // awaiting a permission decision keep their state untouched.
+    if (
+      options?.settleErrorStatus === true &&
+      lifecycle === "error" &&
+      agent.pendingPermissions.size === 0
+    ) {
+      agent.lifecycle = "idle";
+      changed = true;
+    }
+    if (changed) {
       await this.persistSnapshot(agent);
       this.emitState(agent, { persist: false });
     }

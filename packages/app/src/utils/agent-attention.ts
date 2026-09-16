@@ -5,6 +5,7 @@ interface ShouldClearAgentAttentionInput {
   isConnected: boolean;
   requiresAttention: boolean | null | undefined;
   attentionReason?: "finished" | "error" | "permission" | null | undefined;
+  agentStatus?: string | null | undefined;
   trigger?: AgentAttentionClearTrigger;
   hasDeferredFocusEntryClear?: boolean;
 }
@@ -69,7 +70,9 @@ export function shouldClearAgentAttention(input: ShouldClearAgentAttentionInput)
     return false;
   }
   if (!input.requiresAttention) {
-    return false;
+    // A viewed error display still settles even without attention flags: the
+    // daemon keeps lastError, only the nagging row state is dropped.
+    return input.agentStatus === "error";
   }
   if (input.attentionReason === "permission") {
     return false;

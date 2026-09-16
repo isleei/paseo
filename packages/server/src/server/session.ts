@@ -2709,7 +2709,7 @@ export class Session {
       case "agent_permission_response":
         return this.handleAgentPermissionResponse(msg.agentId, msg.requestId, msg.response);
       case "clear_agent_attention":
-        return this.handleClearAgentAttention(msg.agentId, msg.requestId);
+        return this.handleClearAgentAttention(msg.agentId, msg.requestId, msg.settleErrorStatus);
       default:
         return undefined;
     }
@@ -4784,6 +4784,7 @@ export class Session {
   private async handleClearAgentAttention(
     agentId: string | string[],
     requestId?: string,
+    settleErrorStatus?: boolean,
   ): Promise<void> {
     const agentIds = Array.isArray(agentId) ? agentId : [agentId];
 
@@ -4797,7 +4798,9 @@ export class Session {
           }),
         ),
       );
-      await Promise.all(agentIds.map((id) => this.agentManager.clearAgentAttention(id)));
+      await Promise.all(
+        agentIds.map((id) => this.agentManager.clearAgentAttention(id, { settleErrorStatus })),
+      );
       if (requestId) {
         const agents = (
           await Promise.all(

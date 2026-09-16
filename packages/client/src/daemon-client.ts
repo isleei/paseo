@@ -1910,12 +1910,16 @@ export class DaemonClient {
     }
   }
 
-  async clearAgentAttention(agentId: string | string[]): Promise<void> {
+  async clearAgentAttention(
+    agentId: string | string[],
+    options?: { settleErrorStatus?: boolean },
+  ): Promise<void> {
     const requestId = this.createRequestId();
     const message = SessionInboundMessageSchema.parse({
       type: "clear_agent_attention",
       agentId,
       requestId,
+      ...(options?.settleErrorStatus === true ? { settleErrorStatus: true } : {}),
     });
     await this.sendRequest({
       requestId,

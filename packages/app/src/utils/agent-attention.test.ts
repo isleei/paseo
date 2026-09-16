@@ -141,6 +141,45 @@ describe("shouldClearAgentAttention", () => {
       }),
     ).toBe(true);
   });
+
+  it("settles a viewed error display even without attention flags", () => {
+    expect(
+      shouldClearAgentAttention({
+        agentId: "agent-1",
+        isConnected: true,
+        requiresAttention: false,
+        attentionReason: null,
+        agentStatus: "error",
+        trigger: "focus-entry",
+      }),
+    ).toBe(true);
+  });
+
+  it("keeps permission-gated errors uncleared", () => {
+    expect(
+      shouldClearAgentAttention({
+        agentId: "agent-1",
+        isConnected: true,
+        requiresAttention: true,
+        attentionReason: "permission",
+        agentStatus: "error",
+        trigger: "focus-entry",
+      }),
+    ).toBe(false);
+  });
+
+  it("leaves non-error idle agents alone", () => {
+    expect(
+      shouldClearAgentAttention({
+        agentId: "agent-1",
+        isConnected: true,
+        requiresAttention: false,
+        attentionReason: null,
+        agentStatus: "idle",
+        trigger: "focus-entry",
+      }),
+    ).toBe(false);
+  });
 });
 
 describe("pickAttentionAgent", () => {

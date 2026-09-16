@@ -7807,6 +7807,161 @@ test("clearAgentAttention on errored agent stays cleared until a new error trans
   expect(persistedAfterSecondFailure?.attentionReason).toBe("error");
 });
 
+test("clearAgentAttention with settleErrorStatus settles a viewed error", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-settle-error-"));
+  const storagePath = join(workdir, "agents");
+  const storage = new AgentStorage(storagePath, logger);
+
+  class FailingSession extends TestAgentSession {
+    override async startTurn(): Promise<{ turnId: string }> {
+      const turnId = "fail-turn-1";
+      setTimeout(() => {
+        this.pushEvent({ type: "turn_started", provider: this.provider, turnId });
+        this.pushEvent({
+          type: "turn_failed",
+          provider: this.provider,
+          error: "boom-1",
+          turnId,
+        });
+      }, 0);
+      return { turnId };
+    }
+  }
+
+  class FailingClient implements AgentClient {
+    readonly provider = "codex" as const;
+    readonly capabilities = TEST_CAPABILITIES;
+
+    async isAvailable(): Promise<boolean> {
+      return true;
+    }
+
+    async createSession(config: AgentSessionConfig): Promise<AgentSession> {
+      return new FailingSession(config);
+    }
+
+    async resumeSession(config?: Partial<AgentSessionConfig>): Promise<AgentSession> {
+      return new FailingSession({
+        provider: "codex",
+        cwd: config?.cwd ?? process.cwd(),
+      });
+    }
+  }
+
+  const manager = new AgentManager({
+    clients: {
+      codex: new FailingClient(),
+    },
+    registry: storage,
+    logger,
+    idFactory: () => "00000000-0000-4000-8000-000000000131",
+  });
+
+  const agent = await manager.createAgent(
+    {
+      provider: "codex",
+      cwd: workdir,
+      title: "Settle error test",
+    },
+    undefined,
+    { workspaceId: undefined },
+  );
+
+  await expect(manager.runAgent(agent.id, "fail once")).rejects.toThrow("boom-1");
+  await manager.flush();
+  expect(manager.getAgent(agent.id)?.lifecycle).toBe("error");
+
+  await manager.clearAgentAttention(agent.id, { settleErrorStatus: true });
+  await manager.flush();
+
+  const afterSettle = manager.getAgent(agent.id);
+  expect(afterSettle?.lifecycle).toBe("idle");
+  expect(afterSettle?.lastError).toBe("boom-1");
+  expect(afterSettle?.attention).toEqual({ requiresAttention: false });
+
+  const persisted = await storage.get(agent.id);
+  expect(persisted?.lastStatus).toBe("idle");
+  rmSync(workdir, { recursive: true, force: true });
+});
+
+test("clearAgentAttention settle skips agents awaiting permission", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-settle-perm-"));
+  const storagePath = join(workdir, "agents");
+  const storage = new AgentStorage(storagePath, logger);
+
+  class FailingSession extends TestAgentSession {
+    override async startTurn(): Promise<{ turnId: string }> {
+      const turnId = "fail-turn-1";
+      setTimeout(() => {
+        this.pushEvent({ type: "turn_started", provider: this.provider, turnId });
+        this.pushEvent({
+          type: "turn_failed",
+          provider: this.provider,
+          error: "boom-1",
+          turnId,
+        });
+      }, 0);
+      return { turnId };
+    }
+  }
+
+  class FailingClient implements AgentClient {
+    readonly provider = "codex" as const;
+    readonly capabilities = TEST_CAPABILITIES;
+
+    async isAvailable(): Promise<boolean> {
+      return true;
+    }
+
+    async createSession(config: AgentSessionConfig): Promise<AgentSession> {
+      return new FailingSession(config);
+    }
+
+    async resumeSession(config?: Partial<AgentSessionConfig>): Promise<AgentSession> {
+      return new FailingSession({
+        provider: "codex",
+        cwd: config?.cwd ?? process.cwd(),
+      });
+    }
+  }
+
+  const manager = new AgentManager({
+    clients: {
+      codex: new FailingClient(),
+    },
+    registry: storage,
+    logger,
+    idFactory: () => "00000000-0000-4000-8000-000000000132",
+  });
+
+  const agent = await manager.createAgent(
+    {
+      provider: "codex",
+      cwd: workdir,
+      title: "Settle guard test",
+    },
+    undefined,
+    { workspaceId: undefined },
+  );
+
+  await expect(manager.runAgent(agent.id, "fail once")).rejects.toThrow("boom-1");
+  await manager.flush();
+
+  manager.getAgent(agent.id)?.pendingPermissions.set("perm-1", {
+    id: "perm-1",
+    provider: "codex",
+    name: "Bash",
+    kind: "tool",
+    input: {},
+  });
+
+  await manager.clearAgentAttention(agent.id, { settleErrorStatus: true });
+  await manager.flush();
+
+  expect(manager.getAgent(agent.id)?.lifecycle).toBe("error");
+  rmSync(workdir, { recursive: true, force: true });
+});
+
 test("streamAgent clears pending run when startTurn fails before a turn id exists", async () => {
   const workdir = mkdtempSync(join(tmpdir(), "agent-manager-start-turn-failure-"));
   const storagePath = join(workdir, "agents");

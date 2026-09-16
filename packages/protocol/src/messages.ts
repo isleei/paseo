@@ -2832,6 +2832,10 @@ export const ClearAgentAttentionMessageSchema = z.object({
   type: z.literal("clear_agent_attention"),
   agentId: z.union([z.string(), z.array(z.string())]),
   requestId: z.string().optional(),
+  // Settle a terminal error display (error lifecycle back to idle, lastError
+  // kept) when the user has seen the session. Never resolves pending
+  // permission decisions; those keep their own state.
+  settleErrorStatus: z.boolean().optional(),
 });
 
 export const ClientHeartbeatMessageSchema = z.object({
