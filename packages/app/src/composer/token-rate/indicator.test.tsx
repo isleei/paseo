@@ -96,6 +96,17 @@ describe("TokenRateIndicator", () => {
     expect(screen.queryByTestId("composer.tokenRate-value")).toBeNull();
   });
 
+  it("shows live context occupancy when billed token totals have not arrived yet", () => {
+    render(<TokenRateIndicator serverId={SERVER_ID} agentId={AGENT_ID} />);
+
+    act(() => seedAgents(openTurn("turn-1", EPOCH), { contextWindowUsedTokens: 131_527 }));
+
+    const total = screen.getByTestId("composer-token-rate-total");
+    expect(total.textContent).toContain("131.5K");
+    expect(total.textContent).toContain(i18n.t("composer.tokenRate.tokensLabel"));
+    expect(screen.queryByTestId("composer-token-rate-cache")).toBeNull();
+  });
+
   it("shows the measured rate alongside the session totals", () => {
     render(<TokenRateIndicator serverId={SERVER_ID} agentId={AGENT_ID} />);
 
@@ -103,8 +114,8 @@ describe("TokenRateIndicator", () => {
     act(() => {
       vi.setSystemTime(EPOCH + 2_000);
       seedAgents(openTurn("turn-1", EPOCH), {
-        inputTokens: 12_000,
-        cachedInputTokens: 8_000,
+        inputTokens: 20_000,
+        cachedInputTokens: 18_000,
         outputTokens: 220,
       });
     });
@@ -113,7 +124,7 @@ describe("TokenRateIndicator", () => {
     expect(indicator.textContent).toContain("60");
     expect(indicator.textContent).toContain(i18n.t("composer.tokenRate.unit"));
     expect(indicator.textContent).toContain("20.2K");
-    expect(indicator.textContent).toContain("40%");
+    expect(indicator.textContent).toContain("90%");
     expect(indicator.textContent).toContain(i18n.t("composer.tokenRate.cacheLabel"));
   });
 });

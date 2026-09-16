@@ -93,14 +93,19 @@ export interface SessionUsageTotals {
 }
 
 /**
- * Every provider reports `cachedInputTokens` separately from `inputTokens` (Anthropic's
- * `cache_read_input_tokens` convention), so the cache share is cached / (uncached + cached).
+ * Codex/OpenAI and ACP report cache as a subset of `inputTokens` (`total === input + output`).
+ * Anthropic, Pi, and OpenCode report cache as a disjoint counter, so `cachedInputTokens` can
+ * exceed `inputTokens`. Adding cache in the subset case pins a high-hit turn at ~50%.
  */
 export function deriveSessionUsageTotals(usage: AgentUsage): SessionUsageTotals {
   const inputTokens = usage.inputTokens ?? 0;
   const cachedInputTokens = usage.cachedInputTokens ?? 0;
   const outputTokens = usage.outputTokens ?? 0;
-  const inputTotal = inputTokens + cachedInputTokens;
+  const cacheReportedSeparately = cachedInputTokens > inputTokens;
+  let inputTotal = inputTokens;
+  if (cacheReportedSeparately) {
+    inputTotal += cachedInputTokens;
+  }
   return {
     totalTokens: inputTotal + outputTokens,
     cacheHitRate: inputTotal > 0 ? cachedInputTokens / inputTotal : null,

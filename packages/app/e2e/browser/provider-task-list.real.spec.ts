@@ -49,9 +49,7 @@ test.describe("real provider composer task lists", () => {
   test.setTimeout(600_000);
 
   for (const scenario of scenarios) {
-    test(`${scenario.provider} shows native task progress above the composer`, async ({
-      page,
-    }, testInfo) => {
+    test(`${scenario.provider} shows native task progress`, async ({ page }, testInfo) => {
       const cwd = realpathSync(
         mkdtempSync(path.join(tmpdir(), `paseo-task-list-${scenario.provider}-`)),
       );

@@ -13,6 +13,7 @@ describe("resolveCreateAgentIntent", () => {
     });
 
     expect(intent).toEqual({
+      kind: "workspace",
       workspaceId: "workspace-isolated",
       cwd: "/isolated",
       parentAgentId: "parent-agent",
@@ -35,6 +36,7 @@ describe("resolveCreateAgentIntent", () => {
     });
 
     expect(intent.workspaceId).toBe("workspace-parent");
+    expect(intent.kind).toBe("workspace");
     expect(intent.cwd).toBe("/parent");
     expect(intent.parentAgentId).toBe("parent-agent");
     expect(createCount).toBe(0);
@@ -48,6 +50,7 @@ describe("resolveCreateAgentIntent", () => {
     });
 
     expect(intent).toEqual({
+      kind: "workspace",
       workspaceId: "workspace-created",
       cwd: "/created",
       parentAgentId: null,
@@ -65,10 +68,32 @@ describe("resolveCreateAgentIntent", () => {
     });
 
     expect(intent).toEqual({
+      kind: "workspace",
       workspaceId: "workspace-parent",
       cwd: "/parent",
       parentAgentId: null,
       labels: {},
     });
+  });
+
+  it("keeps an explicitly standalone human agent outside every workspace", async () => {
+    let createCount = 0;
+    const intent = await resolveCreateAgentIntent({
+      caller: null,
+      placement: { kind: "standalone", cwd: "/scratch" },
+      resolveWorkspace: async (workspaceId) => ({ workspaceId, cwd: "/unused" }),
+      createWorkspace: async () => {
+        createCount += 1;
+        return { workspaceId: "workspace-created", cwd: "/created" };
+      },
+    });
+
+    expect(intent).toEqual({
+      kind: "standalone",
+      cwd: "/scratch",
+      parentAgentId: null,
+      labels: {},
+    });
+    expect(createCount).toBe(0);
   });
 });

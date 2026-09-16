@@ -197,7 +197,9 @@ export function createControlGeometry(theme: Theme) {
     fieldTextMd,
     controlRest: {
       borderWidth: controlBorderWidth,
-      borderColor: "transparent",
+      // Light fields are a fill; the hairline arrives on hover. Dark fills sit
+      // too close to the canvas, so the resting stroke has to be present.
+      borderColor: theme.colorScheme === "dark" ? theme.colors.border : "transparent",
       outlineWidth: 0,
       outlineColor: "transparent",
     },

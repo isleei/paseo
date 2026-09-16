@@ -241,6 +241,12 @@ describe("global routes", () => {
       }),
     ).toBe("/new?serverId=local&dir=%2Frepo%2Fproject&draftId=draft-1");
   });
+
+  it("buildNewWorkspaceRoute carries standalone session intent", () => {
+    expect(buildNewWorkspaceRoute({ serverId: "local", standalone: true })).toBe(
+      "/new?serverId=local&standalone=1",
+    );
+  });
 });
 
 describe("host settings section slugs", () => {

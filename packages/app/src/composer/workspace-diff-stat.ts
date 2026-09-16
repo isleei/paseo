@@ -5,13 +5,13 @@ type DiffStat = NonNullable<WorkspaceDescriptor["diffStat"]>;
 
 export function useVisibleWorkspaceDiffStat(
   serverId: string,
-  workspaceId: string,
+  workspaceId: string | null,
 ): DiffStat | null {
   const diffStat = useWorkspaceFields(serverId, workspaceId, (workspace) => workspace.diffStat);
   return hasDiffStatChanges(diffStat) ? diffStat : null;
 }
 
-export function useWorkspaceHasDiffStat(serverId: string, workspaceId: string): boolean {
+export function useWorkspaceHasDiffStat(serverId: string, workspaceId: string | null): boolean {
   return (
     useWorkspaceFields(serverId, workspaceId, (workspace) =>
       hasDiffStatChanges(workspace.diffStat),

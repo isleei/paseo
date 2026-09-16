@@ -27,6 +27,9 @@ import { openComposerChanges } from "@/workspace-tabs/open-supporting-view";
  *
  * The row shares the composer's keyboard transform and owns the space between itself and the
  * transcript. Each pill owns its action while tab placement stays behind the workspace boundary.
+ *
+ * On wide layouts the workspace rail owns the same data, so the tasks and workspace-changes pills
+ * render on compact layouts only; wide layouts read them from the rail.
  */
 export const AgentTracks = memo(function AgentTracks({
   serverId,
@@ -113,12 +116,13 @@ export const AgentTracks = memo(function AgentTracks({
   }, [cwd, isCompact, openInSidePane, serverId, workspaceKey]);
 
   if (
-    !hasWorkspaceDiffStat &&
+    (!isCompact || !hasWorkspaceDiffStat) &&
     !hasAgentTracks({
       subagentRows,
       tasks,
       archiveFinishedStatus,
       hasPluginComposerPills,
+      isCompact,
     })
   ) {
     return null;
@@ -126,7 +130,7 @@ export const AgentTracks = memo(function AgentTracks({
 
   return (
     <ComposerTrackBar>
-      <AgentTaskList tasks={tasks} />
+      {isCompact ? <AgentTaskList tasks={tasks} /> : null}
       <SubagentsTrack
         serverId={serverId}
         rows={subagentRows}
@@ -143,11 +147,13 @@ export const AgentTracks = memo(function AgentTracks({
         agentId={agentId}
         compact={isCompact}
       />
-      <WorkspaceDiffStatPill
-        serverId={serverId}
-        workspaceId={workspaceId}
-        onPress={handleOpenChanges}
-      />
+      {isCompact ? (
+        <WorkspaceDiffStatPill
+          serverId={serverId}
+          workspaceId={workspaceId}
+          onPress={handleOpenChanges}
+        />
+      ) : null}
     </ComposerTrackBar>
   );
 });
@@ -157,15 +163,17 @@ export function hasAgentTracks({
   tasks,
   archiveFinishedStatus,
   hasPluginComposerPills = false,
+  isCompact = false,
 }: {
   subagentRows: readonly SubagentRow[];
   tasks: readonly TodoEntry[] | undefined;
   archiveFinishedStatus: ArchiveFinishedStatus;
   hasPluginComposerPills?: boolean;
+  isCompact?: boolean;
 }): boolean {
   return (
     subagentRows.length > 0 ||
-    Boolean(tasks?.length) ||
+    (isCompact && Boolean(tasks?.length)) ||
     archiveFinishedStatus.kind !== "idle" ||
     hasPluginComposerPills
   );

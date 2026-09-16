@@ -225,6 +225,38 @@ describe("GenericACPAgentClient diagnostics", () => {
     });
   });
 
+  test("fails catalog refresh immediately when the ACP agent exits during initialize", async () => {
+    await withFakeACPAgent("crash-initialize", async (scriptPath, mode) => {
+      const client = new GenericACPAgentClient({
+        logger: createTestLogger(),
+        command: [process.execPath, scriptPath, mode],
+        providerId: "agy-acp",
+        label: "Antigravity ACP",
+      });
+
+      await expect(
+        client.fetchCatalog({ scope: "workspace", cwd: tmpdir(), force: true }),
+      ).rejects.toThrow(/official kernel is missing; set PASEO_AGY_ACP_OFFICIAL_BIN/);
+    });
+  });
+
+  test("reports initialize stderr when the ACP agent exits during diagnostics", async () => {
+    await withFakeACPAgent("crash-initialize", async (scriptPath, mode) => {
+      const client = new GenericACPAgentClient({
+        logger: createTestLogger(),
+        command: [process.execPath, scriptPath, mode],
+        providerId: "agy-acp",
+        label: "Antigravity ACP",
+        diagnosticPhaseTimeoutMs: TEST_ACP_TIMEOUT_MS,
+      });
+
+      const { diagnostic } = await client.getDiagnostic();
+      expect(diagnostic).toContain("ACP spawn: ok");
+      expect(diagnostic).toContain("ACP initialize: error:");
+      expect(diagnostic).toContain("official kernel is missing; set PASEO_AGY_ACP_OFFICIAL_BIN");
+    });
+  });
+
   test("terminates an ACP catalog probe when session/new times out", async () => {
     await withFakeACPAgent("hang-session", async (scriptPath, mode, testDir) => {
       const pidPath = path.join(testDir, "agent.pid");
@@ -328,6 +360,7 @@ async function withFakeACPAgent(
   mode:
     | "success"
     | "hang-session"
+    | "crash-initialize"
     | "history-list"
     | "history-load-failure"
     | "history-load-failures",
@@ -384,6 +417,10 @@ const sessionCwd = process.argv[6];
 const loadTracePath = process.argv[7];
 if (pidPath) {
   fs.writeFileSync(pidPath, String(process.pid));
+}
+if (mode === "crash-initialize") {
+  process.stderr.write("official kernel is missing; set PASEO_AGY_ACP_OFFICIAL_BIN\\n");
+  process.exit(1);
 }
 const rl = readline.createInterface({ input: process.stdin });
 

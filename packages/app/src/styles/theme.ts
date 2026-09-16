@@ -440,6 +440,9 @@ export function buildDarkSemanticColors(tint: DarkThemeConfig) {
 // Dark tint definitions
 // ---------------------------------------------------------------------------
 
+// Dark hairlines sit above surface2 so a 1px stroke still reads on the canvas
+// and on input fills. borderAccent is one step lighter for hover and focus.
+
 // Paseo — subtle teal-green tint (default)
 const paseoDarkColors = buildDarkSemanticColors({
   surface0: "#181B1A",
@@ -451,8 +454,8 @@ const paseoDarkColors = buildDarkSemanticColors({
   surfaceSidebar: "#141716",
   foregroundMuted: "#A1A5A4",
   foregroundExtraMuted: "#717574",
-  border: "#252B2A",
-  borderAccent: "#2F3534",
+  border: "#3A403F",
+  borderAccent: "#4A504F",
   accent: "#20744A",
   accentBright: "#7ccba0",
   destructive: "#c64f43", // warm red, hue ~7 — reads as red (not pink) against the green tint
@@ -471,8 +474,8 @@ const zincDarkColors = buildDarkSemanticColors({
   surfaceSidebar: "#131316",
   foregroundMuted: "#a1a1aa",
   foregroundExtraMuted: "#71717a",
-  border: "#27272a",
-  borderAccent: "#303036",
+  border: "#3a3a40",
+  borderAccent: "#4a4a52",
   accent: "#e4e4e7",
   accentBright: "#fafafa",
   accentForeground: "#18181b", // monochrome zinc accent is near-white — needs dark text
@@ -492,8 +495,8 @@ const midnightDarkColors = buildDarkSemanticColors({
   surfaceSidebar: "#121420",
   foregroundMuted: "#9a9db0",
   foregroundExtraMuted: "#6b6e82",
-  border: "#242636",
-  borderAccent: "#2e3040",
+  border: "#383a48",
+  borderAccent: "#484a5a",
   accent: "#3b6fcf",
   accentBright: "#7eaaeb",
   destructive: "#c44a52", // red with a hint of cool lean against the blue tint
@@ -512,8 +515,8 @@ const claudeDarkColors = buildDarkSemanticColors({
   surfaceSidebar: "#1a1918",
   foregroundMuted: "#ada9a5",
   foregroundExtraMuted: "#78746f",
-  border: "#2c2a27",
-  borderAccent: "#36332f",
+  border: "#3e3b37",
+  borderAccent: "#4e4a45",
   accent: "#d97757",
   accentBright: "#e89a7f",
   destructive: "#cf513e", // warm orange-red, hue ~10 — sits with the Claude orange accent
@@ -532,8 +535,8 @@ const ghosttyDarkColors = buildDarkSemanticColors({
   surfaceSidebar: "#21252d",
   foregroundMuted: "#c8ccd8",
   foregroundExtraMuted: "#a0a4b2",
-  border: "#353a47",
-  borderAccent: "#3f4454",
+  border: "#454b5a",
+  borderAccent: "#555c6e",
   accent: "#89b4fa",
   accentBright: "#b4d0fc",
   destructive: "#c44a55", // red with slight cool lean against the slate-blue surfaces
@@ -705,8 +708,8 @@ const pureBlackDarkColors = buildDarkSemanticColors({
   surfaceSidebar: "#000000",
   foregroundMuted: "#a1a1aa",
   foregroundExtraMuted: "#71717a",
-  border: "#1c1c1c",
-  borderAccent: "#242424",
+  border: "#2a2a2a",
+  borderAccent: "#383838",
   accent: "#20744A",
   accentBright: "#7ccba0",
   destructive: "#c44a4a",

@@ -3,7 +3,7 @@ import { View, Text } from "react-native";
 import { useIsFocused } from "@react-navigation/native";
 import { router } from "expo-router";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { ChevronLeft, Import } from "lucide-react-native";
+import { ChevronLeft, Import, Plus } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { MenuHeader } from "@/components/headers/menu-header";
@@ -17,7 +17,7 @@ import { type AgentHistoryHostError, useAgentHistory } from "@/hooks/use-agent-h
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useImportSession } from "@/hooks/use-import-session";
 import { useHosts } from "@/runtime/host-runtime";
-import { buildOpenProjectRoute } from "@/utils/host-routes";
+import { buildNewWorkspaceRoute, buildOpenProjectRoute } from "@/utils/host-routes";
 
 /** Long enough that a typed word is one request, short enough to feel live. */
 const SEARCH_DEBOUNCE_MS = 200;
@@ -128,6 +128,24 @@ function SessionsScreenContent() {
   }, []);
 
   const handleClearSearch = useCallback(() => setSearchInput(""), []);
+  const handleNewStandalone = useCallback(() => {
+    const targetServerId = historyServerId ?? (hosts.length === 1 ? hosts[0]?.serverId : undefined);
+    router.push(buildNewWorkspaceRoute({ serverId: targetServerId, standalone: true }));
+  }, [historyServerId, hosts]);
+  const newStandaloneButton = useMemo(
+    () => (
+      <Button
+        variant="ghost"
+        size="sm"
+        leftIcon={Plus}
+        onPress={handleNewStandalone}
+        testID="sessions-new-standalone"
+      >
+        {t("sessions.actions.newStandalone")}
+      </Button>
+    ),
+    [handleNewStandalone, t],
+  );
 
   const listFooterComponent = useMemo(() => {
     // A ranked result set has no next page — reaching a weaker match means
@@ -153,7 +171,7 @@ function SessionsScreenContent() {
 
   return (
     <View style={styles.container}>
-      <MenuHeader title={t("sessions.title")} />
+      <MenuHeader title={t("sessions.title")} rightContent={newStandaloneButton} />
       {showFilterRow ? (
         <View style={styles.filterContainer}>
           {isSearchSupported ? (

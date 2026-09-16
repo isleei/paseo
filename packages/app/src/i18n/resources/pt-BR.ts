@@ -265,6 +265,7 @@ export const ptBR: TranslationResources = {
     hostLoadFailed: "{{host}}: Não foi possível carregar o histórico",
     searchPlaceholder: "Buscar no histórico",
     actions: {
+      newStandalone: "Nova sessão independente",
       loadMore: "Carregar mais",
       clearSearch: "Limpar busca",
     },
@@ -1197,6 +1198,7 @@ export const ptBR: TranslationResources = {
       hosts: "Hosts",
       settings: "Configurações",
       closeSidebar: "Fechar barra lateral",
+      jumpToActivity: "Ir para a atividade",
     },
     help: {
       trigger: "Ajuda e suporte",
@@ -1303,6 +1305,7 @@ export const ptBR: TranslationResources = {
   },
   newWorkspace: {
     title: "Novo workspace",
+    standaloneTitle: "Nova sessão independente",
     create: "Criar",
     isolation: {
       local: "Local",

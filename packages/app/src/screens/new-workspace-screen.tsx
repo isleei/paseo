@@ -63,6 +63,8 @@ import {
   useLastWorkspaceSelection,
 } from "@/stores/navigation-active-workspace-store";
 import { normalizeWorkspaceDescriptor, type WorkspaceDescriptor } from "@/stores/session-store";
+import { normalizeAgentSnapshot } from "@/utils/agent-snapshots";
+import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { useWorkspace } from "@/stores/session-store-hooks";
 import { buildNewWorkspaceDraftKey, generateDraftId } from "@/stores/draft-keys";
 import { useOpenAddProject } from "@/hooks/use-open-add-project";
@@ -164,11 +166,13 @@ function resolveVisibleDraftContextScopeKeys(input: {
 }
 
 function isNewWorkspacePending(input: {
-  pendingAction: "chat" | "empty" | "terminal" | null;
+  pendingAction: PendingAction;
   isDraftHandoffActive: boolean;
 }): boolean {
   return input.pendingAction !== null || input.isDraftHandoffActive;
 }
+
+type PendingAction = "chat" | "empty" | "terminal" | null;
 
 function buildFirstAgentContext(input: {
   prompt: string;
@@ -191,6 +195,7 @@ interface NewWorkspaceScreenProps {
   projectId?: string;
   displayName?: string;
   draftId?: string;
+  standalone?: boolean;
 }
 
 // A terminal launch sends argv, not a message: there is nothing to attach and
@@ -861,6 +866,125 @@ async function createMultiplicityWorkspace(input: {
   return { workspace: normalizedWorkspace, agent: payload.agent };
 }
 
+async function createStandaloneAgent(input: {
+  client: DaemonClient;
+  serverId: string;
+  draftId: string;
+  payload: MessagePayload;
+  composerState: NewWorkspaceComposerState;
+  supportsForgeSearch: boolean;
+}): Promise<AgentSnapshotPayload> {
+  const provider = input.composerState.selectedProvider;
+  if (!provider) {
+    throw new Error("Select a model");
+  }
+  const wirePayload = splitComposerAttachmentsForSubmit(input.payload.attachments, {
+    format: resolveComposerAttachmentSubmitFormat({
+      supportsForgeAttachments: input.supportsForgeSearch,
+    }),
+  });
+  const images = await encodeImages(wirePayload.images);
+  const snapshot = await input.client.createAgent({
+    idempotencyKey: input.draftId,
+    placement: { kind: "standalone" },
+    config: {
+      provider,
+      cwd: input.payload.cwd,
+      modeId: input.composerState.selectedMode || undefined,
+      model: input.composerState.effectiveModelId || undefined,
+      thinkingOptionId: input.composerState.effectiveThinkingOptionId || undefined,
+      featureValues: input.composerState.featureValues,
+    },
+    initialPrompt: input.payload.text,
+    clientMessageId: `${input.draftId}:initial-message`,
+    images: images?.length ? images : undefined,
+    attachments: wirePayload.attachments?.length ? wirePayload.attachments : undefined,
+  });
+  getHostRuntimeStore().acceptAgentSnapshot(
+    input.serverId,
+    normalizeAgentSnapshot(snapshot, input.serverId),
+  );
+  return snapshot;
+}
+
+function useStandaloneAgentSubmission(input: {
+  composerState: ReturnType<typeof useAgentInputDraft>["composerState"];
+  selectedSourceDirectory: string | null;
+  selectedServerId: string;
+  draftId: string;
+  supportsForgeSearch: boolean;
+  clearDraft: (lifecycle: "sent" | "abandoned") => void;
+  isStillOnCreateScreen: () => boolean;
+  resolveClient: () => DaemonClient;
+  setPendingAction: (action: PendingAction) => void;
+  setErrorMessage: (message: string | null) => void;
+  showError: (message: string) => void;
+  t: TFunction;
+}): (payload: MessagePayload) => Promise<void> {
+  const {
+    composerState,
+    selectedSourceDirectory,
+    selectedServerId,
+    draftId,
+    supportsForgeSearch,
+    clearDraft,
+    isStillOnCreateScreen,
+    resolveClient,
+    setPendingAction,
+    setErrorMessage,
+    showError,
+    t,
+  } = input;
+  return useCallback(
+    async (payload: MessagePayload) => {
+      try {
+        setErrorMessage(null);
+        if (!composerState) {
+          throw new Error(t("newWorkspace.errors.composerStateRequired"));
+        }
+        if (!selectedSourceDirectory) {
+          throw new Error("Choose a project");
+        }
+        setPendingAction("chat");
+        await composerState.persistFormPreferences();
+        const snapshot = await createStandaloneAgent({
+          client: resolveClient(),
+          serverId: selectedServerId,
+          draftId,
+          payload: { ...payload, cwd: selectedSourceDirectory },
+          composerState,
+          supportsForgeSearch,
+        });
+        clearDraft("sent");
+        if (isStillOnCreateScreen()) {
+          navigateToAgent({ serverId: selectedServerId, agentId: snapshot.id });
+          return;
+        }
+        setPendingAction(null);
+      } catch (error) {
+        const message = toErrorMessage(error);
+        setPendingAction(null);
+        setErrorMessage(message);
+        showError(message);
+      }
+    },
+    [
+      clearDraft,
+      composerState,
+      draftId,
+      isStillOnCreateScreen,
+      resolveClient,
+      selectedServerId,
+      selectedSourceDirectory,
+      setErrorMessage,
+      setPendingAction,
+      showError,
+      supportsForgeSearch,
+      t,
+    ],
+  );
+}
+
 interface CreateChatAgentInput {
   payload: MessagePayload;
   composerState: ReturnType<typeof useAgentInputDraft>["composerState"];
@@ -1382,6 +1506,7 @@ interface FormPickerControl {
 interface NewWorkspaceFormStackInput {
   isCompact: boolean;
   isPending: boolean;
+  standalone: boolean;
   project: FormPickerControl & {
     options: ComboboxOptionType[];
     triggerLabel: string;
@@ -1425,10 +1550,78 @@ interface NewWorkspaceFormStackInput {
   };
 }
 
+function getBadgePressableStyle(
+  { pressed, hovered }: PressableStateCallbackType & { hovered?: boolean },
+  isPending: boolean,
+) {
+  return [
+    styles.badge,
+    Boolean(hovered) && !isPending && styles.badgeHovered,
+    pressed && !isPending && styles.badgePressed,
+    isPending && styles.badgeDisabled,
+  ];
+}
+
+function getDesktopControlStyle(isCompact: boolean) {
+  return isCompact ? undefined : styles.desktopControl;
+}
+
+function getProjectIconData(
+  project: HostProjectListItem | null,
+  iconDataByProjectViewKey: Map<string, string | null>,
+): string | null {
+  if (!project) return null;
+  return iconDataByProjectViewKey.get(project.viewKey) ?? null;
+}
+
+function renderNewWorkspaceFormStackLayout(input: {
+  isCompact: boolean;
+  standalone: boolean;
+  projectControl: ReactElement;
+  hostControl: ReactElement | null;
+  isolationControl: ReactElement | null;
+  baseControl: ReactElement | null;
+  launchControl: ReactElement;
+}): ReactElement {
+  const {
+    isCompact,
+    standalone,
+    projectControl,
+    hostControl,
+    isolationControl,
+    baseControl,
+    launchControl,
+  } = input;
+  if (isCompact) {
+    return (
+      <View testID="new-workspace-ref-picker-row" style={styles.formStack}>
+        <FormRow>{projectControl}</FormRow>
+        {hostControl ? <FormRow>{hostControl}</FormRow> : null}
+        {!standalone && isolationControl ? <FormRow>{isolationControl}</FormRow> : null}
+        {!standalone && baseControl ? <FormRow>{baseControl}</FormRow> : null}
+        {!standalone ? <FormRow>{launchControl}</FormRow> : null}
+        {standalone || isolationControl ? null : <View style={styles.baseSpacer} />}
+        {standalone || baseControl ? null : <View style={styles.baseSpacer} />}
+      </View>
+    );
+  }
+
+  return (
+    <View testID="new-workspace-ref-picker-row" style={styles.formStackDesktop}>
+      {projectControl}
+      {hostControl}
+      {standalone ? null : isolationControl}
+      {standalone ? null : baseControl}
+      {standalone ? null : <View style={styles.launchSpacer} />}
+      {standalone ? null : launchControl}
+    </View>
+  );
+}
+
 function useNewWorkspaceFormStack(input: NewWorkspaceFormStackInput): ReactElement {
   const { theme } = useUnistyles();
   const { t } = useTranslation();
-  const { isCompact, isPending, project, host, isolation, base, launch } = input;
+  const { isCompact, isPending, standalone, project, host, isolation, base, launch } = input;
 
   const selectedHostLabel =
     host.allHosts.find((h) => h.serverId === host.selectedServerId)?.label ?? "Host";
@@ -1440,16 +1633,12 @@ function useNewWorkspaceFormStack(input: NewWorkspaceFormStackInput): ReactEleme
   );
 
   const badgePressableStyle = useCallback(
-    ({ pressed, hovered }: PressableStateCallbackType & { hovered?: boolean }) => [
-      styles.badge,
-      Boolean(hovered) && !isPending && styles.badgeHovered,
-      pressed && !isPending && styles.badgePressed,
-      isPending && styles.badgeDisabled,
-    ],
+    (state: PressableStateCallbackType & { hovered?: boolean }) =>
+      getBadgePressableStyle(state, isPending),
     [isPending],
   );
 
-  const desktopControlStyle = isCompact ? undefined : styles.desktopControl;
+  const desktopControlStyle = getDesktopControlStyle(isCompact);
 
   const projectControl = (
     <View style={desktopControlStyle}>
@@ -1461,11 +1650,7 @@ function useNewWorkspaceFormStack(input: NewWorkspaceFormStackInput): ReactEleme
         label={project.triggerLabel}
         tooltipLabel={t("newWorkspace.tooltips.project")}
         projectViewKey={project.selectedProject?.viewKey ?? null}
-        iconDataUri={
-          project.selectedProject
-            ? (project.iconDataByProjectViewKey.get(project.selectedProject.viewKey) ?? null)
-            : null
-        }
+        iconDataUri={getProjectIconData(project.selectedProject, project.iconDataByProjectViewKey)}
         iconColor={theme.colors.foregroundMuted}
         iconSize={theme.iconSize.sm}
       />
@@ -1601,27 +1786,27 @@ function useNewWorkspaceFormStack(input: NewWorkspaceFormStackInput): ReactEleme
     />
   );
 
-  return isCompact ? (
-    <View testID="new-workspace-ref-picker-row" style={styles.formStack}>
-      <FormRow>{projectControl}</FormRow>
-      {hostControl ? <FormRow>{hostControl}</FormRow> : null}
-      {isolationControl ? <FormRow>{isolationControl}</FormRow> : null}
-      {baseControl ? <FormRow>{baseControl}</FormRow> : null}
-      <FormRow>{launchControl}</FormRow>
-      {/* Keep fixed stack height without separating the visible controls. */}
-      {isolationControl ? null : <View style={styles.baseSpacer} />}
-      {baseControl ? null : <View style={styles.baseSpacer} />}
-    </View>
-  ) : (
-    <View testID="new-workspace-ref-picker-row" style={styles.formStackDesktop}>
-      {projectControl}
-      {hostControl}
-      {isolationControl}
-      {baseControl}
-      <View style={styles.launchSpacer} />
-      {launchControl}
-    </View>
-  );
+  return renderNewWorkspaceFormStackLayout({
+    isCompact,
+    standalone,
+    projectControl,
+    hostControl,
+    isolationControl,
+    baseControl,
+    launchControl,
+  });
+}
+
+function standaloneVariant<T>(standalone: boolean, standaloneValue: T, workspaceValue: T): T {
+  return standalone ? standaloneValue : workspaceValue;
+}
+
+function shouldShowTerminalComposer(isTerminalLaunch: boolean, standalone: boolean): boolean {
+  return isTerminalLaunch && !standalone;
+}
+
+function renderErrorMessage(errorMessage: string | null): ReactElement | null {
+  return errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null;
 }
 
 export function NewWorkspaceScreen({
@@ -1630,6 +1815,7 @@ export function NewWorkspaceScreen({
   projectId,
   displayName: displayNameProp,
   draftId,
+  standalone = false,
 }: NewWorkspaceScreenProps) {
   const queryClient = useQueryClient();
   const { theme } = useUnistyles();
@@ -1671,7 +1857,7 @@ export function NewWorkspaceScreen({
   const [creationResult, setCreationResult] = useState<
     WorkspaceCreationResult | { workspace: null }
   >({ workspace: null });
-  const [pendingAction, setPendingAction] = useState<"chat" | "empty" | "terminal" | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   const openAddProjectPicker = useOpenAddProject();
@@ -2174,6 +2360,21 @@ export function NewWorkspaceScreen({
     ],
   );
 
+  const handleSubmitStandaloneAgent = useStandaloneAgentSubmission({
+    composerState,
+    selectedSourceDirectory,
+    selectedServerId,
+    draftId: creationIdentity.draftId,
+    supportsForgeSearch,
+    clearDraft: chatDraft.clear,
+    isStillOnCreateScreen,
+    resolveClient: withConnectedClient,
+    setPendingAction,
+    setErrorMessage,
+    showError: toast.error,
+    t,
+  });
+
   const handleSubmitTerminalLaunch = useCallback(async () => {
     try {
       setErrorMessage(null);
@@ -2311,6 +2512,7 @@ export function NewWorkspaceScreen({
   const formStack = useNewWorkspaceFormStack({
     isCompact,
     isPending,
+    standalone,
     project: {
       anchorRef: projectPickerAnchorRef,
       open: openProjectPicker,
@@ -2370,6 +2572,23 @@ export function NewWorkspaceScreen({
     },
   });
 
+  const screenTitleKey = standaloneVariant(
+    standalone,
+    "newWorkspace.standaloneTitle" as const,
+    "newWorkspace.title" as const,
+  );
+  const submitMessage = standaloneVariant(
+    standalone,
+    handleSubmitStandaloneAgent,
+    handleSubmitNewWorkspace,
+  );
+  const submitButtonTestID = standaloneVariant(
+    standalone,
+    "standalone-agent-create-submit",
+    "workspace-create-submit",
+  );
+  const showTerminalComposer = shouldShowTerminalComposer(isTerminalLaunch, standalone);
+
   const screenHeaderLeft = useMemo(() => <SidebarMenuToggle />, []);
 
   return (
@@ -2381,11 +2600,11 @@ export function NewWorkspaceScreen({
           <ComposerViewportContent style={animatedStaticStyles.form}>
             <ScrollView style={animatedStaticStyles.setup} keyboardShouldPersistTaps="handled">
               <View style={styles.composerTitleContainer}>
-                <Text style={styles.composerTitle}>{t("newWorkspace.title")}</Text>
+                <Text style={styles.composerTitle}>{t(screenTitleKey)}</Text>
               </View>
               {formStack}
             </ScrollView>
-            {isTerminalLaunch ? (
+            {showTerminalComposer ? (
               <Composer
                 key="terminal"
                 externalKeyboardShift
@@ -2420,10 +2639,10 @@ export function NewWorkspaceScreen({
                 agentId={draftKey}
                 serverId={selectedServerId}
                 isPaneFocused={true}
-                onSubmitMessage={handleSubmitNewWorkspace}
+                onSubmitMessage={submitMessage}
                 allowEmptySubmit={true}
                 submitButtonAccessibilityLabel={t("newWorkspace.create")}
-                submitButtonTestID="workspace-create-submit"
+                submitButtonTestID={submitButtonTestID}
                 submitIcon="return"
                 isSubmitLoading={isPending}
                 waitForForgeAutoAttachOnSubmit
@@ -2445,7 +2664,7 @@ export function NewWorkspaceScreen({
                 agentControls={agentControlsWithDisabled}
               />
             )}
-            {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+            {renderErrorMessage(errorMessage)}
           </ComposerViewportContent>
         </KeyboardTranslateView>
       </ComposerViewport>

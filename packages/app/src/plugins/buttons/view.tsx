@@ -527,21 +527,24 @@ function OverflowPages({
 
 const ThemedOverflowPages = withUnistyles(OverflowPages);
 
-function useButtons(serverId: string, workspaceId: string, agentId: string | null) {
+function useButtons(serverId: string, workspaceId: string | null, agentId: string | null) {
   const entries = useSyncExternalStore(
     pluginButtonStore.subscribe,
     pluginButtonStore.getSnapshot,
     pluginButtonStore.getSnapshot,
   );
   return useMemo(
-    () => entries.filter((entry) => buttonMatches(entry, serverId, workspaceId, agentId)),
+    () =>
+      workspaceId
+        ? entries.filter((entry) => buttonMatches(entry, serverId, workspaceId, agentId))
+        : [],
     [entries, serverId, workspaceId, agentId],
   );
 }
 
 export function useHasPluginComposerPills(
   serverId: string,
-  workspaceId: string,
+  workspaceId: string | null,
   agentId: string,
 ): boolean {
   return useButtons(serverId, workspaceId, agentId).length > 0;

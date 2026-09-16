@@ -706,6 +706,211 @@ describe("mapACPUsage", () => {
   });
 });
 
+describe("ACP usage_update", () => {
+  test("publishes context window and cost from a usage_update", () => {
+    const session = createSession();
+    const internals = asInternals<ACPSessionInternals>(session);
+    internals.activeForegroundTurnId = "turn-1";
+
+    const events = internals.translateSessionUpdate({
+      sessionUpdate: "usage_update",
+      used: 12_400,
+      size: 200_000,
+      cost: { amount: 0.42, currency: "USD" },
+    });
+
+    expect(events).toEqual([
+      {
+        type: "usage_updated",
+        provider: "claude-acp",
+        turnId: "turn-1",
+        usage: {
+          contextWindowUsedTokens: 12_400,
+          contextWindowMaxTokens: 200_000,
+          totalCostUsd: 0.42,
+        },
+      },
+    ]);
+  });
+
+  test("reads Grok-style token counts from usage_update _meta.usage", () => {
+    const session = createSession();
+    const internals = asInternals<ACPSessionInternals>(session);
+
+    const events = internals.translateSessionUpdate({
+      sessionUpdate: "usage_update",
+      used: 80_000,
+      size: 256_000,
+      _meta: {
+        usage: {
+          inputTokens: 79_200,
+          outputTokens: 640,
+          cachedReadTokens: 74_000,
+        },
+      },
+    });
+
+    expect(events).toEqual([
+      {
+        type: "usage_updated",
+        provider: "claude-acp",
+        usage: {
+          contextWindowUsedTokens: 80_000,
+          contextWindowMaxTokens: 256_000,
+          inputTokens: 79_200,
+          outputTokens: 640,
+          cachedInputTokens: 74_000,
+        },
+      },
+    ]);
+  });
+
+  test("keeps live token counts when the prompt result only reports usage in _meta", async () => {
+    const session = createSession();
+    const events: AgentStreamEvent[] = [];
+    let resolvePrompt!: (value: PromptResponse) => void;
+    const prompt = vi.fn(
+      () =>
+        new Promise<PromptResponse>((resolve) => {
+          resolvePrompt = resolve;
+        }),
+    );
+
+    asInternals<ACPSessionInternals>(session).sessionId = "session-1";
+    asInternals<ACPSessionInternals>(session).connection = { prompt };
+    session.subscribe((event) => {
+      events.push(event);
+    });
+
+    const { turnId } = await session.startTurn("hello");
+    resolvePrompt({
+      stopReason: "end_turn",
+      _meta: {
+        usage: {
+          inputTokens: 4_100,
+          outputTokens: 88,
+          cachedReadTokens: 3_900,
+        },
+      },
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(events.find((event) => event.type === "turn_completed")).toEqual({
+      type: "turn_completed",
+      provider: "claude-acp",
+      turnId,
+      usage: {
+        inputTokens: 4_100,
+        outputTokens: 88,
+        cachedInputTokens: 3_900,
+      },
+    });
+  });
+
+  test("publishes live context occupancy from session/update _meta.totalTokens", async () => {
+    const session = createSession();
+    const events: AgentStreamEvent[] = [];
+    asInternals<ACPSessionInternals>(session).sessionId = "session-1";
+    asInternals<ACPSessionInternals>(session).activeForegroundTurnId = "turn-1";
+    session.subscribe((event) => {
+      events.push(event);
+    });
+
+    await session.sessionUpdate({
+      sessionId: "session-1",
+      update: {
+        sessionUpdate: "agent_thought_chunk",
+        content: { type: "text", text: "thinking" },
+      },
+      _meta: { totalTokens: 27_641 },
+    });
+    await session.sessionUpdate({
+      sessionId: "session-1",
+      update: {
+        sessionUpdate: "agent_thought_chunk",
+        content: { type: "text", text: " more" },
+      },
+      _meta: { totalTokens: 27_641 },
+    });
+
+    expect(events.filter((event) => event.type === "usage_updated")).toEqual([
+      {
+        type: "usage_updated",
+        provider: "claude-acp",
+        turnId: "turn-1",
+        usage: { contextWindowUsedTokens: 27_641 },
+      },
+    ]);
+  });
+
+  test("reads billed usage from a Grok _x.ai/session/update turn_completed notification", async () => {
+    const session = createSession();
+    const events: AgentStreamEvent[] = [];
+    asInternals<ACPSessionInternals>(session).sessionId = "session-1";
+    asInternals<ACPSessionInternals>(session).activeForegroundTurnId = "turn-1";
+    session.subscribe((event) => {
+      events.push(event);
+    });
+
+    await session.sessionUpdate({
+      sessionId: "session-1",
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: "hi" },
+      },
+      _meta: { totalTokens: 131_527 },
+    });
+    await session.extNotification("_x.ai/session/update", {
+      sessionId: "session-1",
+      update: {
+        sessionUpdate: "turn_completed",
+        usage: {
+          inputTokens: 5_569_025,
+          outputTokens: 38_744,
+          cachedReadTokens: 5_345_536,
+        },
+      },
+    });
+
+    expect(events.filter((event) => event.type === "usage_updated")).toEqual([
+      {
+        type: "usage_updated",
+        provider: "claude-acp",
+        turnId: "turn-1",
+        usage: { contextWindowUsedTokens: 131_527 },
+      },
+      {
+        type: "usage_updated",
+        provider: "claude-acp",
+        turnId: "turn-1",
+        usage: {
+          contextWindowUsedTokens: 131_527,
+          inputTokens: 5_569_025,
+          outputTokens: 38_744,
+          cachedInputTokens: 5_345_536,
+        },
+      },
+    ]);
+  });
+
+  test("ignores Grok extension notifications that do not carry usage", async () => {
+    const session = createSession();
+    const events: AgentStreamEvent[] = [];
+    asInternals<ACPSessionInternals>(session).sessionId = "session-1";
+    session.subscribe((event) => {
+      events.push(event);
+    });
+
+    await session.extNotification("_x.ai/session/update", {
+      sessionId: "session-1",
+      update: { sessionUpdate: "hook_execution", event_name: "sessionStart" },
+    });
+
+    expect(events.filter((event) => event.type === "usage_updated")).toEqual([]);
+  });
+});
+
 describe("deriveModesFromACP", () => {
   test("prefers explicit ACP mode state", () => {
     const result = deriveModesFromACP(
@@ -1733,6 +1938,51 @@ describe("deriveModelDefinitionsFromACP", () => {
           },
         ],
         defaultThinkingOptionId: "medium",
+      },
+    ]);
+  });
+
+  test("uses the human name after a tab in Antigravity model config options", () => {
+    const result = deriveModelDefinitionsFromACP("agy-acp", null, [
+      {
+        id: "model",
+        name: "Model",
+        category: "model",
+        type: "select",
+        currentValue: "gemini-3.8-flash-high\tGemini 3.8 Flash (High)",
+        options: [
+          {
+            value: "gemini-3.8-flash-high\tGemini 3.8 Flash (High)",
+            name: "gemini-3.8-flash-high\tGemini 3.8 Flash (High)",
+          },
+          {
+            value: "gemini-3.6-flash-high\tGemini 3.6 Flash (High)",
+            name: "gemini-3.6-flash-high\tGemini 3.6 Flash (High)",
+          },
+        ],
+      },
+    ]);
+
+    expect(result).toEqual([
+      {
+        provider: "agy-acp",
+        id: "gemini-3.8-flash-high\tGemini 3.8 Flash (High)",
+        label: "Gemini 3.8 Flash (High)",
+        description: undefined,
+        isDefault: true,
+        thinkingOptions: undefined,
+        defaultThinkingOptionId: undefined,
+        metadata: undefined,
+      },
+      {
+        provider: "agy-acp",
+        id: "gemini-3.6-flash-high\tGemini 3.6 Flash (High)",
+        label: "Gemini 3.6 Flash (High)",
+        description: undefined,
+        isDefault: false,
+        thinkingOptions: undefined,
+        defaultThinkingOptionId: undefined,
+        metadata: undefined,
       },
     ]);
   });

@@ -133,14 +133,24 @@ describe("formatTokensPerSecond", () => {
 });
 
 describe("deriveSessionUsageTotals", () => {
-  it("sums uncached input, cached input, and output", () => {
+  it("treats cache as a subset when it fits inside input (Codex/OpenAI)", () => {
     expect(
       deriveSessionUsageTotals({
-        inputTokens: 12_000,
-        cachedInputTokens: 8_000,
-        outputTokens: 5_000,
+        inputTokens: 102_052,
+        cachedInputTokens: 101_632,
+        outputTokens: 422,
       }),
-    ).toEqual({ totalTokens: 25_000, cacheHitRate: 0.4 });
+    ).toEqual({ totalTokens: 102_474, cacheHitRate: 101_632 / 102_052 });
+  });
+
+  it("adds cache when it is reported separately from input (Anthropic/Pi/OpenCode)", () => {
+    expect(
+      deriveSessionUsageTotals({
+        inputTokens: 345,
+        cachedInputTokens: 101_617,
+        outputTokens: 580,
+      }),
+    ).toEqual({ totalTokens: 102_542, cacheHitRate: 101_617 / 101_962 });
   });
 
   it("treats missing counts as zero", () => {

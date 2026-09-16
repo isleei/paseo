@@ -263,6 +263,7 @@ export const ko: TranslationResources = {
     hostLoadFailed: "{{host}}: 기록을 불러오지 못했습니다",
     searchPlaceholder: "기록 검색",
     actions: {
+      newStandalone: "새 독립 세션",
       loadMore: "더 불러오기",
       clearSearch: "검색 지우기",
     },
@@ -1179,6 +1180,7 @@ export const ko: TranslationResources = {
       hosts: "호스트",
       settings: "설정",
       closeSidebar: "사이드바 닫기",
+      jumpToActivity: "활동으로 이동",
     },
     help: {
       trigger: "도움말 및 지원",
@@ -1285,6 +1287,7 @@ export const ko: TranslationResources = {
   },
   newWorkspace: {
     title: "새 워크스페이스",
+    standaloneTitle: "새 독립 세션",
     create: "생성",
     isolation: {
       local: "로컬",

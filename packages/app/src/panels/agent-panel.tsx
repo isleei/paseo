@@ -60,7 +60,7 @@ import { useArchiveAgent } from "@/hooks/use-archive-agent";
 import { useContainerWidthBelow } from "@/hooks/use-container-width";
 import { reconcileMissingAgentStateWithPresentAgent } from "@/panels/agent-panel-load-state";
 import { TimelineSyncStatus } from "@/timeline/sync-status";
-import { usePaneContext, usePaneFocus } from "@/panels/pane-context";
+import { useOptionalPaneContext, usePaneContext, usePaneFocus } from "@/panels/pane-context";
 import { definePanel, type PanelDescriptor } from "@/panels/panel-registry";
 import { RenderProfile } from "@/utils/render-profiler";
 import { useHasPluginComposerPills } from "@/plugins";
@@ -506,7 +506,7 @@ type AgentLookupState =
   | { tag: "not_found"; message: string }
   | { tag: "error"; message: string };
 
-function AgentPanelContent({
+export function AgentPanelContent({
   serverId,
   workspaceId,
   agentId,
@@ -514,7 +514,7 @@ function AgentPanelContent({
   onOpenWorkspaceFile,
 }: {
   serverId: string;
-  workspaceId: string;
+  workspaceId: string | null;
   agentId: string;
   isPaneFocused: boolean;
   onOpenWorkspaceFile?: (request: WorkspaceFileOpenRequest) => void;
@@ -584,7 +584,7 @@ function AgentPanelBody({
   onOpenWorkspaceFile,
 }: {
   serverId: string;
-  workspaceId: string;
+  workspaceId: string | null;
   agentId?: string;
   isPaneFocused: boolean;
   client: ReturnType<typeof useHostRuntimeClient>;
@@ -739,7 +739,7 @@ function ChatAgentContent({
   onOpenWorkspaceFile,
 }: {
   serverId: string;
-  workspaceId: string;
+  workspaceId: string | null;
   agentId?: string;
   isPaneFocused: boolean;
   client: ReturnType<typeof useHostRuntimeClient>;
@@ -1134,7 +1134,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
   onOpenWorkspaceFile,
 }: {
   serverId: string;
-  workspaceId: string;
+  workspaceId: string | null;
   agentId: string;
   isPaneFocused: boolean;
   isArchivingCurrentAgent: boolean;
@@ -1160,6 +1160,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
   onOpenWorkspaceFile?: (request: WorkspaceFileOpenRequest) => void;
 }) {
   const { t } = useTranslation();
+  const isCompactFormFactor = useIsCompactFormFactor();
   const subagentRows = useSubagentsForParent({ serverId, parentAgentId: agentId });
   const tasks = useSessionStore((state): TodoEntry[] | undefined =>
     state.sessions[serverId]?.agentTasks.get(agentId),
@@ -1176,6 +1177,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
     tasks,
     archiveFinishedStatus: archiveFinishedSubagents.status,
     hasPluginComposerPills,
+    isCompact: isCompactFormFactor,
   });
   const rawAgentInputDraft = useAgentInputDraft({
     draftKey: buildDraftStoreKey({
@@ -1258,7 +1260,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
           onOpenWorkspaceFile={onOpenWorkspaceFile}
         />
       </RenderProfile>
-      {hasActiveComposer ? (
+      {hasActiveComposer && workspaceId ? (
         <AgentTracks
           serverId={serverId}
           workspaceId={workspaceId}
@@ -1358,7 +1360,7 @@ const AgentStreamSection = memo(function AgentStreamSection({
 }: {
   streamViewRef: React.RefObject<AgentStreamViewHandle | null>;
   serverId: string;
-  workspaceId: string;
+  workspaceId: string | null;
   agentId?: string;
   agent: AgentScreenAgent;
   routeBottomAnchorRequest: RouteBottomAnchorRequest;
@@ -1371,7 +1373,7 @@ const AgentStreamSection = memo(function AgentStreamSection({
   const isCompactFormFactor = useIsCompactFormFactor();
   const hasWorkspaceDiffStat = useWorkspaceHasDiffStat(serverId, workspaceId);
   const hasVisibleComposerTracks =
-    hasActiveComposer && (hasVisibleAgentTracks || hasWorkspaceDiffStat);
+    hasActiveComposer && (hasVisibleAgentTracks || (isCompactFormFactor && hasWorkspaceDiffStat));
   const bottomOverlayTailClearance = hasVisibleComposerTracks
     ? resolveComposerTrackTailClearance(isCompactFormFactor)
     : 0;
@@ -1525,9 +1527,9 @@ function ActiveAgentComposer({
     COMPACT_FORM_FACTOR_WIDTH,
     { initialIsBelow: isCompactFormFactor },
   );
-  const paneContext = usePaneContext();
+  const paneContext = useOptionalPaneContext();
   const openInSidePane = useSettings((settings) => settings.openInSidePane);
-  const { workspaceId, tabId, retargetCurrentTab } = paneContext;
+  const workspaceId = paneContext?.workspaceId ?? null;
   const { archiveAgent } = useArchiveAgent();
   const closeWorkspaceTab = useWorkspaceLayoutStore((state) => state.closeTab);
   const hideWorkspaceAgent = useWorkspaceLayoutStore((state) => state.hideAgent);
@@ -1543,7 +1545,7 @@ function ActiveAgentComposer({
   );
   const handleOpenWorkspaceAttachment = useCallback(
     (attachment: WorkspaceComposerAttachment) => {
-      if (attachment.kind !== "review") {
+      if (attachment.kind !== "review" || !workspaceId) {
         return;
       }
       openWorkspaceChanges({
@@ -1558,12 +1560,19 @@ function ActiveAgentComposer({
 
   const handleClientSlashCommand = useCallback(
     async (command: ClientSlashCommand) => {
+      if (!paneContext) {
+        return;
+      }
+      const { tabId, retargetCurrentTab } = paneContext;
       const agent = resolveChatAgentFromSession(useSessionStore.getState(), serverId, agentId);
       if (!agent) {
         throw new Error("Agent not found");
       }
 
-      const workspaceKey = buildWorkspaceTabPersistenceKey({ serverId, workspaceId });
+      const workspaceKey = buildWorkspaceTabPersistenceKey({
+        serverId,
+        workspaceId: paneContext.workspaceId,
+      });
       if (workspaceKey) {
         unpinWorkspaceAgent(workspaceKey, agentId);
         hideWorkspaceAgent(workspaceKey, agentId);
@@ -1586,11 +1595,9 @@ function ActiveAgentComposer({
       archiveAgent,
       closeWorkspaceTab,
       hideWorkspaceAgent,
-      retargetCurrentTab,
+      paneContext,
       serverId,
-      tabId,
       unpinWorkspaceAgent,
-      workspaceId,
     ],
   );
 
@@ -1624,7 +1631,7 @@ function ActiveAgentComposer({
         onAttentionPromptSend={onAttentionPromptSend}
         onComposerHeightChange={onComposerHeightChange}
         onMessageSent={onMessageSent}
-        onClientSlashCommand={handleClientSlashCommand}
+        onClientSlashCommand={paneContext ? handleClientSlashCommand : undefined}
         isCompactLayout={isCompactComposerLayout}
       />
     </View>

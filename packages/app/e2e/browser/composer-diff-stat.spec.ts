@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test, type Page } from "../support/fixtures";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
-import { ensureExplorerSidebar, openFilesPanel } from "../support/helpers/workspace-tabs";
+import { openFilesPanel } from "../support/helpers/workspace-tabs";
 
 const APP_SETTINGS_KEY = "@paseo:app-settings";
 
@@ -10,20 +10,10 @@ function visibleMainPane(page: Page) {
   return page.getByTestId("workspace-pane-main").filter({ visible: true });
 }
 
-function composerChangesPill(page: Page) {
-  return page.getByTestId("composer-diff-stat-pill");
-}
-
-async function revealComposerChangesInExplorer(page: Page) {
-  await composerChangesPill(page).click();
-
-  const explorer = await ensureExplorerSidebar(page);
-  await expect(explorer.getByTestId("changes-tree-panel")).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId("workspace-tab-working_diff")).toHaveCount(0);
-}
-
-async function openComposerDiff(page: Page) {
-  await composerChangesPill(page).click();
+// The diff stat lives in the composer pill on compact layouts and in the workspace rail on wide
+// ones, so the two paths open the same Changes view from different triggers.
+function railChangesRow(page: Page) {
+  return page.getByTestId("workspace-rail-diff-stat");
 }
 
 async function seedChangedAgent(repoPrefix: string) {
@@ -57,9 +47,7 @@ async function seedChangedAgent(repoPrefix: string) {
   }
 }
 
-test("composer diff stat reveals Changes, then opens the diff in the configured side pane", async ({
-  page,
-}) => {
+test("rail changes row opens the diff in the configured side pane", async ({ page }) => {
   await page.addInitScript((settingsKey) => {
     localStorage.setItem(settingsKey, JSON.stringify({ openInSidePane: { diffs: true } }));
   }, APP_SETTINGS_KEY);
@@ -72,12 +60,11 @@ test("composer diff stat reveals Changes, then opens the diff in the configured 
       agentId: workspace.agentId,
     });
 
-    const pill = composerChangesPill(page);
-    await expect(pill).toBeVisible({ timeout: 30_000 });
-    await expect(pill).toContainText("+2");
-    await expect(pill).toContainText("-0");
-    await revealComposerChangesInExplorer(page);
-    await openComposerDiff(page);
+    const railChanges = railChangesRow(page);
+    await expect(railChanges).toBeVisible({ timeout: 30_000 });
+    await expect(railChanges).toContainText("+2");
+    await expect(railChanges).toContainText("-0");
+    await railChanges.click();
 
     const sidePane = page
       .locator('[data-testid^="workspace-pane-"]')
@@ -93,7 +80,6 @@ test("composer diff stat reveals Changes, then opens the diff in the configured 
       await openFilesPanel(page);
       await expect(page.getByTestId("workspace-explorer-sidebar")).toContainText("Files");
 
-      await pill.click();
       await expect(sidePane.getByTestId("working-diff-panel")).toBeVisible();
       await expect(page.getByTestId("workspace-tab-working_diff")).toHaveCount(1);
     });
@@ -129,9 +115,7 @@ test("composer diff stat opens the compact explorer instead of a Changes tab", a
   }
 });
 
-test("composer diff stat reveals Changes, then opens the diff in the focused pane by default", async ({
-  page,
-}) => {
+test("rail changes row opens the diff in the focused pane by default", async ({ page }) => {
   const workspace = await seedChangedAgent("composer-diff-stat-tab-");
 
   try {
@@ -141,8 +125,7 @@ test("composer diff stat reveals Changes, then opens the diff in the focused pan
       agentId: workspace.agentId,
     });
 
-    await revealComposerChangesInExplorer(page);
-    await openComposerDiff(page);
+    await railChangesRow(page).click();
 
     const mainPane = visibleMainPane(page);
     await expect(mainPane.getByTestId("workspace-tab-working_diff")).toBeVisible({

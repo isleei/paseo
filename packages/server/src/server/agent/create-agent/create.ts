@@ -58,7 +58,7 @@ export interface CreateAgentFromSessionInput {
   onAgentReady?: (agent: ManagedAgent) => Promise<void>;
   agentId?: string;
   config: AgentSessionConfig;
-  workspaceId: string;
+  workspaceId?: string;
   worktreeName?: string;
   initialPrompt?: string;
   clientMessageId?: string;
@@ -290,7 +290,7 @@ async function resolveSessionCreateAgent(
       // A legacy git/worktreeName worktree creates a fresh workspace, so the
       // agent belongs to that workspace, not the source one. createdWorkspaceId
       // is the freshly created worktree's workspace.
-      workspaceId: requireResolvedWorkspaceId(workspaceId),
+      workspaceId,
     },
     prompt: hasPromptContent ? prompt : undefined,
     runOptions,
@@ -338,6 +338,9 @@ async function resolveMcpCreateAgent(
       cwd: resolvedCwd,
     }),
   });
+  if (intent.kind !== "workspace") {
+    throw new Error("MCP agent creation requires workspace placement");
+  }
   const resolvedCreateConfig = await resolveMcpProviderCreateConfig({
     dependencies,
     input,

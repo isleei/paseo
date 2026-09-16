@@ -260,6 +260,7 @@ export const en = {
     hostLoadFailed: "{{host}}: Could not load history",
     searchPlaceholder: "Search history",
     actions: {
+      newStandalone: "New standalone session",
       loadMore: "Load more",
       clearSearch: "Clear search",
     },
@@ -1180,6 +1181,7 @@ export const en = {
       hosts: "Hosts",
       settings: "Settings",
       closeSidebar: "Close sidebar",
+      jumpToActivity: "Jump to activity",
     },
     help: {
       trigger: "Help and support",
@@ -1286,6 +1288,7 @@ export const en = {
   },
   newWorkspace: {
     title: "New workspace",
+    standaloneTitle: "New standalone session",
     create: "Create",
     isolation: {
       local: "Local",

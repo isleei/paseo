@@ -15,7 +15,6 @@ import {
   CircleCheck,
   CircleDashed,
   Clock,
-  Diff,
   EyeOff,
   Folder,
   GitBranch,
@@ -116,13 +115,12 @@ const CHECKS_DISPLAY_ICONS: Record<SidebarChecksDisplay, OptionIcon> = {
 };
 
 const TRAILING_ICONS: Record<SidebarTrailingChoice, OptionIcon> = {
-  diff: withUnistyles(Diff),
   timestamp: withUnistyles(Clock),
 };
 
 const GROUPING_MODES: readonly SidebarGroupMode[] = ["project", "status"];
 const TITLE_SOURCES: readonly WorkspaceTitleSource[] = ["title", "branch"];
-const TRAILING_CHOICES: readonly SidebarTrailingChoice[] = ["diff", "timestamp"];
+const TRAILING_CHOICES: readonly SidebarTrailingChoice[] = ["timestamp"];
 
 const GROUPING_LABEL_KEYS: Record<SidebarGroupMode, string> = {
   project: "sidebar.display.grouping.project",
@@ -150,7 +148,6 @@ const CHECKS_DISPLAY_LABEL_KEYS: Record<SidebarChecksDisplay, string> = {
 };
 
 const TRAILING_LABEL_KEYS: Record<SidebarTrailingChoice, string> = {
-  diff: "sidebar.display.show.diff",
   timestamp: "sidebar.display.show.timestamp",
 };
 

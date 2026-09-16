@@ -308,6 +308,17 @@ function normalizeACPIncomingMessage(message: AnyMessage): AnyMessage {
   return message;
 }
 
+function acpAgentExitError(
+  child: ChildProcess,
+  stderrChunks: string[],
+  code: number | null = child.exitCode,
+  signal: NodeJS.Signals | null = child.signalCode,
+): Error {
+  const stderr = stderrChunks.join("").trim();
+  const status = `ACP agent exited (${code ?? "null"}${signal ? `, ${signal}` : ""})`;
+  return new Error(stderr ? `${status}\n${stderr}` : status);
+}
+
 export function createLoggedNdJsonStream(
   output: NodeWritableStream,
   input: NodeReadableStream,
@@ -673,16 +684,108 @@ export interface ACPBeforeModeWriteResult {
   configOptions?: SessionConfigOption[];
 }
 
-export function mapACPUsage(usage: Usage | null | undefined): AgentUsage | undefined {
-  if (!usage) {
+const ACP_USAGE_FIELDS = [
+  "inputTokens",
+  "cachedInputTokens",
+  "outputTokens",
+  "totalCostUsd",
+  "contextWindowMaxTokens",
+  "contextWindowUsedTokens",
+] as const;
+
+function readFiniteUsageNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function assignUsageField(
+  usage: AgentUsage,
+  key: (typeof ACP_USAGE_FIELDS)[number],
+  value: unknown,
+) {
+  const number = readFiniteUsageNumber(value);
+  if (number !== undefined) {
+    usage[key] = number;
+  }
+}
+
+function usageHasFields(usage: AgentUsage): boolean {
+  return ACP_USAGE_FIELDS.some((key) => usage[key] !== undefined);
+}
+
+function mergeAgentUsage(...parts: Array<AgentUsage | undefined>): AgentUsage | undefined {
+  const merged: AgentUsage = {};
+  for (const part of parts) {
+    if (!part) {
+      continue;
+    }
+    for (const key of ACP_USAGE_FIELDS) {
+      assignUsageField(merged, key, part[key]);
+    }
+  }
+  return usageHasFields(merged) ? merged : undefined;
+}
+
+function isSameAgentUsage(left: AgentUsage, right: AgentUsage): boolean {
+  return ACP_USAGE_FIELDS.every((key) => left[key] === right[key]);
+}
+
+function mapLooseACPUsage(value: unknown): AgentUsage | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
     return undefined;
   }
+  const record = value as Record<string, unknown>;
+  const usage: AgentUsage = {};
+  assignUsageField(usage, "inputTokens", record.inputTokens);
+  assignUsageField(usage, "outputTokens", record.outputTokens);
+  assignUsageField(usage, "cachedInputTokens", record.cachedReadTokens ?? record.cachedInputTokens);
+  assignUsageField(usage, "totalCostUsd", record.totalCostUsd);
+  assignUsageField(usage, "contextWindowUsedTokens", record.contextWindowUsedTokens);
+  assignUsageField(usage, "contextWindowMaxTokens", record.contextWindowMaxTokens);
+  return usageHasFields(usage) ? usage : undefined;
+}
 
-  return {
-    inputTokens: usage.inputTokens ?? undefined,
-    outputTokens: usage.outputTokens ?? undefined,
-    cachedInputTokens: usage.cachedReadTokens ?? undefined,
-  };
+function mapACPMetaUsage(meta: Record<string, unknown> | null | undefined): AgentUsage | undefined {
+  if (!meta) {
+    return undefined;
+  }
+  return mapLooseACPUsage(meta.usage);
+}
+
+export function mapACPUsage(usage: Usage | null | undefined): AgentUsage | undefined {
+  return mapLooseACPUsage(usage);
+}
+
+function mapACPUsageUpdate(update: UsageUpdate): AgentUsage | undefined {
+  const usage: AgentUsage = {};
+  assignUsageField(usage, "contextWindowUsedTokens", update.used);
+  assignUsageField(usage, "contextWindowMaxTokens", update.size);
+  const cost = update.cost;
+  if (cost && (cost.currency === "USD" || cost.currency === "usd")) {
+    assignUsageField(usage, "totalCostUsd", cost.amount);
+  }
+  return mergeAgentUsage(usage, mapACPMetaUsage(update._meta));
+}
+
+function mapSessionNotificationMetaUsage(
+  meta: SessionNotification["_meta"],
+): AgentUsage | undefined {
+  if (!meta) {
+    return undefined;
+  }
+  const usage: AgentUsage = {};
+  // Grok reports live context occupancy here instead of sessionUpdate usage_update.
+  assignUsageField(usage, "contextWindowUsedTokens", meta.totalTokens);
+  return usageHasFields(usage) ? usage : undefined;
+}
+
+function mapExtensionNotificationUsage(params: Record<string, unknown>): AgentUsage | undefined {
+  const update = params.update;
+  if (!update || typeof update !== "object" || Array.isArray(update) || !("usage" in update)) {
+    return undefined;
+  }
+  // Grok billed input/output/cache arrives on `_x.ai/session/update` turn_completed,
+  // which the ACP SDK routes to extNotification rather than sessionUpdate.
+  return mapLooseACPUsage(update.usage);
 }
 
 export function resolveACPModeSelection({
@@ -1390,6 +1493,18 @@ export class ACPAgentClient implements AgentClient {
           }, initializeTimeoutMs);
         })
       : null;
+    let onExit: ((code: number | null, signal: NodeJS.Signals | null) => void) | null = null;
+    const exitErrorPromise = new Promise<never>((_, reject) => {
+      const fail = (code: number | null, signal: NodeJS.Signals | null) => {
+        reject(acpAgentExitError(transport.child, transport.stderrChunks, code, signal));
+      };
+      if (transport.child.exitCode !== null || transport.child.signalCode !== null) {
+        fail(transport.child.exitCode, transport.child.signalCode);
+        return;
+      }
+      onExit = fail;
+      transport.child.once("exit", fail);
+    });
 
     try {
       return await this.runACPRequest(() =>
@@ -1403,10 +1518,14 @@ export class ACPAgentClient implements AgentClient {
             clientInfo: { name: "Paimon", version: "dev" },
           }),
           transport.spawnError,
+          exitErrorPromise,
           ...(initializeTimeoutPromise ? [initializeTimeoutPromise] : []),
         ]),
       );
     } finally {
+      if (onExit) {
+        transport.child.off("exit", onExit);
+      }
       if (timeout) {
         clearTimeout(timeout);
       }
@@ -2515,7 +2634,10 @@ export class ACPAgentSession implements AgentSession, ACPClient {
       return;
     }
 
-    const events = this.translateSessionUpdate(params.update);
+    const events = [
+      ...this.translateSessionUpdate(params.update),
+      ...this.publishUsage(mapSessionNotificationMetaUsage(params._meta)),
+    ];
     this.logger.trace(
       {
         agentId: this.agentId,
@@ -2563,6 +2685,12 @@ export class ACPAgentSession implements AgentSession, ACPClient {
         sessionId: typeof params.sessionId === "string" ? params.sessionId : undefined,
       });
     }
+
+    const sessionId = typeof params.sessionId === "string" ? params.sessionId : undefined;
+    if (sessionId !== undefined && this.sessionId !== null && sessionId !== this.sessionId) {
+      return;
+    }
+    this.deliverTranslatedEvents(this.publishUsage(mapExtensionNotificationUsage(params)));
   }
 
   // Cache an asynchronously-delivered slash-command batch and unblock any
@@ -2907,8 +3035,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
         this.handleSessionInfoUpdate(update);
         return pendingUserEvents;
       case "usage_update":
-        this.handleUsageUpdate(update);
-        return pendingUserEvents;
+        return [...pendingUserEvents, ...this.handleUsageUpdate(update)];
       case "available_commands_update":
         this.cachedCommands = update.availableCommands.map((command) => ({
           name: command.name,
@@ -3068,12 +3195,35 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     }
   }
 
-  private handleUsageUpdate(update: UsageUpdate): void {
-    void update;
+  private handleUsageUpdate(update: UsageUpdate): AgentStreamEvent[] {
+    return this.publishUsage(mapACPUsageUpdate(update));
+  }
+
+  private publishUsage(usage: AgentUsage | undefined): AgentStreamEvent[] {
+    const merged = mergeAgentUsage(this.currentTurnUsage, usage);
+    if (!merged) {
+      return [];
+    }
+    if (this.currentTurnUsage && isSameAgentUsage(this.currentTurnUsage, merged)) {
+      return [];
+    }
+    this.currentTurnUsage = merged;
+    return [
+      {
+        type: "usage_updated",
+        provider: this.provider,
+        usage: merged,
+        turnId: this.activeForegroundTurnId ?? undefined,
+      },
+    ];
   }
 
   private handlePromptResponse(response: PromptResponse, turnId: string): void {
-    this.currentTurnUsage = mapACPUsage(response.usage) ?? this.currentTurnUsage;
+    this.currentTurnUsage = mergeAgentUsage(
+      this.currentTurnUsage,
+      mapACPUsage(response.usage),
+      mapACPMetaUsage(response._meta),
+    );
 
     switch (response.stopReason) {
       case "cancelled":
@@ -3339,11 +3489,20 @@ export function deriveSelectorOptions(
 
   return flattenSelectOptions(option.options).map((value) => ({
     id: value.value,
-    label: value.name,
+    label: selectOptionDisplayLabel(value.name, value.value),
     description: value.description ?? undefined,
     isDefault: value.value === option.currentValue,
     metadata: value.group ? { group: value.group } : undefined,
   }));
+}
+
+function selectOptionDisplayLabel(name: string, value: string): string {
+  const source = name.trim() === "" ? value : name;
+  const separator = source.lastIndexOf("\t");
+  if (separator === -1 || separator === source.length - 1) {
+    return source;
+  }
+  return source.slice(separator + 1);
 }
 
 function deriveCurrentConfigValue(

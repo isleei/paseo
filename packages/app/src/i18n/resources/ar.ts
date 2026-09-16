@@ -262,6 +262,7 @@ export const ar: TranslationResources = {
     hostLoadFailed: "{{host}}: تعذر تحميل السجل",
     searchPlaceholder: "البحث في السجل",
     actions: {
+      newStandalone: "جلسة مستقلة جديدة",
       loadMore: "تحميل المزيد",
       clearSearch: "مسح البحث",
     },
@@ -1172,6 +1173,7 @@ export const ar: TranslationResources = {
       hosts: "المضيفون",
       settings: "إعدادات",
       closeSidebar: "إغلاق الشريط الجانبي",
+      jumpToActivity: "الانتقال إلى النشاط",
     },
     help: {
       trigger: "المساعدة والدعم",
@@ -1278,6 +1280,7 @@ export const ar: TranslationResources = {
   },
   newWorkspace: {
     title: "مساحة عمل جديدة",
+    standaloneTitle: "جلسة مستقلة جديدة",
     create: "يخلق",
     isolation: {
       local: "محلي",

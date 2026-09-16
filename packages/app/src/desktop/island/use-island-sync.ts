@@ -4,6 +4,7 @@ import { getIsElectronRuntimeMac } from "@/constants/layout";
 import { isNative } from "@/constants/platform";
 import { getDesktopHost, type DesktopIslandAgentPush } from "@/desktop/host";
 import { listenToDesktopEvent } from "@/desktop/electron/events";
+import { buildIslandAgentPushList } from "@/desktop/island/agent-push";
 import { useAggregatedAgents } from "@/hooks/use-aggregated-agents";
 import { useSessionStore } from "@/stores/session-store";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
@@ -11,60 +12,15 @@ import { buildNewWorkspaceRoute, buildSettingsSectionRoute } from "@/utils/host-
 import type { AgentPermissionResponse } from "@getpaseo/protocol/agent-types";
 
 const PUSH_DEBOUNCE_MS = 500;
-/** Upper bound so a huge directory cannot stall the main-process reducer. */
-const MAX_PUSH_AGENTS = 50;
-
-function providerLabel(provider: string): string {
-  switch (provider) {
-    case "claude-code":
-      return "Claude";
-    case "codex":
-      return "Codex";
-    case "copilot":
-      return "Copilot";
-    case "opencode":
-      return "OpenCode";
-    case "pi":
-      return "Pi";
-    default:
-      return provider || "Agent";
-  }
-}
 
 function buildPushList(): DesktopIslandAgentPush[] {
   const { sessions } = useSessionStore.getState();
-  const list: DesktopIslandAgentPush[] = [];
-  for (const [serverId, session] of Object.entries(sessions)) {
-    for (const agent of session.agents?.values() ?? []) {
-      if (agent.archivedAt) continue;
-      if (list.length >= MAX_PUSH_AGENTS) break;
-      list.push({
-        agentId: agent.id,
-        serverId,
-        title: agent.title,
-        projectName: agent.projectPlacement?.projectName ?? null,
-        agentKind: agent.provider,
-        status: agent.status,
-        pendingPermissions: agent.pendingPermissions.map((request) => ({
-          requestId: request.id,
-          toolName: request.name,
-          input:
-            request.input && typeof request.input === "object" && !Array.isArray(request.input)
-              ? (request.input as Record<string, unknown>)
-              : {},
-          ...(request.title ? { title: request.title } : {}),
-          ...(request.description ? { description: request.description } : {}),
-        })),
-        requiresAttention: agent.requiresAttention ?? false,
-        attentionReason: agent.attentionReason ?? null,
-        // Timeline preview is a follow-up; title + phase carry the MVP.
-        lastAssistantText: null,
-        statusText:
-          agent.status === "running" ? `${providerLabel(agent.provider)} · Running` : null,
-      });
-    }
-  }
-  return list;
+  const directories = Object.entries(sessions).map(([serverId, session]) => ({
+    serverId,
+    agents: session.agents,
+    agentDetails: session.agentDetails,
+  }));
+  return buildIslandAgentPushList(directories);
 }
 
 function pushSignature(list: DesktopIslandAgentPush[]): string {

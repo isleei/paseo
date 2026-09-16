@@ -1,23 +1,31 @@
-const { execFileSync } = require("node:child_process");
+const { execFileSync, spawnSync } = require("node:child_process");
 const path = require("node:path");
 
 const { smokePackagedDesktopApp } = require("../e2e/packaged-app-smoke.js");
 
 const EXECUTABLE_NAME = "Paimon";
 
-function shouldFixupAdhoc() {
-  if (process.env.CSC_LINK || process.env.CSC_NAME) {
-    return false;
+function hasTeamIdentifier(appPath) {
+  const result = spawnSync("codesign", ["-d", "--verbose=4", appPath], {
+    encoding: "utf8",
+  });
+  if (result.error) {
+    throw result.error;
   }
-  return process.env.CSC_IDENTITY_AUTO_DISCOVERY === "false";
+
+  const details = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+  const match = details.match(/^TeamIdentifier=(.+)$/m);
+  return result.status === 0 && match?.[1].trim() !== "not set";
 }
 
 exports.default = async function afterSign(context) {
-  if (context.electronPlatformName === "darwin" && shouldFixupAdhoc()) {
+  if (context.electronPlatformName === "darwin") {
     const appPath = path.join(context.appOutDir, `${EXECUTABLE_NAME}.app`);
-    execFileSync(process.execPath, [path.join(__dirname, "fixup-adhoc-signature.mjs"), appPath], {
-      stdio: "inherit",
-    });
+    if (!hasTeamIdentifier(appPath)) {
+      execFileSync(process.execPath, [path.join(__dirname, "fixup-adhoc-signature.mjs"), appPath], {
+        stdio: "inherit",
+      });
+    }
   }
 
   if (process.env.PASEO_DESKTOP_SMOKE !== "1") {

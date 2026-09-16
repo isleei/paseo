@@ -11,15 +11,15 @@ export interface CreateAgentPlacement {
   cwd: string;
 }
 
-export interface CreateAgentIntent {
-  workspaceId: string;
+export type CreateAgentIntent = {
   cwd: string;
   parentAgentId: string | null;
   labels: Record<string, string>;
-}
+} & ({ kind: "workspace"; workspaceId: string } | { kind: "standalone" });
 
 export async function resolveCreateAgentIntent(input: {
   explicitWorkspaceId?: string;
+  placement?: { kind: "standalone"; cwd: string };
   caller: CreateAgentCaller | null;
   labels?: Record<string, string>;
   childAgentDefaultLabels?: Record<string, string>;
@@ -47,18 +47,28 @@ export async function resolveCreateAgentIntent(input: {
 
 async function resolvePlacement(input: {
   explicitWorkspaceId?: string;
+  placement?: { kind: "standalone"; cwd: string };
   caller: CreateAgentCaller | null;
   resolveWorkspace: (workspaceId: string) => Promise<CreateAgentPlacement>;
   createWorkspace: () => Promise<CreateAgentPlacement>;
-}): Promise<CreateAgentPlacement> {
+}): Promise<({ kind: "workspace" } & CreateAgentPlacement) | { kind: "standalone"; cwd: string }> {
+  if (input.placement?.kind === "standalone") {
+    if (input.explicitWorkspaceId) {
+      throw new Error("Standalone agent creation cannot include workspaceId");
+    }
+    if (input.caller) {
+      throw new Error("Subagents must belong to a workspace");
+    }
+    return { kind: "standalone", cwd: input.placement.cwd };
+  }
   if (input.explicitWorkspaceId) {
-    return input.resolveWorkspace(input.explicitWorkspaceId);
+    return { kind: "workspace", ...(await input.resolveWorkspace(input.explicitWorkspaceId)) };
   }
   if (input.caller) {
     if (!input.caller.workspaceId) {
       throw new Error(`Caller agent ${input.caller.id} has no workspace`);
     }
-    return { workspaceId: input.caller.workspaceId, cwd: input.caller.cwd };
+    return { kind: "workspace", workspaceId: input.caller.workspaceId, cwd: input.caller.cwd };
   }
-  return input.createWorkspace();
+  return { kind: "workspace", ...(await input.createWorkspace()) };
 }

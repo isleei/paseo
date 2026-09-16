@@ -16,8 +16,10 @@ const theme = {
   borderWidth: {
     1: 1,
   },
+  colorScheme: "light",
   colors: {
     accent: "#20744A",
+    border: "#e4e4e7",
     borderAccent: "#2F3534",
   },
   fontSize: {
@@ -44,6 +46,24 @@ describe("control geometry", () => {
     expect(geometry.controlRest).toMatchObject({
       borderWidth: 1,
       borderColor: "transparent",
+      outlineColor: "transparent",
+      outlineWidth: 0,
+    });
+  });
+
+  it("uses the hairline token for resting control borders in dark", () => {
+    const geometry = createControlGeometry({
+      ...theme,
+      colorScheme: "dark",
+      colors: {
+        ...theme.colors,
+        border: "#3A403F",
+      },
+    } as unknown as Theme);
+
+    expect(geometry.controlRest).toMatchObject({
+      borderWidth: 1,
+      borderColor: "#3A403F",
       outlineColor: "transparent",
       outlineWidth: 0,
     });

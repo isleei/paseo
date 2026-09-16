@@ -262,6 +262,7 @@ export const zhCN: TranslationResources = {
     hostLoadFailed: "{{host}}：无法加载历史",
     searchPlaceholder: "搜索历史",
     actions: {
+      newStandalone: "新建独立会话",
       loadMore: "加载更多",
       clearSearch: "清除搜索",
     },
@@ -1163,6 +1164,7 @@ export const zhCN: TranslationResources = {
       hosts: "Hosts",
       settings: "设置",
       closeSidebar: "关闭侧边栏",
+      jumpToActivity: "跳转到待处理会话",
     },
     help: {
       trigger: "帮助与支持",
@@ -1266,6 +1268,7 @@ export const zhCN: TranslationResources = {
   },
   newWorkspace: {
     title: "新建 workspace",
+    standaloneTitle: "新建独立会话",
     create: "创建",
     isolation: {
       local: "本地",

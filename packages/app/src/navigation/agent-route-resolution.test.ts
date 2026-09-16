@@ -4,6 +4,7 @@ import { resolveAgentRoute } from "@/navigation/agent-route-resolution";
 const VALID_ROUTE = {
   serverId: "server-1",
   agentId: "agent-1",
+  cachedAgentExists: false,
   cachedWorkspaceId: null,
 } as const;
 
@@ -52,12 +53,33 @@ describe("resolveAgentRoute", () => {
     ).toEqual({ kind: "resolved", workspaceId: "workspace-2" });
   });
 
-  it("abandons the agent only after the target host says it is missing", () => {
+  it("opens a cached standalone agent without waiting for its host", () => {
+    expect(
+      resolveAgentRoute({
+        ...VALID_ROUTE,
+        cachedAgentExists: true,
+        connectionStatus: "offline",
+        lookup: { kind: "idle" },
+      }),
+    ).toEqual({ kind: "standalone" });
+  });
+
+  it("opens a standalone agent returned by the target host", () => {
     expect(
       resolveAgentRoute({
         ...VALID_ROUTE,
         connectionStatus: "online",
         lookup: { kind: "found", workspaceId: null },
+      }),
+    ).toEqual({ kind: "standalone" });
+  });
+
+  it("abandons the agent only after the target host says it is missing", () => {
+    expect(
+      resolveAgentRoute({
+        ...VALID_ROUTE,
+        connectionStatus: "online",
+        lookup: { kind: "missing" },
       }),
     ).toEqual({ kind: "notFound" });
   });

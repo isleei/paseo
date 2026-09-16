@@ -12,6 +12,7 @@
  * Usage: node ./scripts/fixup-adhoc-signature.mjs <path-to-.app>
  */
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,7 +33,6 @@ function main() {
     throw new Error("Usage: fixup-adhoc-signature.mjs <path-to-.app>");
   }
   const contents = path.join(appPath, "Contents");
-  const appName = path.basename(appPath, ".app");
   const mainPlist = path.join(__dirname, "adhoc-entitlements", "entitlements.mac.adhoc.plist");
   const inheritPlist = path.join(
     __dirname,
@@ -40,8 +40,17 @@ function main() {
     "entitlements.mac.inherit.adhoc.plist",
   );
 
-  for (const helper of ["Helper", "Helper (GPU)", "Helper (Plugin)", "Helper (Renderer)"]) {
-    sign(path.join(contents, "Frameworks", `${appName} ${helper}.app`), inheritPlist);
+  const frameworksPath = path.join(contents, "Frameworks");
+  const helperApps = fs
+    .readdirSync(frameworksPath, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && / Helper(?: \(.+\))?\.app$/.test(entry.name))
+    .map((entry) => path.join(frameworksPath, entry.name));
+  if (helperApps.length === 0) {
+    throw new Error(`[fixup-adhoc-signature] no Electron Helper apps found in ${frameworksPath}`);
+  }
+
+  for (const helperApp of helperApps) {
+    sign(helperApp, inheritPlist);
   }
   sign(appPath, mainPlist);
 

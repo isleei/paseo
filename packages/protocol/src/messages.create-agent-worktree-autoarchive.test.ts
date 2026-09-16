@@ -3,6 +3,20 @@ import { describe, expect, test } from "vitest";
 import { SessionInboundMessageSchema } from "./messages.js";
 
 describe("create_agent_request worktree and autoArchive fields", () => {
+  test("accepts explicit standalone placement", () => {
+    const parsed = SessionInboundMessageSchema.parse({
+      type: "create_agent_request",
+      requestId: "create-standalone-agent",
+      config: { provider: "codex", cwd: "/scratch" },
+      placement: { kind: "standalone" },
+    });
+
+    expect(parsed).toMatchObject({
+      placement: { kind: "standalone" },
+      config: { cwd: "/scratch" },
+    });
+  });
+
   test("accepts optional worktree branch-off target and autoArchive", () => {
     const parsed = SessionInboundMessageSchema.parse({
       type: "create_agent_request",

@@ -4240,7 +4240,10 @@ export class Session {
           },
           agentId,
           config: resolvedIntent.config,
-          workspaceId: resolvedIntent.intent.workspaceId,
+          workspaceId:
+            resolvedIntent.intent.kind === "workspace"
+              ? resolvedIntent.intent.workspaceId
+              : undefined,
           worktreeName,
           initialPrompt,
           clientMessageId,
@@ -4258,7 +4261,11 @@ export class Session {
       );
       createdAgentId = snapshot.id;
       await this.agentUpdates.forwardLiveAgent(snapshot);
-      if (resolvedIntent.createdDirectoryWorkspace && trimmedPrompt) {
+      if (
+        resolvedIntent.intent.kind === "workspace" &&
+        resolvedIntent.createdDirectoryWorkspace &&
+        trimmedPrompt
+      ) {
         this.workspaceAutoName.scheduleForDirectory(
           {
             workspaceId: resolvedIntent.intent.workspaceId,
@@ -4304,6 +4311,10 @@ export class Session {
 
     const intent = await resolveCreateAgentIntent({
       explicitWorkspaceId: createdWorktree?.workspace.workspaceId ?? request.workspaceId,
+      placement:
+        request.placement?.kind === "standalone"
+          ? { kind: "standalone", cwd: config.cwd }
+          : undefined,
       caller: callerAgent
         ? { id: callerAgent.id, cwd: callerAgent.cwd, workspaceId: callerAgent.workspaceId }
         : null,
@@ -4332,7 +4343,12 @@ export class Session {
     return {
       config,
       intent,
-      createdDirectoryWorkspace: !createdWorktree && !request.workspaceId && !callerAgent,
+      createdDirectoryWorkspace:
+        intent.kind === "workspace" &&
+        !createdWorktree &&
+        !request.workspaceId &&
+        !request.placement &&
+        !callerAgent,
     };
   }
 

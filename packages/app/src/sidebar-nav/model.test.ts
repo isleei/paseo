@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PluginSidebarGroup } from "@/plugins/sidebar-groups";
 import {
   builtinSidebarNavShortcutAction,
+  isSidebarHeaderNavItem,
   moveSidebarNavItem,
   pluginSidebarNavKey,
   resolveSidebarNavItems,
@@ -239,5 +240,16 @@ describe("builtinSidebarNavShortcutAction", () => {
     expect(builtinSidebarNavShortcutAction("search")).toBe("toggle-command-center");
     expect(builtinSidebarNavShortcutAction("history")).toBeNull();
     expect(builtinSidebarNavShortcutAction("schedules")).toBeNull();
+  });
+});
+
+describe("isSidebarHeaderNavItem", () => {
+  it("keeps Search in the sidebar header instead of the ordered row list", () => {
+    expect(
+      isSidebarHeaderNavItem({ kind: "builtin", key: "search", id: "search", visible: true }),
+    ).toBe(true);
+    expect(
+      isSidebarHeaderNavItem({ kind: "builtin", key: "history", id: "history", visible: true }),
+    ).toBe(false);
   });
 });

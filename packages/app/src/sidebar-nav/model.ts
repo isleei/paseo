@@ -25,6 +25,10 @@ export interface PluginSidebarNavItem {
 
 export type SidebarNavItem = BuiltinSidebarNavItem | PluginSidebarNavItem;
 
+export function isSidebarHeaderNavItem(item: SidebarNavItem): boolean {
+  return item.kind === "builtin" && item.id === "search";
+}
+
 const BUILTIN_LABEL_KEYS: Record<BuiltinSidebarNavId, string> = {
   "new-workspace": "sidebar.actions.newWorkspace",
   history: "sidebar.sections.sessions",

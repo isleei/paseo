@@ -1,5 +1,14 @@
 import { router } from "expo-router";
-import { Import, Server, Settings, X } from "lucide-react-native";
+import {
+  Bell,
+  BellRing,
+  Import,
+  Search,
+  Server,
+  Settings,
+  X,
+  type LucideIcon,
+} from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
@@ -40,11 +49,18 @@ import { HEADER_INNER_HEIGHT, useIsCompactFormFactor } from "@/constants/layout"
 import { useOpenAddProject } from "@/hooks/use-open-add-project";
 import { useImportSession } from "@/hooks/use-import-session";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
+import { useAggregatedAgents } from "@/hooks/use-aggregated-agents";
 import {
   type SidebarProjectEntry,
   type SidebarWorkspaceEntry,
 } from "@/hooks/use-sidebar-workspaces-list";
 import { useSidebarModel } from "@/components/sidebar/sidebar-model";
+import {
+  builtinSidebarNavLabelKey,
+  builtinSidebarNavShortcutAction,
+  isSidebarHeaderNavItem,
+} from "@/sidebar-nav/model";
+import { useSidebarNavItems } from "@/sidebar-nav/use-sidebar-nav-items";
 import type { PinnedSidebarGroups } from "@/hooks/use-sidebar-pins";
 import { RetainedPanelActivity } from "@/components/retained-panel";
 import type { SidebarWorkspaceGroup } from "@/components/sidebar/sidebar-labels";
@@ -52,11 +68,14 @@ import type { SidebarProjectIconTarget } from "@/utils/sidebar-project-row-model
 import { type SidebarGroupMode, useSidebarViewStore } from "@/stores/sidebar-view-store";
 import { useHosts } from "@/runtime/host-runtime";
 import { usePanelStore } from "@/stores/panel-store";
+import { useKeyboardShortcutsStore } from "@/stores/keyboard-shortcuts-store";
 import { useOwnsWindowChromeCorner, WindowChromeSafeArea } from "@/utils/desktop-window";
 import { useCloseAgentListGesture } from "@/mobile-panels/gestures";
 import { MobilePanelOverlay } from "@/mobile-panels/presentation";
 import { buildSettingsAddHostRoute, buildSettingsRoute } from "@/utils/host-routes";
 import { openHostOverview } from "@/navigation/settings-navigation";
+import { navigateToAgent } from "@/utils/navigate-to-agent";
+import { pickSessionActivityTarget } from "@/utils/session-activity-target";
 import { SidebarAgentListSkeleton } from "./sidebar-agent-list-skeleton";
 import { SidebarCalloutSlot } from "./sidebar-callout-slot";
 import { SidebarWorkspaceList } from "./sidebar-workspace-list";
@@ -514,6 +533,17 @@ function MobileSidebar({
     [insetsTop, insetsBottom, theme.colors.surfaceSidebar],
   );
 
+  const mobileScrollableNavElement = useMemo(
+    () => (
+      <SidebarNavRows
+        mode="scrollable"
+        style={styles.sidebarScrollableNavGroup}
+        onBeforeNavigate={closeSidebar}
+      />
+    ),
+    [closeSidebar],
+  );
+
   return (
     <MobilePanelOverlay
       panel="agent-list"
@@ -521,30 +551,25 @@ function MobileSidebar({
       panelStyle={mobileSidebarInsetStyle}
     >
       <View style={styles.sidebarContent} pointerEvents="auto">
-        <WindowChromeSafeArea placement="below" />
-        <SidebarNavRows style={styles.sidebarHeaderGroup} onBeforeNavigate={closeSidebar} />
-        <WindowChromeSafeArea placement="inline" style={styles.mobileCloseButtonRow}>
-          <Pressable
-            style={styles.mobileCloseButton}
-            onPress={closeSidebar}
-            testID="sidebar-close"
-            nativeID="sidebar-close"
-            accessible
-            accessibilityRole="button"
-            accessibilityLabel={labels.closeSidebar}
-            hitSlop={8}
-          >
-            {({ hovered, pressed }) => (
-              <X
-                size={theme.iconSize.md}
-                color={hovered || pressed ? theme.colors.foreground : theme.colors.foregroundMuted}
-              />
-            )}
-          </Pressable>
-        </WindowChromeSafeArea>
+        <View style={styles.mobilePinnedArea}>
+          <WindowChromeSafeArea placement="below" />
+          <SidebarBrandHeader closeSidebar={closeSidebar} closeLabel={labels.closeSidebar} />
+          <SidebarNavRows
+            mode="pinned"
+            style={styles.sidebarHeaderGroup}
+            onBeforeNavigate={closeSidebar}
+          />
+        </View>
 
         {isInitialLoad && !hasActiveHostFilter ? (
-          <SidebarAgentListSkeleton />
+          <View style={styles.sidebarContent}>
+            <SidebarNavRows
+              mode="scrollable"
+              style={styles.sidebarScrollableNavGroupFlush}
+              onBeforeNavigate={closeSidebar}
+            />
+            <SidebarAgentListSkeleton />
+          </View>
         ) : (
           <SidebarWorkspaceList
             collapsedProjectKeys={collapsedProjectKeys}
@@ -565,6 +590,7 @@ function MobileSidebar({
             onImportSession={handleImportSession}
             parentGestureRef={closeGestureRef}
             dragGestureHostActive={active}
+            listTopComponent={mobileScrollableNavElement}
             listHeaderComponent={workspacesSectionHeaderElement}
           />
         )}
@@ -700,6 +726,12 @@ function DesktopSidebar({
     () => [styles.sidebarHeaderGroup, ownsTopLeft && styles.sidebarHeaderGroupBelowChrome],
     [ownsTopLeft],
   );
+
+  const desktopScrollableNavElement = useMemo(
+    () => <SidebarNavRows mode="scrollable" style={styles.sidebarScrollableNavGroup} />,
+    [],
+  );
+
   return (
     <Animated.View
       accessibilityElementsHidden={!active}
@@ -717,11 +749,14 @@ function DesktopSidebar({
             <TitlebarDragRegion />
           )}
           <SidebarBrandHeader />
-          <SidebarNavRows style={sidebarHeaderGroupStyle} />
+          <SidebarNavRows mode="pinned" style={sidebarHeaderGroupStyle} />
         </View>
 
         {isInitialLoad && !hasActiveHostFilter ? (
-          <SidebarAgentListSkeleton />
+          <View style={styles.sidebarContent}>
+            <SidebarNavRows mode="scrollable" style={styles.sidebarScrollableNavGroupFlush} />
+            <SidebarAgentListSkeleton />
+          </View>
         ) : (
           <SidebarWorkspaceList
             collapsedProjectKeys={collapsedProjectKeys}
@@ -739,6 +774,7 @@ function DesktopSidebar({
             onRefresh={handleRefresh}
             onAddProject={handleOpenProject}
             onImportSession={handleImportSession}
+            listTopComponent={desktopScrollableNavElement}
             listHeaderComponent={workspacesSectionHeaderElement}
           />
         )}
@@ -765,10 +801,115 @@ function DesktopSidebar({
   );
 }
 
-function SidebarBrandHeader() {
+function SidebarHeaderIconButton({
+  icon: Icon,
+  label,
+  onPress,
+  testID,
+  theme,
+  disabled = false,
+  shortcutKeys,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onPress: () => void;
+  testID: string;
+  theme: SidebarTheme;
+  disabled?: boolean;
+  shortcutKeys?: ReturnType<typeof useShortcutKeys>;
+}) {
+  const resolveIconColor = (active: boolean): string => {
+    if (disabled) return theme.colors.border;
+    if (active) return theme.colors.foreground;
+    return theme.colors.foregroundMuted;
+  };
+
+  return (
+    <Tooltip delayDuration={300}>
+      <TooltipTrigger asChild>
+        <Pressable
+          style={styles.headerIconButton}
+          onPress={onPress}
+          disabled={disabled}
+          testID={testID}
+          nativeID={testID}
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel={label}
+          hitSlop={4}
+        >
+          {({ hovered, pressed }) => (
+            <Icon size={theme.iconSize.md} color={resolveIconColor(hovered || pressed)} />
+          )}
+        </Pressable>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" align="center" offset={8}>
+        <IconTooltipContent label={label} shortcutKeys={shortcutKeys} />
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function SidebarBrandHeader({
+  closeSidebar,
+  closeLabel,
+}: {
+  closeSidebar?: () => void;
+  closeLabel?: string;
+}) {
+  const { t } = useTranslation();
+  const { theme } = useUnistyles();
+  const { items } = useSidebarNavItems();
+  const { agents } = useAggregatedAgents();
+  const setCommandCenterOpen = useKeyboardShortcutsStore((state) => state.setCommandCenterOpen);
+  const searchKeys = useShortcutKeys(builtinSidebarNavShortcutAction("search"));
+  const showSearch = items.some((item) => item.visible && isSidebarHeaderNavItem(item));
+  const activityTarget = useMemo(() => pickSessionActivityTarget(agents), [agents]);
+  const ActivityIcon = activityTarget?.kind === "attention" ? BellRing : Bell;
+  const handleSearch = useCallback(() => setCommandCenterOpen(true), [setCommandCenterOpen]);
+  const handleActivity = useCallback(() => {
+    if (!activityTarget) return;
+    closeSidebar?.();
+    navigateToAgent({
+      serverId: activityTarget.agent.serverId,
+      agentId: activityTarget.agent.id,
+      workspaceId: activityTarget.agent.workspaceId,
+      pin: true,
+    });
+  }, [activityTarget, closeSidebar]);
+
   return (
     <View style={styles.brandHeader}>
       <Text style={styles.brandTitle}>Paimon</Text>
+      <View style={styles.brandActions}>
+        {showSearch ? (
+          <SidebarHeaderIconButton
+            icon={Search}
+            label={t(builtinSidebarNavLabelKey("search"))}
+            onPress={handleSearch}
+            testID="sidebar-header-search"
+            theme={theme}
+            shortcutKeys={searchKeys}
+          />
+        ) : null}
+        <SidebarHeaderIconButton
+          icon={ActivityIcon}
+          label={t("sidebar.actions.jumpToActivity")}
+          onPress={handleActivity}
+          testID="sidebar-header-activity"
+          theme={theme}
+          disabled={!activityTarget}
+        />
+        {closeSidebar && closeLabel ? (
+          <SidebarHeaderIconButton
+            icon={X}
+            label={closeLabel}
+            onPress={closeSidebar}
+            testID="sidebar-close"
+            theme={theme}
+          />
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -845,24 +986,18 @@ const styles = StyleSheet.create((theme) => ({
     flex: 1,
     minHeight: 0,
   },
-  mobileCloseButtonRow: {
-    position: "absolute",
-    top: theme.spacing[3],
-    left: 0,
-    right: 0,
-    zIndex: 2,
-    alignItems: "flex-end",
-    pointerEvents: "box-none",
+  sidebarScrollableNavGroup: {
+    marginHorizontal: -theme.spacing[2],
+    gap: 2,
+    paddingBottom: theme.spacing[1.5],
   },
-  mobileCloseButton: {
-    // The 16px X paints farther inside its 32px hit target than the 14px Settings2 glyph.
-    // This optical inset puts their painted right edges on the same sidebar rail.
-    marginRight: theme.spacing[2] + 1.5,
-    width: 32,
-    height: 32,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.borderRadius.lg,
+  sidebarScrollableNavGroupFlush: {
+    gap: 2,
+    paddingBottom: theme.spacing[1.5],
+  },
+  mobilePinnedArea: {
+    position: "relative",
+    zIndex: 1,
     backgroundColor: theme.colors.surfaceSidebar,
   },
   desktopSidebarBorder: {
@@ -871,6 +1006,8 @@ const styles = StyleSheet.create((theme) => ({
   },
   sidebarDragArea: {
     position: "relative",
+    zIndex: 1,
+    backgroundColor: theme.colors.surfaceSidebar,
   },
   desktopChromeRow: {
     position: "relative",
@@ -881,6 +1018,23 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: theme.spacing[3],
     borderBottomWidth: theme.borderWidth[1],
     borderBottomColor: "transparent",
+  },
+  devBuildBadge: {
+    maxWidth: "60%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1],
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.accent,
+  },
+  devBuildBadgeText: {
+    minWidth: 0,
+    flexShrink: 1,
+    color: theme.colors.accentForeground,
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.medium,
   },
   sidebarFooter: {
     flexDirection: "row",
@@ -934,6 +1088,19 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foreground,
     letterSpacing: -0.2,
     flex: 1,
+  },
+  brandActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1],
+    flexShrink: 0,
+  },
+  headerIconButton: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: theme.borderRadius.lg,
   },
   // Footer avatar — circular host indicator on the left of the footer bar
   footerAvatar: {

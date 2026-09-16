@@ -88,7 +88,7 @@ A list that is itself the page content — sidebar items in `sidebar-workspace-l
 
 Pane chrome — the workspace pane header, the file-explorer header, the diff pane header — uses a single bottom border to separate the header from the content (`packages/app/src/components/git-diff-pane.tsx:2328-2331`). One border, no shadow.
 
-`borderAccent` is reserved for the outline button. Inputs use `border`. Single-thing borders are wrong; a single bordered element is either a card with one row (use the card) or it does not need a border.
+`borderAccent` is reserved for the outline button. Inputs use `border`. Dark fields keep that hairline at rest because the fill sits too close to the canvas; light fields stay a fill until hover. Single-thing borders are wrong; a single bordered element is either a card with one row (use the card) or it does not need a border.
 
 ---
 

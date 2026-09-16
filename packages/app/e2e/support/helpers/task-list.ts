@@ -1,9 +1,21 @@
 import { expect, type Page } from "@playwright/test";
 
 export async function openCompletedTaskList(page: Page, count: number): Promise<void> {
-  const taskButton = page.getByRole("button", { name: `${count}/${count} tasks` });
-  await expect(taskButton).toBeVisible({ timeout: 60_000 });
-  await taskButton.click();
+  const composerPill = page.getByRole("button", { name: `${count}/${count} tasks` });
+  const railProgress = page.getByTestId("workspace-rail-task-progress");
+
+  // Wide layouts read tasks from the workspace rail; compact layouts expand the composer pill.
+  await expect
+    .poll(async () => (await railProgress.count()) > 0 || (await composerPill.count()) > 0, {
+      timeout: 60_000,
+    })
+    .toBe(true);
+
+  if ((await railProgress.count()) > 0) {
+    await expect(railProgress).toContainText(`${count}/${count}`);
+    return;
+  }
+  await composerPill.click();
 }
 
 export async function expectTaskListEntries(page: Page, entries: readonly string[]): Promise<void> {

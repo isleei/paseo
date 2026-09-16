@@ -1,5 +1,5 @@
 import { router, usePathname } from "expo-router";
-import { CalendarClock, History, Plus, Search } from "lucide-react-native";
+import { CalendarClock, History, Plus } from "lucide-react-native";
 import { memo, useCallback, useMemo, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import { View, type StyleProp, type ViewStyle } from "react-native";
@@ -11,10 +11,10 @@ import { useHostFeature } from "@/runtime/host-features";
 import {
   builtinSidebarNavLabelKey,
   builtinSidebarNavShortcutAction,
+  isSidebarHeaderNavItem,
   type BuiltinSidebarNavId,
 } from "@/sidebar-nav/model";
 import { useSidebarNavItems } from "@/sidebar-nav/use-sidebar-nav-items";
-import { useKeyboardShortcutsStore } from "@/stores/keyboard-shortcuts-store";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { useWorkspace } from "@/stores/session-store-hooks";
 import {
@@ -49,7 +49,7 @@ export function SidebarNavRows({ style, onBeforeNavigate, mode = "all" }: Sideba
   const { items } = useSidebarNavItems();
   const visibleItems = useMemo(() => {
     return items.filter((item) => {
-      if (!item.visible) return false;
+      if (!item.visible || isSidebarHeaderNavItem(item)) return false;
       const isNewWorkspace = item.kind === "builtin" && item.id === "new-workspace";
       if (mode === "pinned") return isNewWorkspace;
       if (mode === "scrollable") return !isNewWorkspace;
@@ -71,6 +71,7 @@ export function SidebarNavRows({ style, onBeforeNavigate, mode = "all" }: Sideba
             />
           );
         }
+        if (item.id === "search") return null;
         const Row = BUILTIN_ROWS[item.id];
         return <Row key={item.key} onBeforeNavigate={onBeforeNavigate} />;
       })}
@@ -145,27 +146,6 @@ function SidebarHistoryRow({ onBeforeNavigate }: SidebarNavRowProps) {
   );
 }
 
-function SidebarSearchRow({ onBeforeNavigate }: SidebarNavRowProps) {
-  const { t } = useTranslation();
-  const shortcutKeys = useShortcutKeys(builtinSidebarNavShortcutAction("search"));
-  const setCommandCenterOpen = useKeyboardShortcutsStore((state) => state.setCommandCenterOpen);
-  const handlePress = useCallback(() => {
-    onBeforeNavigate?.();
-    setCommandCenterOpen(true);
-  }, [onBeforeNavigate, setCommandCenterOpen]);
-
-  return (
-    <SidebarHeaderRow
-      icon={Search}
-      label={t(builtinSidebarNavLabelKey("search"))}
-      onPress={handlePress}
-      testID="sidebar-search"
-      variant="compact"
-      shortcutKeys={shortcutKeys}
-    />
-  );
-}
-
 function SidebarSchedulesRow({ onBeforeNavigate }: SidebarNavRowProps) {
   const { t } = useTranslation();
   const pathname = usePathname();
@@ -186,9 +166,11 @@ function SidebarSchedulesRow({ onBeforeNavigate }: SidebarNavRowProps) {
   );
 }
 
-const BUILTIN_ROWS: Record<BuiltinSidebarNavId, ComponentType<SidebarNavRowProps>> = {
+const BUILTIN_ROWS: Record<
+  Exclude<BuiltinSidebarNavId, "search">,
+  ComponentType<SidebarNavRowProps>
+> = {
   "new-workspace": SidebarNewWorkspaceRow,
   history: SidebarHistoryRow,
-  search: SidebarSearchRow,
   schedules: SidebarSchedulesRow,
 };

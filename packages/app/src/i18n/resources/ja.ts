@@ -266,6 +266,7 @@ export const ja: TranslationResources = {
     hostLoadFailed: "{{host}}: 履歴を読み込めませんでした",
     searchPlaceholder: "履歴を検索",
     actions: {
+      newStandalone: "新しいスタンドアロンセッション",
       loadMore: "さらに読み込む",
       clearSearch: "検索をクリア",
     },
@@ -1185,6 +1186,7 @@ export const ja: TranslationResources = {
       hosts: "ホスト",
       settings: "設定",
       closeSidebar: "サイドバーを閉じる",
+      jumpToActivity: "アクティビティに移動",
     },
     help: {
       trigger: "ヘルプとサポート",
@@ -1291,6 +1293,7 @@ export const ja: TranslationResources = {
   },
   newWorkspace: {
     title: "新しいワークスペース",
+    standaloneTitle: "新しいスタンドアロンセッション",
     create: "作成",
     isolation: {
       local: "ローカル",

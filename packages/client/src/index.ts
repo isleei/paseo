@@ -246,6 +246,7 @@ export interface PaseoAgentCreateOptions {
   onEvent?: (snapshot: CreationSnapshot) => void;
   config: PaseoAgentConfig;
   cwd: string;
+  placement?: CreateAgentRequestMessage["placement"];
   parent?: string | PaseoAgentHandle;
   title?: PaseoAgentSessionConfig["title"];
   env?: CreateAgentRequestMessage["env"];

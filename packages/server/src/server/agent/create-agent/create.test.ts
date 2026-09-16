@@ -95,6 +95,39 @@ test("session create forwards clientMessageId to the initial prompt run options"
   });
 });
 
+test("session create preserves standalone placement without a workspace id", async () => {
+  const snapshot = {
+    id: "agent-standalone",
+    provider: "codex",
+    cwd: "/tmp/paseo-standalone-test",
+    runtimeInfo: null,
+  } as ManagedAgent;
+  const createAgent = vi.fn(async () => snapshot);
+  const dependencies: Parameters<typeof createAgentCommand>[0] = {
+    agentManager: {
+      createAgent,
+    } as unknown as Parameters<typeof createAgentCommand>[0]["agentManager"],
+    agentStorage: {} as Parameters<typeof createAgentCommand>[0]["agentStorage"],
+    logger: createTestLogger(),
+    providerSnapshotManager: createProviderSnapshotManagerStub().manager,
+  };
+
+  await createAgentCommand(dependencies, {
+    kind: "session",
+    config: { provider: "codex", cwd: "/tmp/paseo-standalone-test" },
+    labels: {},
+    provisionalTitle: null,
+    firstAgentContext: { attachments: [] },
+    buildSessionConfig: async (config) => ({ sessionConfig: config }),
+  });
+
+  expect(createAgent).toHaveBeenCalledWith(
+    expect.objectContaining({ cwd: "/tmp/paseo-standalone-test" }),
+    undefined,
+    expect.objectContaining({ workspaceId: undefined }),
+  );
+});
+
 test("session create validates the requested mode against the provider's modes", async () => {
   const snapshot = {
     id: "agent-1",

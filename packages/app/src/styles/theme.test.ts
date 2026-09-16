@@ -1,12 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
+  darkClaudeTheme,
+  darkGhosttyTheme,
+  darkMidnightTheme,
   darkPureBlackTheme,
   darkTheme,
+  darkZincTheme,
   FONT_SIZE,
   getNextThemePreference,
   lightTheme,
   THEME_OPTIONS,
 } from "./theme";
+
+function meanChannel(hex: string): number {
+  const value = Number.parseInt(hex.slice(1), 16);
+  return (((value >> 16) & 255) + ((value >> 8) & 255) + (value & 255)) / 3;
+}
 
 describe("Typography scale", () => {
   it("names 14px as the default interface tier", () => {
@@ -64,6 +73,31 @@ describe("Pure black theme", () => {
   it("keeps ANSI black output readable on its zero-luminance terminal background", () => {
     expect(darkPureBlackTheme.colors.terminal.black).toBe("#595959");
     expect(darkPureBlackTheme.colors.terminal.brightBlack).toBe("#8a8a8a");
+  });
+});
+
+describe("Dark hairlines", () => {
+  it("keeps 1px strokes lighter than the input fill so they still read", () => {
+    const darkThemes = [
+      darkTheme,
+      darkZincTheme,
+      darkMidnightTheme,
+      darkClaudeTheme,
+      darkGhosttyTheme,
+      darkPureBlackTheme,
+    ];
+
+    for (const theme of darkThemes) {
+      expect(meanChannel(theme.colors.border)).toBeGreaterThan(meanChannel(theme.colors.surface2));
+      expect(meanChannel(theme.colors.borderAccent)).toBeGreaterThan(
+        meanChannel(theme.colors.border),
+      );
+    }
+  });
+
+  it("pins the default Dark hairlines above the canvas", () => {
+    expect(darkTheme.colors.border).toBe("#3A403F");
+    expect(darkTheme.colors.borderAccent).toBe("#4A504F");
   });
 });
 

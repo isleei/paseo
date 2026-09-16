@@ -265,6 +265,7 @@ export const ru: TranslationResources = {
     hostLoadFailed: "{{host}}: не удалось загрузить историю",
     searchPlaceholder: "Поиск по истории",
     actions: {
+      newStandalone: "Новая автономная сессия",
       loadMore: "Загрузить ещё",
       clearSearch: "Очистить поиск",
     },
@@ -1189,6 +1190,7 @@ export const ru: TranslationResources = {
       hosts: "Хосты",
       settings: "Настройки",
       closeSidebar: "Закрыть боковую панель",
+      jumpToActivity: "Перейти к активности",
     },
     help: {
       trigger: "Помощь и поддержка",
@@ -1295,6 +1297,7 @@ export const ru: TranslationResources = {
   },
   newWorkspace: {
     title: "Новое рабочее пространство",
+    standaloneTitle: "Новая автономная сессия",
     create: "Создать",
     isolation: {
       local: "Локально",

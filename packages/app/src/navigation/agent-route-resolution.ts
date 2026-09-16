@@ -5,11 +5,13 @@ export type AgentRouteLookup =
   | { kind: "idle" }
   | { kind: "fetching" }
   | { kind: "found"; workspaceId: string | null | undefined }
+  | { kind: "missing" }
   | { kind: "failed"; error: string };
 
 export type AgentRouteResolution =
   | { kind: "invalid" }
   | { kind: "resolved"; workspaceId: string }
+  | { kind: "standalone" }
   | {
       kind: "waitingForHost";
       connectionStatus: Exclude<HostRuntimeConnectionStatus, "online">;
@@ -21,6 +23,7 @@ export type AgentRouteResolution =
 export function resolveAgentRoute(input: {
   serverId: string;
   agentId: string;
+  cachedAgentExists: boolean;
   cachedWorkspaceId: string | null | undefined;
   connectionStatus: HostRuntimeConnectionStatus;
   lookup: AgentRouteLookup;
@@ -34,6 +37,10 @@ export function resolveAgentRoute(input: {
     return { kind: "resolved", workspaceId: cachedWorkspaceId };
   }
 
+  if (input.cachedAgentExists) {
+    return { kind: "standalone" };
+  }
+
   if (input.connectionStatus !== "online") {
     return { kind: "waitingForHost", connectionStatus: input.connectionStatus };
   }
@@ -42,7 +49,11 @@ export function resolveAgentRoute(input: {
     const fetchedWorkspaceId = normalizeWorkspaceOpaqueId(input.lookup.workspaceId);
     return fetchedWorkspaceId
       ? { kind: "resolved", workspaceId: fetchedWorkspaceId }
-      : { kind: "notFound" };
+      : { kind: "standalone" };
+  }
+
+  if (input.lookup.kind === "missing") {
+    return { kind: "notFound" };
   }
 
   if (input.lookup.kind === "failed") {

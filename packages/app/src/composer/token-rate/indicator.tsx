@@ -30,6 +30,9 @@ function TokenRateIndicatorImpl({ serverId, agentId }: TokenRateIndicatorProps) 
     (state) => state.sessions[serverId]?.agents?.get(agentId)?.lastUsage ?? null,
   );
   const totals: SessionUsageTotals | null = usage === null ? null : deriveSessionUsageTotals(usage);
+  const billedTokens = totals?.totalTokens ?? 0;
+  const contextTokens = usage?.contextWindowUsedTokens ?? 0;
+  const displayedTokens = billedTokens > 0 ? billedTokens : contextTokens;
 
   const segments: TokenRateSegment[] = [];
   if (tokensPerSecond !== null) {
@@ -43,12 +46,12 @@ function TokenRateIndicatorImpl({ serverId, agentId }: TokenRateIndicatorProps) 
       ),
     });
   }
-  if (totals !== null && totals.totalTokens > 0) {
+  if (displayedTokens > 0) {
     segments.push({
       key: "total",
       node: (
         <Text style={styles.value} testID="composer-token-rate-total">
-          {formatCompactTokens(totals.totalTokens)}
+          {formatCompactTokens(displayedTokens)}
           <Text style={styles.label}> {t("composer.tokenRate.tokensLabel")}</Text>
         </Text>
       ),

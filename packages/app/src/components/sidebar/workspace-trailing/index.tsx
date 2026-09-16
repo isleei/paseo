@@ -1,6 +1,5 @@
 import { Text } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
-import { DiffStat } from "@/components/diff-stat";
 import type { SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list";
 import { useAppSettings } from "@/hooks/use-settings";
 import type { SidebarWorkspaceTrailing } from "@/hooks/use-settings";
@@ -31,7 +30,6 @@ export function hasSidebarWorkspaceTrailing({
   workspace: SidebarWorkspaceEntry;
   trailing: SidebarWorkspaceTrailing;
 }): boolean {
-  if (trailing === "diff") return workspace.diffStat !== null;
   if (trailing === "timestamp") return workspace.statusEnteredAt !== null;
   return false;
 }
@@ -43,11 +41,6 @@ export function SidebarWorkspaceTrailingContent({
   workspace: SidebarWorkspaceEntry;
   trailing: SidebarWorkspaceTrailing;
 }) {
-  if (trailing === "diff" && workspace.diffStat) {
-    return (
-      <DiffStat additions={workspace.diffStat.additions} deletions={workspace.diffStat.deletions} />
-    );
-  }
   if (trailing === "timestamp" && workspace.statusEnteredAt) {
     return <WorkspaceTimestamp enteredAt={workspace.statusEnteredAt} />;
   }

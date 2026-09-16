@@ -267,6 +267,7 @@ export const fr: TranslationResources = {
     hostLoadFailed: "{{host}} : Impossible de charger l'historique",
     searchPlaceholder: "Rechercher dans l'historique",
     actions: {
+      newStandalone: "Nouvelle session autonome",
       loadMore: "Charger plus",
       clearSearch: "Effacer la recherche",
     },
@@ -1207,6 +1208,7 @@ export const fr: TranslationResources = {
       hosts: "Hôtes",
       settings: "Paramètres",
       closeSidebar: "Fermer la barre latérale",
+      jumpToActivity: "Accéder à l’activité",
     },
     help: {
       trigger: "Aide et assistance",
@@ -1313,6 +1315,7 @@ export const fr: TranslationResources = {
   },
   newWorkspace: {
     title: "Nouvel espace de travail",
+    standaloneTitle: "Nouvelle session autonome",
     create: "Créer",
     isolation: {
       local: "Local",
