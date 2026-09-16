@@ -100,6 +100,7 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
   shortcutNumber = null,
   showShortcutBadge = false,
   reserveIdleStatusIndicatorSpace = true,
+  selected = false,
   children,
 }: {
   workspace: SidebarWorkspaceEntry;
@@ -117,6 +118,8 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
   showShortcutBadge?: boolean;
   /** Keep the empty leading slot when the workspace has no active status. */
   reserveIdleStatusIndicatorSpace?: boolean;
+  /** Whether this workspace row is currently active/selected. Makes label fully opaque. */
+  selected?: boolean;
   children?: ReactNode;
 }) {
   const {
@@ -129,10 +132,10 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
   const workspaceBranchTextStyle = useMemo(
     () => [
       styles.workspaceBranchText,
-      isHovered && styles.workspaceBranchTextHovered,
+      (isHovered || selected) && styles.workspaceBranchTextHovered,
       isCreating && styles.workspaceBranchTextCreating,
     ],
-    [isHovered, isCreating],
+    [isHovered, selected, isCreating],
   );
 
   return (
@@ -186,7 +189,7 @@ function WorkspaceStatusIndicator({
   bucket,
   workspaceKind,
   loading = false,
-  reserveIdleSpace = true,
+  reserveIdleSpace: _reserveIdleSpace = true,
 }: {
   bucket: SidebarWorkspaceEntry["statusBucket"];
   workspaceKind: SidebarWorkspaceEntry["workspaceKind"];
@@ -230,15 +233,7 @@ function WorkspaceStatusIndicator({
   }
 
   if (bucket === "done") {
-    // An idle row still gets a dot rather than an empty slot. Nested rows are marked as
-    // workspaces by indentation alone, and with nothing in the leading slot the rail has no
-    // edge to read against — a workspace carrying its own glyph starts looking like a project
-    // header. The dot is muted to half opacity so it holds the rail without reporting status.
-    return reserveIdleSpace ? (
-      <View style={styles.workspaceStatusDot} testID="workspace-status-indicator-done">
-        <View style={styles.idleStatusDot} />
-      </View>
-    ) : null;
+    return null;
   }
 
   let KindIcon: typeof ThemedMonitor;
@@ -284,7 +279,7 @@ export const sidebarWorkspaceRowStyles = StyleSheet.create((theme) => ({
   // backgrounds have to keep spanning the group's full width. Indenting the container instead
   // pulls the highlight in with the content and the row stops lining up with its header.
   rowIndented: {
-    paddingLeft: theme.spacing[2] + theme.spacing[2],
+    paddingLeft: 28,
   },
   rowRight: {
     flexDirection: "row",

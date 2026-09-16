@@ -559,13 +559,12 @@ describe("computeSidebarOrderUpdates", () => {
     const updates = computeSidebarOrderUpdates({
       projects: [],
       persistedProjectOrder: ["stale-project"],
-      getWorkspaceOrder: () => [],
     });
 
-    expect(updates).toEqual({ projectOrder: null, workspaceOrders: [] });
+    expect(updates).toEqual({ projectOrder: null });
   });
 
-  it("appends unseen projects while putting unseen workspaces before the saved order", () => {
+  it("appends unseen projects without writing a workspace order", () => {
     const projects = [
       sidebarProject({ projectKey: "project-a", workspaceKeys: ["ws-1", "ws-2"] }),
       sidebarProject({ projectKey: "project-b", workspaceKeys: ["ws-3"] }),
@@ -574,36 +573,9 @@ describe("computeSidebarOrderUpdates", () => {
     const updates = computeSidebarOrderUpdates({
       projects,
       persistedProjectOrder: ["project-a"],
-      getWorkspaceOrder: (projectKey) => (projectKey === "project-a" ? ["srv:ws-1"] : []),
     });
 
-    expect(updates.projectOrder).toEqual(["project-a", "project-b"]);
-    expect(updates.workspaceOrders).toEqual([
-      { projectViewKey: "project-a", order: ["srv:ws-2", "srv:ws-1"] },
-      { projectViewKey: "project-b", order: ["srv:ws-3"] },
-    ]);
-  });
-
-  it("preserves the saved workspace order behind multiple newly discovered workspaces", () => {
-    const projects = [
-      sidebarProject({
-        projectKey: "project-a",
-        workspaceKeys: ["newest", "newer", "old-a", "old-b"],
-      }),
-    ];
-
-    const updates = computeSidebarOrderUpdates({
-      projects,
-      persistedProjectOrder: ["project-a"],
-      getWorkspaceOrder: () => ["srv:old-b", "srv:old-a"],
-    });
-
-    expect(updates.workspaceOrders).toEqual([
-      {
-        projectViewKey: "project-a",
-        order: ["srv:newest", "srv:newer", "srv:old-b", "srv:old-a"],
-      },
-    ]);
+    expect(updates).toEqual({ projectOrder: ["project-a", "project-b"] });
   });
 
   it("returns no project-order update when persisted order already covers visible keys", () => {
@@ -615,11 +587,9 @@ describe("computeSidebarOrderUpdates", () => {
     const updates = computeSidebarOrderUpdates({
       projects,
       persistedProjectOrder: ["project-b", "project-a"],
-      getWorkspaceOrder: (projectKey) => (projectKey === "project-a" ? ["srv:ws-1"] : ["srv:ws-2"]),
     });
 
-    expect(updates.projectOrder).toBeNull();
-    expect(updates.workspaceOrders).toEqual([]);
+    expect(updates).toEqual({ projectOrder: null });
   });
 });
 

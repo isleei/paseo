@@ -104,7 +104,7 @@ const styles = StyleSheet.create((theme) => ({
     gap: theme.spacing[1],
     paddingHorizontal: theme.spacing[2],
     borderRadius: theme.borderRadius["2xl"],
-    backgroundColor: "transparent",
+    backgroundColor: theme.colors.surface2,
   },
   toolbarIconOnly: {
     width: 28,

@@ -10,6 +10,8 @@ import type { OpenCodeEventSource } from "./opencode/event-consumer.js";
 import {
   __openCodeInternals,
   OpenCodeAgentClient,
+  createPaseoDefaultThinkingOptions,
+  resolvePaseoThinkingRouting,
   type OpenCodeEventTranslationState,
   translateOpenCodeEvent,
 } from "./opencode-agent.js";
@@ -6731,5 +6733,124 @@ describe("OpenCode snapshot summary false-idle regression", () => {
 
     expect(events.some((event) => event.type === "turn_started")).toBe(false);
     await session.close();
+  });
+});
+
+describe("Paseo synthetic thinking levels", () => {
+  const logger = createTestLogger();
+
+  test("routing keeps real variants on the variant channel", () => {
+    expect(resolvePaseoThinkingRouting(null)).toEqual({});
+    expect(resolvePaseoThinkingRouting(undefined)).toEqual({});
+    expect(resolvePaseoThinkingRouting("default")).toEqual({});
+    expect(resolvePaseoThinkingRouting("high")).toEqual({ variant: "high" });
+    expect(resolvePaseoThinkingRouting("variant:default")).toEqual({ variant: "variant:default" });
+  });
+
+  test("routing maps synthetic levels to a system nudge without a variant", () => {
+    for (const level of ["low", "medium", "high"]) {
+      const routing = resolvePaseoThinkingRouting(`paseo:${level}`);
+      expect(routing.variant).toBeUndefined();
+      expect(typeof routing.systemNudge).toBe("string");
+      expect(routing.systemNudge?.length).toBeGreaterThan(0);
+    }
+    expect(resolvePaseoThinkingRouting("paseo:bogus")).toEqual({});
+  });
+
+  test("default options are fresh objects per model", () => {
+    const first = createPaseoDefaultThinkingOptions();
+    const second = createPaseoDefaultThinkingOptions();
+    expect(first.map((option) => option.id)).toEqual([
+      "default",
+      "paseo:low",
+      "paseo:medium",
+      "paseo:high",
+    ]);
+    expect(first[0]?.isDefault).toBe(true);
+    first[0]!.label = "mutated";
+    expect(second[0]?.label).toBe("Default");
+  });
+
+  test("variant-less models get synthetic levels in the catalog", async () => {
+    const runtime = new TestOpenCodeHarness();
+    const openCodeClient = new TestOpenCodeClient();
+    openCodeClient.providerListResponse = {
+      data: {
+        connected: ["plain-provider"],
+        all: [
+          {
+            id: "plain-provider",
+            name: "Plain provider",
+            source: "api",
+            models: {
+              model: { name: "No variant model" },
+            },
+          },
+        ],
+      },
+    };
+    runtime.enqueueClient(openCodeClient);
+    const cwd = tmpCwd();
+    try {
+      const client = new OpenCodeAgentClient(logger, undefined, {
+        serverManager: runtime,
+        createClient: runtime.createClient,
+        resolveHomeDir: () => cwd,
+      });
+      const catalog = await client.fetchCatalog({ scope: "global", force: false });
+      expect(catalog.models[0]?.thinkingOptions?.map((option) => option.id)).toEqual([
+        "default",
+        "paseo:low",
+        "paseo:medium",
+        "paseo:high",
+      ]);
+      expect(catalog.models[0]?.defaultThinkingOptionId).toBe("default");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test("synthetic selection sends a nudge without variant; default sends neither", async () => {
+    const runtime = new TestOpenCodeHarness();
+    const execution = new TestOpenCodeClient();
+    execution.sessionCreateResponse = { data: { id: "ses_synthetic" } };
+    execution.sessionPromptAsyncEvents = [
+      { type: "session.idle", properties: { sessionID: "ses_synthetic" } },
+      { type: "session.idle", properties: { sessionID: "ses_synthetic" } },
+    ];
+    runtime.enqueueClient(execution);
+    const client = new OpenCodeAgentClient(logger, undefined, {
+      serverManager: runtime,
+      createClient: runtime.createClient,
+    });
+    const cwd = tmpCwd();
+    try {
+      const session = await client.createSession({
+        provider: "opencode",
+        cwd,
+        model: "plain-provider/model",
+        thinkingOptionId: "paseo:high",
+      });
+      try {
+        await collectTurnEvents(streamSession(session, "Use synthetic high"));
+        await session.setThinkingOption!("default");
+        await collectTurnEvents(streamSession(session, "Back to default"));
+        expect(execution.calls.sessionPromptAsync).toEqual([
+          expect.not.objectContaining({ variant: expect.anything() }),
+          expect.not.objectContaining({ variant: expect.anything() }),
+        ]);
+        const nudged = execution.calls.sessionPromptAsync[0] as { system?: unknown };
+        expect(typeof nudged.system).toBe("string");
+        expect(nudged.system as string).toContain("Favor correctness over speed");
+        const plain = execution.calls.sessionPromptAsync[1] as { system?: unknown };
+        expect(
+          plain.system === undefined || !(plain.system as string).includes("Favor correctness"),
+        ).toBe(true);
+      } finally {
+        await session.close();
+      }
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
   });
 });

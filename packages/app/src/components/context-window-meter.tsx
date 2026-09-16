@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ProviderUsageTooltipSection } from "@/provider-usage/tooltip-section";
 import { useProviderUsage } from "@/provider-usage/use-provider-usage";
-import { formatTokenCount } from "./context-window-meter.utils";
+import { formatCompactTokens, formatUsagePercentages } from "./context-window-meter.utils";
 
 interface ContextWindowMeterProps {
   maxTokens: number | null;
@@ -107,7 +107,7 @@ export function ContextWindowMeter({
   glyphSize,
 }: ContextWindowMeterProps) {
   const { theme } = useUnistyles();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const { view: providerUsageView, refresh: refreshProviderUsage } = useProviderUsage(
     serverId ?? null,
@@ -141,6 +141,7 @@ export function ContextWindowMeter({
           height={geometry.svgSize}
           viewBox={`0 0 ${geometry.svgSize} ${geometry.svgSize}`}
           style={styles.svg}
+          pointerEvents="none"
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         >
@@ -160,6 +161,11 @@ export function ContextWindowMeter({
 
   const clampedPercentage = clampPercentage(percentage);
   const roundedPercentage = Math.round(percentage);
+  const { used: usedPctStr, remaining: remainingPctStr } = formatUsagePercentages(percentage);
+  const formattedUsedTokens = formatCompactTokens(usedTokens);
+  const formattedMaxTokens = formatCompactTokens(maxTokens);
+  const isZh = i18n.language?.startsWith("zh");
+
   const { svgSize, center, radius, strokeWidth, circumference, containerStyle } = geometry;
   const dashOffset = circumference - (clampedPercentage / 100) * circumference;
   const colors = getMeterColors(clampedPercentage, theme);
@@ -173,12 +179,13 @@ export function ContextWindowMeter({
       delayDuration={0}
       enabledOnDesktop
       enabledOnMobile
+      openOnPress
     >
       <TooltipTrigger asChild triggerRefProp="ref">
         <Pressable
           style={containerStyle}
           testID="context-window-meter"
-          accessibilityRole="image"
+          accessibilityRole="button"
           accessibilityLabel={t("contextWindow.accessibility", {
             percentage: roundedPercentage,
           })}
@@ -188,6 +195,7 @@ export function ContextWindowMeter({
             height={svgSize}
             viewBox={`0 0 ${svgSize} ${svgSize}`}
             style={styles.svg}
+            pointerEvents="none"
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
           >
@@ -220,13 +228,14 @@ export function ContextWindowMeter({
         <View style={styles.tooltipContent}>
           <Text style={styles.tooltipTitle}>{t("contextWindow.title")}</Text>
           <Text style={styles.tooltipText}>
-            {t("contextWindow.used", { percentage: roundedPercentage })}
+            {isZh
+              ? `${usedPctStr}已用(剩余${remainingPctStr})`
+              : `${usedPctStr} used (${remainingPctStr} remaining)`}
           </Text>
           <Text style={styles.tooltipDetail}>
-            {t("contextWindow.tokens", {
-              used: formatTokenCount(usedTokens),
-              max: formatTokenCount(maxTokens),
-            })}
+            {isZh
+              ? `已用${formattedUsedTokens},共${formattedMaxTokens}`
+              : `${formattedUsedTokens} / ${formattedMaxTokens} tokens`}
           </Text>
           {formattedSessionCost ? (
             <Text style={styles.tooltipDetail}>
@@ -271,21 +280,28 @@ const styles = StyleSheet.create((theme) => ({
     backgroundColor: theme.colors.surface3,
   },
   tooltipContent: {
-    gap: theme.spacing[1.5],
-    minWidth: 200,
+    gap: theme.spacing[1],
+    minWidth: 180,
+    alignItems: "center",
+    paddingVertical: theme.spacing[1],
+    paddingHorizontal: theme.spacing[1.5],
   },
   tooltipTitle: {
     color: theme.colors.foreground,
     fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.medium,
+    textAlign: "center",
   },
   tooltipText: {
     color: theme.colors.foreground,
     fontSize: theme.fontSize.base,
     lineHeight: theme.fontSize.base * 1.4,
+    textAlign: "center",
   },
   tooltipDetail: {
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.sm,
     lineHeight: theme.fontSize.sm * 1.4,
+    textAlign: "center",
   },
 }));

@@ -21,8 +21,8 @@ export interface DesktopSidebarState {
 
 export type SortOption = "name" | "modified" | "size";
 
-export const DEFAULT_SIDEBAR_WIDTH = 320;
-export const MIN_SIDEBAR_WIDTH = 200;
+export const DEFAULT_SIDEBAR_WIDTH = 210;
+export const MIN_SIDEBAR_WIDTH = 180;
 export const MAX_SIDEBAR_WIDTH = 600;
 
 export const DEFAULT_TREE_RAIL_WIDTH = 260;
@@ -205,6 +205,16 @@ function migrateTreeRailWidth(state: MigratablePanelState, version: number): voi
   state.treeRailWidth = clampTreeRailWidth(state.treeRailWidth);
 }
 
+// v17 slimmed the sidebar from 320 to 210. Reset any install still at the old
+// wide default so the narrower sidebar takes effect immediately on upgrade.
+function migrateSidebarWidth(state: MigratablePanelState, version: number): void {
+  if (version < 17 || typeof state.sidebarWidth !== "number") {
+    state.sidebarWidth = DEFAULT_SIDEBAR_WIDTH;
+    return;
+  }
+  state.sidebarWidth = clampSidebarWidth(state.sidebarWidth);
+}
+
 export function migratePanelState(persistedState: unknown, version: number): MigratablePanelState {
   const result = PanelPersistedStateSchema.safeParse(persistedState);
   const state: MigratablePanelState = result.success ? result.data : {};
@@ -223,9 +233,7 @@ export function migratePanelState(persistedState: unknown, version: number): Mig
   if (version < 8) {
     migratePanelDesktopFocusMode(state);
   }
-  if (version < 6 || typeof state.sidebarWidth !== "number") {
-    state.sidebarWidth = DEFAULT_SIDEBAR_WIDTH;
-  }
+  migrateSidebarWidth(state, version);
   if (
     version < 9 ||
     typeof state.expandedPathsByWorkspace !== "object" ||

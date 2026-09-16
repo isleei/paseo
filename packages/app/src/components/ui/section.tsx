@@ -9,6 +9,7 @@ import {
   type CheckPresentationTone,
 } from "@/git/check-presentation.view";
 import { ChevronDown, ChevronRight } from "lucide-react-native";
+import { isWeb } from "@/constants/platform";
 import type { Theme } from "@/styles/theme";
 
 const ThemedChevronDown = withUnistyles(ChevronDown);
@@ -161,17 +162,17 @@ export const sectionKitStyles = StyleSheet.create((theme) => ({
   railHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing[2],
-    paddingHorizontal: theme.spacing[4],
-    paddingTop: theme.spacing[3],
-    paddingBottom: theme.spacing[2],
+    gap: theme.spacing[1.5],
+    paddingHorizontal: theme.spacing[3],
+    paddingTop: theme.spacing[2],
+    paddingBottom: theme.spacing[1.5],
   },
   divider: {
-    height: theme.borderWidth[1],
-    backgroundColor: theme.colors.border,
+    height: 1,
+    backgroundColor: isWeb ? "rgba(0, 0, 0, 0.05)" : theme.colors.border,
   },
   railTitle: {
-    fontSize: theme.fontSize.lg,
+    fontSize: 14,
     fontWeight: theme.fontWeight.semibold,
     color: theme.colors.foreground,
   },

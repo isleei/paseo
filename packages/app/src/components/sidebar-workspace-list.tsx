@@ -950,7 +950,7 @@ function ProjectHeaderRow({
           projectViewKey={project.viewKey}
           backdrop={getSidebarRowBackdrop({ isDragging, isPressed, selected, isHovered })}
           chevron={chevron}
-          showChevron={isHovered && chevron !== null}
+          showChevron={chevron !== null}
           isArchiving={isArchiving}
         />
 
@@ -1176,6 +1176,7 @@ function WorkspaceRowInner({
                 shortcutNumber={shortcutNumber}
                 showShortcutBadge={showShortcutBadge}
                 reserveIdleStatusIndicatorSpace={reserveIdleStatusIndicatorSpace}
+                selected={selected}
               >
                 <WorkspaceRowRightGroup
                   workspace={workspace}
@@ -2519,7 +2520,9 @@ const styles = StyleSheet.create((theme) => ({
   projectBlockExpanded: {
     paddingBottom: theme.spacing[3],
   },
-  workspaceListContainer: {},
+  workspaceListContainer: {
+    paddingLeft: theme.spacing[3],
+  },
   // Kept in step with `workspaceRow` above. It stands in a project's list where a workspace row
   // would be, so it takes that row's geometry and both of its fills.
   //

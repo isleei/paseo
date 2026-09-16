@@ -232,3 +232,18 @@ test.each([
   });
   f.client.close();
 });
+
+test("shared sources run the agent at the daemon-resolved workspace directory", async () => {
+  const f = fixture(false);
+  await f.client.createWorkspace({
+    ...f.input,
+    source: { kind: "shared" },
+    agent: { config: { provider: "codex", cwd: "/unknown/caller/guess" } },
+  });
+  expect(f.legacy[0]).toMatchObject({ kind: "workspace" });
+  expect(f.legacy[1]).toMatchObject({
+    kind: "agent",
+    input: { workspaceId: workspace.id, config: { cwd: "/project/worktree" } },
+  });
+  f.client.close();
+});

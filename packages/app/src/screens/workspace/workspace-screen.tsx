@@ -43,12 +43,14 @@ import { WorkspaceScriptsButton } from "@/screens/workspace/workspace-scripts-bu
 import { ImportSessionSheet } from "@/components/import-session-sheet";
 import { CommitSheetHost } from "@/git/commit-sheet";
 import { WorkspaceInfoRail } from "@/workspace-rail";
+import { useWorkspaceRailStore } from "@/workspace-rail/store";
 import { useNavigateToImportedAgent } from "@/hooks/use-import-session";
 import { useToast } from "@/contexts/toast-context";
 import { getOrCreateClientId } from "@/utils/client-id";
 import { selectIsAgentListOpen, usePanelStore } from "@/stores/panel-store";
 import { toggleDesktopSidebarsWithCheckoutIntent } from "@/utils/desktop-sidebar-toggle";
 import {
+  hideExplorerSidebar,
   isExplorerSidebarOpen,
   openExplorerSidebarView,
   toggleExplorerSidebar,
@@ -143,6 +145,7 @@ import {
   WorkspaceExplorerToggle,
   WorkspaceExplorerSidebarToggle,
   WorkspaceHeaderExplorerToggle,
+  WorkspaceHeaderRailToggle,
 } from "@/screens/workspace/workspace-explorer-toggle";
 import { useHasWindowChromeObstruction } from "@/utils/desktop-window";
 import {
@@ -1536,6 +1539,35 @@ function useLastMainPane(input: {
     lastMainPaneRef.current.paneId = focusedPaneId;
   }
   return lastMainPaneRef;
+}
+
+function resolveIsRailActive(
+  isMobile: boolean,
+  isRailCollapsed: boolean,
+  isExplorerSidebarShowing: boolean,
+): boolean {
+  return !isMobile && !isRailCollapsed && !isExplorerSidebarShowing;
+}
+
+function performToggleRail(input: {
+  isExplorerSidebarShowing: boolean;
+  isMobile: boolean;
+  persistenceKey: string | null;
+  activeExplorerCheckout: ExplorerCheckoutContext | null;
+  isRailCollapsed: boolean;
+}): void {
+  if (input.isExplorerSidebarShowing) {
+    hideExplorerSidebar({
+      isCompact: input.isMobile,
+      workspaceKey: input.persistenceKey,
+      checkout: input.activeExplorerCheckout,
+    });
+    if (input.isRailCollapsed) {
+      useWorkspaceRailStore.getState().toggleCollapsed();
+    }
+  } else {
+    useWorkspaceRailStore.getState().toggleCollapsed();
+  }
 }
 
 function WorkspaceScreenContent({
@@ -3742,6 +3774,20 @@ function WorkspaceScreenContent({
 
   const containerStyle = [styles.container, styles.containerWorkspaceBackground];
 
+  const isRailCollapsed = useWorkspaceRailStore((state) => state.collapsed);
+  const isRailActive = resolveIsRailActive(isMobile, isRailCollapsed, isExplorerSidebarShowing);
+  const railToggleAccessibilityState = useMemo(() => ({ expanded: isRailActive }), [isRailActive]);
+
+  const handleToggleRail = useCallback(() => {
+    performToggleRail({
+      isExplorerSidebarShowing,
+      isMobile,
+      persistenceKey,
+      activeExplorerCheckout,
+      isRailCollapsed,
+    });
+  }, [activeExplorerCheckout, isExplorerSidebarShowing, isMobile, isRailCollapsed, persistenceKey]);
+
   const workspaceScreenGate = renderWorkspaceRouteGate({
     state: workspaceRouteState,
     actions: {
@@ -3784,6 +3830,13 @@ function WorkspaceScreenContent({
         {!isMobile && workspaceDirectory ? (
           <>
             <WorkspaceActions serverId={normalizedServerId} cwd={workspaceDirectory} />
+            <WorkspaceHeaderRailToggle
+              onPress={handleToggleRail}
+              label={t("workspace.git.rail.title", "环境与任务")}
+              tooltipLabel={t("workspace.git.rail.title", "环境与任务")}
+              style={styles.compactHeaderActionButton}
+              accessibilityState={railToggleAccessibilityState}
+            />
             <WorkspaceHeaderExplorerToggle
               owner={explorerToggleOwner}
               onPress={handleToggleExplorerSidebar}
@@ -3818,6 +3871,8 @@ function WorkspaceScreenContent({
       handleScriptTerminalStarted,
       handleViewScriptTerminal,
       handleOpenUrlInBrowserTab,
+      handleToggleRail,
+      railToggleAccessibilityState,
       handleToggleExplorerSidebar,
       explorerSidebarToggleLabel,
       explorerSidebarToggleAccessibilityState,
@@ -3958,6 +4013,7 @@ function WorkspaceScreenContent({
     return (
       <SplitContainer
         layout={workspaceLayout}
+        hasRail={isRailActive}
         renderMainHeader={renderWorkspaceScreenHeader}
         renderExplorerSidebarHeaderAction={renderExplorerSidebarHeaderAction}
         focusModeEnabled={desktopFocusModeEnabled}
@@ -3995,6 +4051,7 @@ function WorkspaceScreenContent({
   }, [
     canRenderDesktopPaneSplits,
     workspaceLayout,
+    isRailActive,
     renderWorkspaceScreenHeader,
     renderExplorerSidebarHeaderAction,
     persistenceKey,
@@ -4048,6 +4105,7 @@ function WorkspaceScreenContent({
       checkout={activeExplorerCheckout}
       preferences={openInSidePane}
       workspaceKey={persistenceKey}
+      hidden={isExplorerSidebarShowing}
     />
   );
 
@@ -4355,6 +4413,7 @@ const styles = StyleSheet.create((theme) => ({
   centerContent: {
     flex: 1,
     minHeight: 0,
+    position: "relative",
   },
   tab: {
     paddingHorizontal: theme.spacing[3],
@@ -4413,6 +4472,7 @@ const styles = StyleSheet.create((theme) => ({
   },
   content: {
     flex: 1,
+    minWidth: 0,
     minHeight: 0,
     backgroundColor: theme.colors.surface0,
     position: "relative",

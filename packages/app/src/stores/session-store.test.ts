@@ -480,6 +480,7 @@ describe("normalizeWorkspaceDescriptor", () => {
       diffStat: null,
       scripts,
     });
+    expect(workspace.activityAt).toBeNull();
 
     expect(workspace.scripts).toEqual([
       {
@@ -613,6 +614,15 @@ describe("normalizeWorkspaceDescriptor", () => {
     expect(withString.statusEnteredAt).toEqual(new Date("2026-05-12T09:30:00.000Z"));
     expect(withNull.statusEnteredAt).toBeNull();
     expect(missing.statusEnteredAt).toBeNull();
+    expect(withNull.activityAt).toBeNull();
+    expect(
+      normalizeWorkspaceDescriptor({
+        ...basePayload,
+        archivingAt: null,
+        statusEnteredAt: null,
+        activityAt: "2026-05-12T09:30:00.000Z",
+      }).activityAt,
+    ).toEqual(new Date("2026-05-12T09:30:00.000Z"));
   });
 
   it("preserves project placement from workspace descriptor payloads", () => {

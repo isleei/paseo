@@ -172,6 +172,44 @@ export interface DesktopInvokeBridge {
   invoke?: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
 }
 
+export interface DesktopIslandAgentPush {
+  agentId: string;
+  serverId: string | null;
+  title: string | null;
+  projectName: string | null;
+  agentKind: string;
+  status: "initializing" | "idle" | "running" | "error" | "closed";
+  pendingPermissions: Array<{
+    requestId: string;
+    toolName: string;
+    input: Record<string, unknown>;
+    title?: string;
+    displayName?: string;
+    description?: string;
+  }>;
+  requiresAttention: boolean;
+  attentionReason: "finished" | "error" | "permission" | null;
+  lastAssistantText: string | null;
+  statusText: string | null;
+}
+
+export interface DesktopIslandState {
+  enabled: boolean;
+  mascotSkin: string;
+  soundSettings: unknown;
+}
+
+export interface DesktopIslandBridge {
+  push?: (agents: DesktopIslandAgentPush[]) => Promise<void>;
+  setEnabled?: (enabled: boolean) => Promise<boolean>;
+  setMascotSkin?: (skin: string) => Promise<boolean>;
+  setSoundSettings?: (settings: unknown) => Promise<void>;
+  setDisplayTarget?: (target: unknown) => Promise<void>;
+  setVisibleSession?: (sessionId: string | string[] | null) => Promise<void>;
+  acknowledgeRead?: (agentId: string) => Promise<void>;
+  getState?: () => Promise<DesktopIslandState>;
+}
+
 export interface DesktopHostBridge {
   platform?: string;
   windowChromeMode?: string;
@@ -187,6 +225,7 @@ export interface DesktopHostBridge {
   webUtils?: DesktopWebUtilsBridge;
   menu?: DesktopMenuBridge;
   browser?: DesktopBrowserBridge;
+  island?: DesktopIslandBridge;
 }
 
 declare global {

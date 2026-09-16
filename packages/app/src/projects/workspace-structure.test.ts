@@ -94,6 +94,47 @@ describe("buildWorkspaceStructureProjects", () => {
     ]);
   });
 
+  test("orders workspaces in a project by recent activity, newest first", () => {
+    const older = workspace("ws-older", "prj_a", "/a/app");
+    older.name = "zeta";
+    older.activityAt = new Date("2026-03-01T12:00:00.000Z");
+    const newer = workspace("ws-newer", "prj_a", "/a/app");
+    newer.name = "alpha";
+    newer.activityAt = new Date("2026-03-02T12:00:00.000Z");
+    const result = buildWorkspaceStructureProjects({
+      sessions: [
+        {
+          serverId: "host-a",
+          projects: [project({ id: "prj_a", key: "remote:github.com/acme/app", root: "/a/app" })],
+          workspaces: [older, newer],
+        },
+      ],
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.workspaceKeys).toEqual(["host-a:ws-newer", "host-a:ws-older"]);
+  });
+
+  test("falls back to name then id when workspaces share an activity time", () => {
+    const zeta = workspace("ws-zeta", "prj_a", "/a/app");
+    zeta.name = "zeta";
+    zeta.activityAt = new Date("2026-03-01T12:00:00.000Z");
+    const alpha = workspace("ws-alpha", "prj_a", "/a/app");
+    alpha.name = "alpha";
+    alpha.activityAt = new Date("2026-03-01T12:00:00.000Z");
+    const result = buildWorkspaceStructureProjects({
+      sessions: [
+        {
+          serverId: "host-a",
+          projects: [project({ id: "prj_a", key: "remote:github.com/acme/app", root: "/a/app" })],
+          workspaces: [zeta, alpha],
+        },
+      ],
+    });
+
+    expect(result[0]?.workspaceKeys).toEqual(["host-a:ws-alpha", "host-a:ws-zeta"]);
+  });
+
   test("does not let project order choose which same-host clone groups with another host", () => {
     const key = "remote:github.com/acme/app";
     const hostAProjects = [

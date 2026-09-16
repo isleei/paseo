@@ -82,7 +82,10 @@ function normalizeLegacyWorkspaceKey(serverId: string, rawWorkspaceKey: string):
   return workspaceKey.startsWith(serverPrefix) ? workspaceKey : `${serverPrefix}${workspaceKey}`;
 }
 
-export function migrateSidebarOrderState(persistedState: unknown): {
+export function migrateSidebarOrderState(
+  persistedState: unknown,
+  fromVersion = 0,
+): {
   projectOrder: string[];
   pinnedWorkspaceOrder: string[];
   workspaceOrderByProject: Record<string, string[]>;
@@ -122,7 +125,9 @@ export function migrateSidebarOrderState(persistedState: unknown): {
   return {
     projectOrder,
     pinnedWorkspaceOrder: normalizeKeys(state.pinnedWorkspaceOrder ?? []),
-    workspaceOrderByProject,
+    // v1 auto-wrote first-seen (alphabetical) workspace order. Recency is live,
+    // so drop that freeze; drag still writes workspaceOrderByProject after v2.
+    workspaceOrderByProject: fromVersion < 2 ? {} : workspaceOrderByProject,
   };
 }
 
@@ -167,7 +172,7 @@ export const useSidebarOrderStore = create<SidebarOrderStoreState>()(
         pinnedWorkspaceOrder: state.pinnedWorkspaceOrder,
         workspaceOrderByProject: state.workspaceOrderByProject,
       }),
-      version: 1,
+      version: 2,
       migrate: migrateSidebarOrderState,
     },
   ),

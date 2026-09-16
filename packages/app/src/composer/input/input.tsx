@@ -163,6 +163,8 @@ export interface MessageInputProps {
   onHeightChange?: (height: number) => void;
   /** Extra styles merged onto the input wrapper (e.g. elevated background). */
   inputWrapperStyle?: import("react-native").ViewStyle;
+  /** Content rendered at the top-left of the bordered input surface (e.g. token stats). */
+  headerContent?: React.ReactNode;
   /** Content rendered inside the bordered input surface, above the text input (e.g. attachment pills). */
   attachmentSlot?: React.ReactNode;
   /** What this composer is for. See `@/composer/input-mode` for what each mode implies. */
@@ -362,11 +364,13 @@ function SendButtonContent({
   submitIcon,
   submitLabel,
   buttonIconSize,
+  isDisabled = false,
 }: {
   isSubmitLoading: boolean;
   submitIcon: "arrow" | "return";
   submitLabel: string | undefined;
   buttonIconSize: number;
+  isDisabled?: boolean;
 }) {
   if (isSubmitLoading) {
     return <ThemedLoadingSpinner size="small" uniProps={iconAccentForegroundMapping} />;
@@ -374,10 +378,11 @@ function SendButtonContent({
   if (submitLabel) {
     return <Text style={styles.sendButtonLabel}>{submitLabel}</Text>;
   }
+  const colorMapping = isDisabled ? iconForegroundMutedMapping : iconAccentForegroundMapping;
   if (submitIcon === "return") {
-    return <ThemedCornerDownLeft size={buttonIconSize} uniProps={iconAccentForegroundMapping} />;
+    return <ThemedCornerDownLeft size={buttonIconSize} uniProps={colorMapping} />;
   }
-  return <ThemedArrowUp size={buttonIconSize} uniProps={iconAccentForegroundMapping} />;
+  return <ThemedArrowUp size={buttonIconSize} uniProps={colorMapping} />;
 }
 
 interface DesktopKeyPressContext {
@@ -783,6 +788,7 @@ function SendButtonTooltip({
           submitIcon={submitIcon}
           submitLabel={submitLabel}
           buttonIconSize={buttonIconSize}
+          isDisabled={isSendButtonDisabled}
         />
       </TooltipTrigger>
       <TooltipContent side="top" align="center" offset={8}>
@@ -808,10 +814,8 @@ function resolvePrimaryActionKind(input: {
   isAgentRunning: boolean;
   isSubmitLoading: boolean;
 }): PrimaryActionKind {
-  if (input.hasSendableContent || input.allowEmptySubmit) return "send";
   if (input.isAgentRunning) return "active";
-  if (input.isSubmitLoading) return "send";
-  return "none";
+  return "send";
 }
 
 function PrimaryAction({
@@ -1022,6 +1026,8 @@ interface SendButtonStateInput {
   onSubmitLoadingPress: (() => void) | undefined;
   defaultSendBehavior: "interrupt" | "steer" | "queue";
   isAgentRunning: boolean;
+  hasSendableContent: boolean;
+  allowEmptySubmit: boolean;
 }
 
 interface SendButtonStateOutput {
@@ -1034,7 +1040,9 @@ function computeSendButtonState(input: SendButtonStateInput): SendButtonStateOut
   const canPressLoadingButton =
     input.isSubmitLoading && typeof input.onSubmitLoadingPress === "function";
   const isSendButtonDisabled =
-    input.disabled || (!canPressLoadingButton && (input.isSubmitDisabled || input.isSubmitLoading));
+    input.disabled ||
+    (!input.hasSendableContent && !input.allowEmptySubmit) ||
+    (!canPressLoadingButton && (input.isSubmitDisabled || input.isSubmitLoading));
   const defaultActionQueues = input.defaultSendBehavior === "queue" && input.isAgentRunning;
   return { canPressLoadingButton, isSendButtonDisabled, defaultActionQueues };
 }
@@ -1078,6 +1086,7 @@ interface ResolvedMessageInputProps {
   onFocusChange: ((focused: boolean) => void) | undefined;
   onHeightChange: ((height: number) => void) | undefined;
   inputWrapperStyle: import("react-native").ViewStyle | undefined;
+  headerContent: React.ReactNode;
   attachmentSlot: React.ReactNode;
   inputMode: ComposerInputMode;
   readOnly: boolean;
@@ -1125,6 +1134,7 @@ function resolveMessageInputProps(props: MessageInputProps): ResolvedMessageInpu
     onFocusChange: props.onFocusChange,
     onHeightChange: props.onHeightChange,
     inputWrapperStyle: props.inputWrapperStyle,
+    headerContent: props.headerContent,
     attachmentSlot: props.attachmentSlot,
     inputMode: props.inputMode ?? "chat",
     readOnly: props.readOnly ?? false,
@@ -1180,6 +1190,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       onFocusChange,
       onHeightChange,
       inputWrapperStyle,
+      headerContent,
       attachmentSlot,
       inputMode,
       readOnly,
@@ -1615,12 +1626,13 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       });
     }
 
+    const hasSendable = hasSendableComposerContent({
+      hasText: hasLiveText,
+      attachments,
+      hasExternalContent,
+    });
     const primaryActionKind = resolvePrimaryActionKind({
-      hasSendableContent: hasSendableComposerContent({
-        hasText: hasLiveText,
-        attachments,
-        hasExternalContent,
-      }),
+      hasSendableContent: hasSendable,
       allowEmptySubmit,
       isAgentRunning,
       isSubmitLoading,
@@ -1633,6 +1645,8 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         onSubmitLoadingPress,
         defaultSendBehavior,
         isAgentRunning,
+        hasSendableContent: hasSendable,
+        allowEmptySubmit,
       });
     useIosHardwareKeyboardSubmit({
       isEnabled: isInputFocused && !isSendButtonDisabled,
@@ -1747,7 +1761,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       () => [
         styles.sendButton,
         submitLabel ? styles.sendButtonLabeled : undefined,
-        isSendButtonDisabled && styles.buttonDisabled,
+        isSendButtonDisabled ? styles.sendButtonDisabled : undefined,
       ],
       [isSendButtonDisabled, submitLabel],
     );
@@ -1797,6 +1811,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           style={inputWrapperCombinedStyle}
           pointerEvents={surfacePresentation.input.pointerEvents}
         >
+          {headerContent}
           {attachmentSlot}
           {/* Text input */}
           <RenderProfile id="ComposerTextSurface">
@@ -1916,21 +1931,27 @@ const styles = StyleSheet.create((theme: Theme) => ({
     flexShrink: 1,
     flexDirection: "column",
     gap: theme.spacing[3],
-    backgroundColor: theme.colors.surface1,
+    backgroundColor: theme.colors.surface0,
     borderWidth: theme.borderWidth[1],
-    borderColor: theme.colors.borderAccent,
-    borderRadius: theme.borderRadius["2xl"],
+    borderColor: theme.colors.border,
+    borderRadius: 20,
     paddingVertical: {
       xs: theme.spacing[2],
-      md: theme.spacing[4],
+      md: theme.spacing[3],
     },
     paddingHorizontal: {
       xs: theme.spacing[3],
       md: theme.spacing[4],
     },
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 4,
     ...(isWeb
       ? {
-          transitionProperty: "border-color",
+          boxShadow: "0 4px 20px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.04)",
+          transitionProperty: "border-color, box-shadow",
           transitionDuration: "200ms",
           transitionTimingFunction: "ease-in-out",
         }
@@ -1979,17 +2000,17 @@ const styles = StyleSheet.create((theme: Theme) => ({
   buttonRow: {
     flexShrink: 0,
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     justifyContent: "space-between",
-    marginHorizontal: -6,
+    marginHorizontal: -4,
   },
   leftButtonGroup: {
     minWidth: 0,
     flexShrink: 1,
     flexGrow: 1,
     flexDirection: "row",
-    alignItems: "flex-end",
-    gap: theme.spacing[0],
+    alignItems: "center",
+    gap: theme.spacing[1],
   },
   rightButtonGroup: {
     flexShrink: 0,
@@ -1998,21 +2019,21 @@ const styles = StyleSheet.create((theme: Theme) => ({
     gap: theme.spacing[1],
   },
   attachButton: {
-    width: 28,
-    height: 28,
+    width: 30,
+    height: 30,
     borderRadius: theme.borderRadius.full,
     alignItems: "center",
     justifyContent: "center",
   },
   attachButtonAnchor: {
-    width: 28,
-    height: 28,
+    width: 30,
+    height: 30,
     alignItems: "center",
     justifyContent: "center",
   },
   voiceButton: {
-    width: 28,
-    height: 28,
+    width: 30,
+    height: 30,
     borderRadius: theme.borderRadius.full,
     alignItems: "center",
     justifyContent: "center",
@@ -2021,17 +2042,20 @@ const styles = StyleSheet.create((theme: Theme) => ({
     backgroundColor: theme.colors.destructive,
   },
   sendButton: {
-    width: 28,
-    height: 28,
+    width: 32,
+    height: 32,
     borderRadius: theme.borderRadius.full,
     backgroundColor: theme.colors.accent,
     alignItems: "center",
     justifyContent: "center",
     marginLeft: theme.spacing[1],
   },
+  sendButtonDisabled: {
+    backgroundColor: isWeb ? "rgba(0, 0, 0, 0.06)" : theme.colors.surface2,
+  },
   sendButtonLabeled: {
     width: "auto",
-    minWidth: 28,
+    minWidth: 32,
     paddingHorizontal: theme.spacing[3],
     borderRadius: theme.borderRadius.full,
   },

@@ -3643,7 +3643,7 @@ test("subdirectory agents contribute to their owning workspace descriptor", asyn
   expect(result.entries[0]).toMatchObject({
     id: "ws-repo-subdir",
     status: "running",
-    activityAt: null,
+    activityAt: "2026-03-01T12:03:00.000Z",
   });
 });
 
@@ -6385,7 +6385,7 @@ test("listWorkspaceDescriptorsSnapshot keeps git workspaces on the baseline desc
     archivingAt: null,
     status: "done",
     statusEnteredAt: workspace.createdAt,
-    activityAt: null,
+    activityAt: workspace.createdAt,
     diffStat: null,
   } as const;
   const gitDescriptor = {
@@ -9054,6 +9054,82 @@ test("workspace.create worktree source checks out a GitHub PR from githubPrNumbe
 
 // Worktree-source forwarding for action/refName/worktreeSlug is also covered
 // end-to-end against a daemon in workspace-create-worktree-source.e2e.test.ts.
+
+test("workspace.create shared source resolves one workspace under the daemon home", async () => {
+  const emitted: SessionOutboundMessage[] = [];
+  const tempDir = mkdtempSync(path.join(tmpdir(), "paseo-shared-workspace-"));
+  const paseoHome = path.join(tempDir, "home");
+  const projects = new Map<string, PersistedProjectRecord>();
+  const workspaces = new Map<string, PersistedWorkspaceRecord>();
+  const projectRegistry: SessionOptions["projectRegistry"] = {
+    initialize: async () => {},
+    existsOnDisk: async () => true,
+    list: async () => Array.from(projects.values()),
+    get: async (projectId: string) => projects.get(projectId) ?? null,
+    getOrCreateActiveByRoot: async (allocation) => {
+      const project = createPersistedProjectRecord({
+        projectId: "prj_shared",
+        rootPath: allocation.rootPath,
+        kind: allocation.kind,
+        displayName: allocation.displayName,
+        createdAt: allocation.timestamp,
+        updatedAt: allocation.timestamp,
+      });
+      projects.set(project.projectId, project);
+      return project;
+    },
+    upsert: async (record) => {
+      projects.set(record.projectId, record);
+    },
+    archive: async () => {},
+    remove: async () => {},
+  };
+  const workspaceRegistry: SessionOptions["workspaceRegistry"] = {
+    initialize: async () => {},
+    existsOnDisk: async () => true,
+    list: async () => Array.from(workspaces.values()),
+    get: async (workspaceId: string) => workspaces.get(workspaceId) ?? null,
+    upsert: async (record) => {
+      workspaces.set(record.workspaceId, record);
+    },
+    archive: async () => {},
+    remove: async () => {},
+  };
+  const session = createSessionForWorkspaceTests({
+    onMessage: (message) => emitted.push(message),
+    paseoHome,
+    projectRegistry,
+    workspaceRegistry,
+  });
+
+  try {
+    await session.handleMessage({
+      type: "workspace.create.request",
+      requestId: "req-shared-1",
+      source: { kind: "shared" },
+    });
+    await session.handleMessage({
+      type: "workspace.create.request",
+      requestId: "req-shared-2",
+      source: { kind: "shared" },
+    });
+
+    const responses = emitted.filter((message) => message.type === "workspace.create.response");
+    expect(responses).toHaveLength(2);
+    for (const response of responses) {
+      expect(response.payload.error).toBeNull();
+    }
+    const first = responses[0]?.payload.workspace;
+    const second = responses[1]?.payload.workspace;
+    // Repeated shared creates reuse one workspace instead of minting new ones.
+    expect(second?.id).toBe(first?.id);
+    expect(first?.workspaceDirectory).toBe(path.join(paseoHome, "shared"));
+    expect(first?.name).toBe("Shared");
+    expect(existsSync(path.join(paseoHome, "shared"))).toBe(true);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
 
 test("failed local create_agent_request does not schedule workspace title generation", async () => {
   vi.useFakeTimers();

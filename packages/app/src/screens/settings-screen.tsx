@@ -85,6 +85,7 @@ import { CommunityLinks } from "@/components/community-links";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { DesktopPermissionsSection } from "@/desktop/components/desktop-permissions-section";
+import { DesktopIslandSection } from "@/desktop/components/desktop-island-section";
 import { DesktopNotificationsSection } from "@/desktop/components/desktop-notifications-section";
 import { BrowserDataSection } from "@/desktop/browser/settings/browser-data-section";
 import { IntegrationsSection } from "@/desktop/components/integrations-section";
@@ -1544,7 +1545,12 @@ export default function SettingsScreen({ view, openAddHostIntent = null }: Setti
           case "integrations":
             return isDesktopApp ? <IntegrationsSection /> : null;
           case "notifications":
-            return isDesktopApp ? <DesktopNotificationsSection /> : null;
+            return isDesktopApp ? (
+              <>
+                <DesktopNotificationsSection />
+                <DesktopIslandSection />
+              </>
+            ) : null;
           case "permissions":
             return isDesktopApp ? <DesktopPermissionsSection /> : null;
           case "diagnostics":

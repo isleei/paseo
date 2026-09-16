@@ -28,6 +28,7 @@ import {
   type AgentLaunchContext,
   type AgentMode,
   type AgentModelDefinition,
+  type AgentSelectOption,
   type AgentPermissionAction,
   type AgentPermissionRequest,
   type AgentPermissionResponse,
@@ -659,6 +660,54 @@ function normalizeOpenCodeVariantId(variantId: string | null | undefined): strin
   return trimmed;
 }
 
+/**
+ * Namespace for Paseo-invented thinking levels on OpenCode models that declare
+ * no upstream variants. Real variant ids pass through to OpenCode untouched;
+ * `paseo:` ids never leave Paseo — OpenCode would reject them as unknown
+ * variants, so they map to a system-prompt nudge instead.
+ */
+export const PASEO_SYNTHETIC_THINKING_PREFIX = "paseo:";
+
+export interface PaseoThinkingRouting {
+  variant?: string;
+  systemNudge?: string;
+}
+
+const PASEO_EFFORT_SYSTEM_NUDGES: Readonly<Record<string, string>> = {
+  low: "Prefer concise reasoning and act quickly; avoid over-exploration.",
+  medium: "Think step by step before acting; weigh the main alternatives before choosing.",
+  high: "Think carefully and thoroughly: explore alternatives, verify assumptions against the workspace, and only then act. Favor correctness over speed.",
+};
+
+/**
+ * Fresh default thinking options for variant-less models. Returns new objects
+ * on every call — catalog snapshots are mutated downstream, so sharing one
+ * frozen list across models would corrupt every model at once.
+ */
+export function createPaseoDefaultThinkingOptions(): AgentSelectOption[] {
+  return [
+    { id: OPENCODE_DEFAULT_VARIANT_ID, label: "Default", isDefault: true },
+    { id: `${PASEO_SYNTHETIC_THINKING_PREFIX}low`, label: "Low" },
+    { id: `${PASEO_SYNTHETIC_THINKING_PREFIX}medium`, label: "Medium" },
+    { id: `${PASEO_SYNTHETIC_THINKING_PREFIX}high`, label: "High" },
+  ];
+}
+
+export function resolvePaseoThinkingRouting(
+  thinkingOptionId: string | null | undefined,
+): PaseoThinkingRouting {
+  const normalized = normalizeOpenCodeVariantId(thinkingOptionId);
+  if (normalized === null) {
+    return {};
+  }
+  if (normalized.startsWith(PASEO_SYNTHETIC_THINKING_PREFIX)) {
+    const level = normalized.slice(PASEO_SYNTHETIC_THINKING_PREFIX.length);
+    const systemNudge = PASEO_EFFORT_SYSTEM_NUDGES[level];
+    return systemNudge ? { systemNudge } : {};
+  }
+  return { variant: normalized };
+}
+
 function resolveOpenCodeRuntimeAgentId(modeId: string | null | undefined): string | undefined {
   const normalizedModeId = normalizeOpenCodeModeId(modeId);
   if (normalizedModeId === null) {
@@ -808,6 +857,8 @@ function buildOpenCodeModelDefinition(
   const rawVariants = model.variants ? Object.keys(model.variants) : [];
   // Like OpenCode's web UI, Default omits `variant` and lets OpenCode resolve it.
   // Reserve that choice instead of exposing a second upstream `default` entry.
+  // Models without upstream variants get Paseo synthetic levels, which route to
+  // a system-prompt nudge at execution time instead of an (unknown) variant.
   const thinkingOptions = rawVariants.length
     ? [
         { id: OPENCODE_DEFAULT_VARIANT_ID, label: "Default", isDefault: true },
@@ -815,14 +866,14 @@ function buildOpenCodeModelDefinition(
           .filter((id) => id !== OPENCODE_DEFAULT_VARIANT_ID)
           .map((id) => ({ id, label: id })),
       ]
-    : [];
+    : createPaseoDefaultThinkingOptions();
 
   return {
     provider: "opencode",
     id: `${provider.id}/${modelId}`,
     label: model.name,
     description: `${provider.name} - ${model.family ?? ""}`.trim(),
-    thinkingOptions: thinkingOptions.length > 0 ? thinkingOptions : undefined,
+    thinkingOptions,
     defaultThinkingOptionId: thinkingOptions[0]?.id,
     metadata: {
       providerId: provider.id,
@@ -3506,9 +3557,11 @@ class OpenCodeAgentSession implements AgentSession {
     this.pendingSteerSubmissions.push(pending);
 
     const parts = buildOpenCodePromptParts(prompt);
+    const thinkingRouting = resolvePaseoThinkingRouting(this.config.thinkingOptionId);
     const systemPrompt = composeSystemPromptParts(
       this.config.systemPrompt,
       this.config.daemonAppendSystemPrompt,
+      thinkingRouting.systemNudge,
     );
     const permission = buildOpenCodePermissionRules(
       this.config.providerOptions,
@@ -3516,7 +3569,7 @@ class OpenCodeAgentSession implements AgentSession {
     );
     const model = this.parseModel(this.config.model);
     const effectiveMode = resolveOpenCodeRuntimeAgentId(this.currentMode);
-    const effectiveVariant = this.config.thinkingOptionId ?? undefined;
+    const effectiveVariant = thinkingRouting.variant;
 
     try {
       const response = await this.client.session.promptAsync({
@@ -3728,8 +3781,8 @@ class OpenCodeAgentSession implements AgentSession {
     this.pendingClientMessageId = options?.clientMessageId ?? null;
     this.suppressAssistantMessagesUntilIdle.active = false;
     const model = this.parseModel(this.config.model);
-    const thinkingOptionId = this.config.thinkingOptionId;
-    const effectiveVariant = thinkingOptionId ?? undefined;
+    const thinkingRouting = resolvePaseoThinkingRouting(this.config.thinkingOptionId);
+    const effectiveVariant = thinkingRouting.variant;
     const effectiveMode = resolveOpenCodeRuntimeAgentId(this.currentMode);
 
     await this.awaitEventStreamReady(turnAbortController);
@@ -3849,6 +3902,7 @@ class OpenCodeAgentSession implements AgentSession {
           const systemPrompt = composeSystemPromptParts(
             this.config.systemPrompt,
             this.config.daemonAppendSystemPrompt,
+            thinkingRouting.systemNudge,
           );
           const permission = buildOpenCodePermissionRules(
             this.config.providerOptions,

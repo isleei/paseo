@@ -2,6 +2,9 @@
 dist/
 release/
 
+# Compiled Agent Island helper (built by scripts/build-island-helper.mjs on macOS)
+resources/tools/agent-island/
+
 # Dependencies
 node_modules/
 

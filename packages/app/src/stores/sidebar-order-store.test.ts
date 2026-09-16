@@ -3,16 +3,19 @@ import { migrateSidebarOrderState } from "./sidebar-order-store";
 
 describe("migrateSidebarOrderState", () => {
   it("prefixes legacy per-server workspace order with the source server id", () => {
-    const migrated = migrateSidebarOrderState({
-      projectOrderByServerId: {
-        "host-a": ["project-a"],
-        "host-b": ["project-a"],
+    const migrated = migrateSidebarOrderState(
+      {
+        projectOrderByServerId: {
+          "host-a": ["project-a"],
+          "host-b": ["project-a"],
+        },
+        workspaceOrderByServerAndProject: {
+          "host-a::project-a": ["main", "feature"],
+          "host-b::project-a": ["main"],
+        },
       },
-      workspaceOrderByServerAndProject: {
-        "host-a::project-a": ["main", "feature"],
-        "host-b::project-a": ["main"],
-      },
-    });
+      2,
+    );
 
     expect(migrated).toEqual({
       projectOrder: ["project-a"],
@@ -21,6 +24,19 @@ describe("migrateSidebarOrderState", () => {
         "project-a": ["host-a:main", "host-a:feature", "host-b:main"],
       },
     });
+  });
+
+  it("drops auto-persisted workspace order from before recency sorting", () => {
+    const migrated = migrateSidebarOrderState(
+      {
+        workspaceOrderByProject: {
+          "project-a": ["host-a:main", "host-a:feature"],
+        },
+      },
+      1,
+    );
+
+    expect(migrated.workspaceOrderByProject).toEqual({});
   });
 
   it("normalizes pinned workspace order", () => {

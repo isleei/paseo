@@ -980,6 +980,10 @@ function DesktopAgentControlsContent(props: DesktopAgentControlsContentProps) {
         </>
       ) : null}
 
+      {modeControl ? <AgentModeControl {...modeControl} onClose={onDropdownClose} /> : null}
+
+      <View style={styles.controlsSpacer} />
+
       {canSelectModel ? (
         <Tooltip delayDuration={0} enabledOnDesktop enabledOnMobile={false}>
           <TooltipTrigger asChild triggerRefProp="ref">
@@ -1052,8 +1056,6 @@ function DesktopAgentControlsContent(props: DesktopAgentControlsContentProps) {
           />
         </>
       ) : null}
-
-      {modeControl ? <AgentModeControl {...modeControl} onClose={onDropdownClose} /> : null}
 
       {presentation.aggregateFeatures && features?.length ? (
         <>
@@ -1935,6 +1937,10 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     gap: theme.spacing[1],
     overflow: "hidden",
+  },
+  controlsSpacer: {
+    flex: 1,
+    minWidth: theme.spacing[2],
   },
   modeBadge: {
     height: 28,

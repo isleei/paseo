@@ -244,6 +244,10 @@ interface AgentState {
   pendingPermissionCount?: number;
   requiresAttention?: boolean;
   attentionReason?: AgentSnapshotPayload["attentionReason"];
+  updatedAt?: string;
+  lastUserMessageAt?: string | null;
+  attentionTimestamp?: string | null;
+  archivedAt?: string | null;
 }
 
 function createAgent(
@@ -259,8 +263,8 @@ function createAgent(
     thinkingOptionId: null,
     effectiveThinkingOptionId: null,
     createdAt: NOW,
-    updatedAt: NOW,
-    lastUserMessageAt: null,
+    updatedAt: input.updatedAt ?? NOW,
+    lastUserMessageAt: input.lastUserMessageAt ?? null,
     status: input.status,
     capabilities: {
       supportsStreaming: true,
@@ -287,8 +291,8 @@ function createAgent(
     labels: input.labels ?? {},
     requiresAttention: input.requiresAttention ?? false,
     attentionReason: input.attentionReason ?? null,
-    attentionTimestamp: null,
-    archivedAt: null,
+    attentionTimestamp: input.attentionTimestamp ?? null,
+    archivedAt: input.archivedAt ?? null,
   } satisfies AgentSnapshotPayload;
 }
 
@@ -546,6 +550,44 @@ describe("WorkspaceDirectory", () => {
     expect(descriptor.status).toBe("running");
     // terminal timestamp (2027) is newer than agent updatedAt (NOW = 2026-03-01)
     expect(descriptor.statusEnteredAt).toBe("2027-01-01T00:00:00.000Z");
+  });
+
+  test("activityAt uses workspace createdAt when nothing has happened yet", async () => {
+    const workspace = new WorkspaceStatus();
+    const descriptor = await workspace.workspaceDescriptor();
+    expect(descriptor.activityAt).toBe(NOW);
+  });
+
+  test("activityAt follows the newest agent or terminal timestamp", async () => {
+    const workspace = new WorkspaceStatus();
+    workspace.hasRootAgent({
+      id: "older-agent",
+      status: "idle",
+      updatedAt: "2026-04-01T00:00:00.000Z",
+    });
+    workspace.hasRootAgent({
+      id: "newer-agent",
+      status: "idle",
+      lastUserMessageAt: "2026-05-01T00:00:00.000Z",
+    });
+    workspace.hasWorkingTerminal(new Date("2026-03-01T00:00:00.000Z").getTime());
+
+    const descriptor = await workspace.workspaceDescriptor();
+    expect(descriptor.activityAt).toBe("2026-05-01T00:00:00.000Z");
+  });
+
+  test("activityAt keeps an archived agent's timestamp", async () => {
+    const workspace = new WorkspaceStatus();
+    workspace.hasRootAgent({
+      id: "archived-agent",
+      status: "idle",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      archivedAt: "2026-06-02T00:00:00.000Z",
+    });
+
+    const descriptor = await workspace.workspaceDescriptor();
+    expect(descriptor.status).toBe("done");
+    expect(descriptor.activityAt).toBe("2026-06-01T00:00:00.000Z");
   });
 });
 

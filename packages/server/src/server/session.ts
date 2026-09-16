@@ -2,7 +2,7 @@ import type { BrowserToolsBroker } from "./browser-tools/broker.js";
 import { BrowserAutomationHostCapabilitySchema } from "@getpaseo/protocol/browser-automation/capabilities";
 import type { SessionEventSubscription } from "@getpaseo/protocol/messages";
 import { relative } from "node:path";
-import { isAbsolute } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { CreationService } from "./creation/index.js";
 import type { CreationSnapshot, AgentCreateRequest } from "@getpaseo/protocol/messages";
 import type { MessageReceipts } from "./message-receipts/index.js";
@@ -326,6 +326,12 @@ function beginAgentDeleteIfSupported(agentStorage: AgentStorage, agentId: string
 }
 
 const FETCH_AGENTS_SORT_KEYS = ["status_priority", "created_at", "updated_at", "title"] as const;
+
+// Daemon-owned catch-all directory for project-less tasks. `workspace.create`
+// with source { kind: "shared" } resolves here server-side and reuses one
+// workspace, so clients never need to know the daemon's home directory.
+const SHARED_WORKSPACE_DIR_NAME = "shared";
+const SHARED_WORKSPACE_TITLE = "Shared";
 
 export function resolveWaitForFinishError(options: {
   status: "permission" | "error" | "idle";
@@ -4038,10 +4044,7 @@ export class Session {
             ? async (id, workspace, onReady) => {
                 if (!workspace?.workspaceDirectory)
                   throw new Error("Created workspace has no directory");
-                const sourceCwd =
-                  request.source.kind === "directory"
-                    ? request.source.path
-                    : await resolveWorktreeSourceCwd(request.source, this.projectRegistry);
+                const sourceCwd = await this.resolveWorkspaceSourceCwd(request.source);
                 const relativeCwd = relative(resolve(sourceCwd), resolve(agentInput.config.cwd));
                 if (
                   relativeCwd === ".." ||
@@ -6642,9 +6645,13 @@ export class Session {
       const transformed = await this.pluginRuntime.before("workspace.create", input);
       creationRequest = { ...transformed, type, requestId };
     }
-    return creationRequest.source.kind === "directory"
-      ? this.handleWorkspaceCreateLocal(creationRequest, workspaceId)
-      : this.handleWorkspaceCreateWorktree(creationRequest, workspaceId);
+    if (creationRequest.source.kind === "directory") {
+      return this.handleWorkspaceCreateLocal(creationRequest, workspaceId);
+    }
+    if (creationRequest.source.kind === "shared") {
+      return this.handleWorkspaceCreateShared(creationRequest);
+    }
+    return this.handleWorkspaceCreateWorktree(creationRequest, workspaceId);
   }
 
   private async handleWorkspaceCreateLocal(
@@ -6694,6 +6701,58 @@ export class Session {
         { currentSelection: this.getFocusedAgentSelectionForCwd(workspace.cwd) },
       );
     }
+    return descriptor;
+  }
+
+  private async resolveWorkspaceSourceCwd(
+    source: Extract<SessionInboundMessage, { type: "workspace.create.request" }>["source"],
+  ): Promise<string> {
+    if (source.kind === "directory") {
+      return source.path;
+    }
+    if (source.kind === "shared") {
+      return join(this.paseoHome, SHARED_WORKSPACE_DIR_NAME);
+    }
+    return resolveWorktreeSourceCwd(source, this.projectRegistry);
+  }
+
+  private async handleWorkspaceCreateShared(
+    request: Extract<SessionInboundMessage, { type: "workspace.create.request" }>,
+  ): Promise<WorkspaceDescriptorPayload> {
+    if (request.source.kind !== "shared") {
+      throw new Error("Unexpected workspace source");
+    }
+    const sharedDir = join(this.paseoHome, SHARED_WORKSPACE_DIR_NAME);
+    await mkdir(sharedDir, { recursive: true });
+    // Unlike directory sources, shared resolves to exactly one workspace no
+    // matter how often it is requested. A requested workspaceId is ignored:
+    // identity comes from the shared directory, not the caller.
+    const existing = await this.workspaceProvisioning.findOrCreateWorkspaceForDirectory(sharedDir);
+    const explicitTitle = request.title?.trim() || null;
+    const title = explicitTitle ?? existing.title ?? SHARED_WORKSPACE_TITLE;
+    let workspace = existing;
+    if (title !== existing.title) {
+      await this.workspaceRegistry.upsert({
+        ...existing,
+        title,
+        updatedAt: new Date().toISOString(),
+      });
+      workspace = { ...existing, title };
+    }
+    await this.syncWorkspaceGitObserverForWorkspace(workspace);
+    const descriptor = await this.describeWorkspaceRecord(workspace);
+    await this.emitCreatedWorkspaceUpdate(
+      descriptor,
+      request.firstAgentContext ? "running" : undefined,
+    );
+    void this.workspaceGitService
+      .getSnapshot(workspace.cwd, { force: true, includeForge: true, reason: "open_project" })
+      .catch((error) => {
+        this.sessionLogger.warn(
+          { err: error, cwd: workspace.cwd },
+          "Background snapshot refresh failed after workspace.create",
+        );
+      });
     return descriptor;
   }
 
@@ -7910,7 +7969,7 @@ export class Session {
                     timestamp: new Date().toISOString(),
                     item: {
                       type: "assistant_message",
-                      text: "Please upgrade the Paseo app to view this subagent conversation.",
+                      text: "Please upgrade the Paimon app to view this subagent conversation.",
                     },
                   },
                 ],
@@ -8349,7 +8408,7 @@ export class Session {
       ...snapshot,
       status: "failed" as const,
       error:
-        "Workspace setup is blocked pending approval of code from a fork pull request. Update Paseo to review and run setup.",
+        "Workspace setup is blocked pending approval of code from a fork pull request. Update Paimon to review and run setup.",
     };
     return message.type === "workspace_setup_progress"
       ? { ...message, payload: { ...message.payload, ...legacySnapshot } }

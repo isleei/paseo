@@ -1,9 +1,12 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
+import { homedir } from "node:os";
 import { app, ipcMain, powerMonitor } from "electron";
 import log from "electron-log/main";
 import {
   resolvePaseoHome,
+  loadPersistedConfig,
+  savePersistedConfig,
   startDaemonInstance,
   DaemonInstanceError,
   stopDaemonInstance,
@@ -122,8 +125,47 @@ function parseDesktopDaemonStopReason(
 // Utilities
 // ---------------------------------------------------------------------------
 
-function getPaseoHome(): string {
-  return resolvePaseoHome(process.env);
+export function getPaseoHome(): string {
+  // Fork default: keep Paimon side-by-side with stock Paseo instead of
+  // sharing ~/.paseo (and its daemon port). PASEO_HOME still wins when set.
+  if (process.env.PASEO_HOME?.trim()) {
+    return resolvePaseoHome(process.env);
+  }
+  return path.join(homedir(), ".paimon");
+}
+
+// Fresh fork homes listen on 6769 so the managed daemon never fights a stock
+// Paseo daemon on 6767. Homes with an explicit listen configured are untouched.
+export function ensureForkListenDefault(home: string): void {
+  if (path.resolve(home) !== path.resolve(path.join(homedir(), ".paimon"))) {
+    return;
+  }
+  // loadPersistedConfig backfills daemon.listen from defaults, so the
+  // "user configured a port" check must read the raw file first.
+  const configPath = path.join(home, "config.json");
+  if (existsSync(configPath)) {
+    let raw: unknown;
+    try {
+      raw = JSON.parse(readFileSync(configPath, "utf-8")) as unknown;
+    } catch {
+      return;
+    }
+    const record = (typeof raw === "object" && raw !== null ? raw : {}) as {
+      daemon?: { listen?: unknown };
+    };
+    if (typeof record.daemon?.listen === "string" && record.daemon.listen.trim()) {
+      return;
+    }
+  }
+  const config = loadPersistedConfig(home);
+  savePersistedConfig(home, {
+    ...config,
+    daemon: { ...config.daemon, listen: "127.0.0.1:6769" },
+  });
+  log.info("[desktop daemon] seeded fork home listen address", {
+    home,
+    listen: "127.0.0.1:6769",
+  });
 }
 
 function logFilePath(): string {
@@ -294,6 +336,7 @@ async function startDaemon(): Promise<DesktopDaemonStatus> {
   }
 
   const home = getPaseoHome();
+  ensureForkListenDefault(home);
   const invocation = createNodeEntrypointInvocation({
     entrypoint: resolveDaemonRunnerEntrypoint(),
     argvMode: "node-script",

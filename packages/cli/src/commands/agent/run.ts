@@ -40,6 +40,10 @@ export function addRunOptions(cmd: Command): Command {
       .option("--thinking <id>", "Thinking option ID to use for this run")
       .option("--mode <mode>", "Provider-specific mode (e.g., plan, default, bypass)")
       .option("--new-workspace <local|worktree>", "Create a separate local or worktree workspace")
+      .option(
+        "--shared",
+        "Run in the daemon-owned shared directory instead of the current directory",
+      )
       .addOption(new Option("--worktree <name>", "Legacy workspace isolation alias").hideHelp())
       .option(
         "--worktree-mode <mode>",
@@ -115,6 +119,7 @@ export interface AgentRunOptions extends CommandOptions {
   model?: string;
   thinking?: string;
   mode?: string;
+  shared?: boolean;
   newWorkspace?: string;
   worktree?: string;
   worktreeMode?: string;
@@ -308,6 +313,22 @@ function structuredRunSchema(output: Record<string, unknown>): OutputSchema<Agen
 }
 
 function validateRunWorkspaceOptions(options: AgentRunOptions): void {
+  if (options.shared && options.workspace) {
+    throw {
+      code: "INVALID_OPTIONS",
+      message: "--shared and --workspace cannot be combined",
+      details: "Omit --workspace to run in the daemon-owned shared directory",
+    } satisfies CommandError;
+  }
+
+  if (options.shared && resolveNewWorkspaceKind(options) === "worktree") {
+    throw {
+      code: "INVALID_OPTIONS",
+      message: "--shared cannot be combined with worktree workspaces",
+      details: "The shared directory is always a plain local directory",
+    } satisfies CommandError;
+  }
+
   const newWorkspace = resolveNewWorkspaceKind(options);
   if (
     options.newWorkspace &&
@@ -521,12 +542,40 @@ export async function resolveExistingRunWorkspace(
   } satisfies CommandError;
 }
 
+export async function resolveSharedRunWorkspace(
+  client: Pick<ConnectedDaemonClient, "createWorkspace" | "getLastServerInfoMessage">,
+): Promise<RunWorkspace> {
+  if (client.getLastServerInfoMessage()?.features?.sharedWorkspace !== true) {
+    throw {
+      code: "UNSUPPORTED",
+      message: "The connected daemon does not support shared workspaces",
+      details: "Update the host to use --shared",
+    } satisfies CommandError;
+  }
+  const result = await client.createWorkspace({ source: { kind: "shared" } });
+  if (!result.workspace) {
+    throw {
+      code: "WORKSPACE_CREATE_FAILED",
+      message: result.error ?? "Failed to resolve the shared workspace for this run",
+    } satisfies CommandError;
+  }
+  console.error(`Using shared workspace ${result.workspace.id}`);
+  if (!result.workspace.workspaceDirectory) {
+    throw {
+      code: "WORKSPACE_CREATE_FAILED",
+      message: "Shared workspace has no directory",
+    } satisfies CommandError;
+  }
+  return { id: result.workspace.id, cwd: result.workspace.workspaceDirectory };
+}
+
 // Workspace policy for `paseo run`. Precedence:
 //   1. --workspace <id>            -> run in that existing workspace
-//   2. $PASEO_AGENT_ID             -> daemon resolves the caller's workspace
-//   3. $PASEO_WORKSPACE_ID         -> exported by workspace terminals
-//   4. --new-workspace <kind>      -> mint a new workspace explicitly
-//   5. bare run                    -> mint a new local-backed workspace for cwd
+//   2. --shared                     -> run in the daemon-owned shared directory
+//   3. $PASEO_AGENT_ID             -> daemon resolves the caller's workspace
+//   4. $PASEO_WORKSPACE_ID         -> exported by workspace terminals
+//   5. --new-workspace <kind>      -> mint a new workspace explicitly
+//   6. bare run                    -> mint a new local-backed workspace for cwd
 async function resolveRunWorkspace(
   client: ConnectedDaemonClient,
   options: AgentRunOptions,
@@ -537,6 +586,10 @@ async function resolveRunWorkspace(
   if (explicit) {
     console.error(`Using workspace ${explicit}`);
     return resolveExistingRunWorkspace(client, explicit);
+  }
+
+  if (options.shared) {
+    return resolveSharedRunWorkspace(client);
   }
 
   if (!newWorkspace && resolveRunCallerAgentId()) {

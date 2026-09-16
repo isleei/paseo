@@ -94,7 +94,7 @@ export function GreetingSurface({ theme, layout }: PluginSurfaceProps) {
         accessibilityRole="button"
         accessibilityLabel="Create greeting"
         style={styles.button}
-        onPress={() => greeting.mutate({ name: "Paseo" })}
+        onPress={() => greeting.mutate({ name: "Paimon" })}
       >
         <Text style={styles.buttonText}>Create greeting</Text>
       </Pressable>

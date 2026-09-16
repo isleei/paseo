@@ -1,24 +1,37 @@
-import { useCallback, useMemo, useRef } from "react";
-import { Text, View } from "react-native";
+import { useCallback, useMemo, useRef, type ReactNode } from "react";
+import { Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { GitBranch } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import type { Theme } from "@/styles/theme";
-import { Combobox, ComboboxItem, type ComboboxProps } from "@/components/ui/combobox";
+import {
+  Combobox,
+  ComboboxItem,
+  type ComboboxDesktopPlacement,
+  type ComboboxProps,
+} from "@/components/ui/combobox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import { useToast } from "@/contexts/toast-context";
 import { useBranchSwitcher } from "@/hooks/use-branch-switcher";
 import { ToolbarLabelSelectTrigger } from "@/components/ui/toolbar-label-trigger";
 
-interface BranchSwitcherProps {
+export interface BranchSwitcherProps {
   currentBranchName: string | null;
   serverId: string;
   workspaceId: string;
   workspaceDirectory: string | null;
   isGitCheckout: boolean;
   testID?: string;
+  desktopPlacement?: ComboboxDesktopPlacement;
+  containerStyle?: StyleProp<ViewStyle>;
+  renderTrigger?: (props: {
+    open: boolean;
+    onPress: () => void;
+    label: string;
+    testID: string;
+  }) => ReactNode;
 }
 
 const foregroundMutedIconColorMapping = (theme: Theme) => ({
@@ -33,6 +46,9 @@ export function BranchSwitcher({
   workspaceDirectory,
   isGitCheckout,
   testID = "workspace-header-branch-switcher",
+  desktopPlacement = "bottom-start",
+  containerStyle,
+  renderTrigger,
 }: BranchSwitcherProps) {
   const { t } = useTranslation();
   const anchorRef = useRef<View>(null);
@@ -73,32 +89,43 @@ export function BranchSwitcher({
     [branchLeadingSlot],
   );
 
-  if (!currentBranchName) {
+  const displayBranchName = currentBranchName ?? t("workspace.git.rail.detached", "游离 HEAD");
+
+  if (!currentBranchName && !renderTrigger) {
     return null;
   }
 
   return (
-    <View ref={anchorRef} collapsable={false} style={styles.anchor}>
-      <Tooltip delayDuration={300} enabledOnDesktop enabledOnMobile={false}>
-        <TooltipTrigger asChild>
-          <ToolbarLabelSelectTrigger
-            testID={testID}
-            label={currentBranchName}
-            open={isOpen}
-            onPress={handleOpen}
-            accessibilityRole="button"
-            accessibilityLabel={t("branchSwitcher.currentBranch", {
-              branchName: currentBranchName,
-            })}
-          />
-        </TooltipTrigger>
-        <TooltipContent side="bottom">
-          <Text style={styles.tooltipText}>{t("branchSwitcher.triggerTooltip")}</Text>
-        </TooltipContent>
-      </Tooltip>
+    <View ref={anchorRef} collapsable={false} style={[styles.anchor, containerStyle]}>
+      {renderTrigger ? (
+        renderTrigger({
+          open: isOpen,
+          onPress: handleOpen,
+          label: displayBranchName,
+          testID,
+        })
+      ) : (
+        <Tooltip delayDuration={300} enabledOnDesktop enabledOnMobile={false}>
+          <TooltipTrigger asChild>
+            <ToolbarLabelSelectTrigger
+              testID={testID}
+              label={currentBranchName ?? displayBranchName}
+              open={isOpen}
+              onPress={handleOpen}
+              accessibilityRole="button"
+              accessibilityLabel={t("branchSwitcher.currentBranch", {
+                branchName: currentBranchName ?? displayBranchName,
+              })}
+            />
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <Text style={styles.tooltipText}>{t("branchSwitcher.triggerTooltip")}</Text>
+          </TooltipContent>
+        </Tooltip>
+      )}
       <Combobox
         options={branchOptions}
-        value={currentBranchName}
+        value={currentBranchName ?? ""}
         onSelect={handleBranchSelect}
         searchable
         placeholder={t("branchSwitcher.placeholder")}
@@ -108,7 +135,7 @@ export function BranchSwitcher({
         open={isOpen}
         onOpenChange={setIsOpen}
         anchorRef={anchorRef}
-        desktopPlacement="bottom-start"
+        desktopPlacement={desktopPlacement}
         desktopPreventInitialFlash
         desktopMinWidth={280}
         renderOption={renderBranchOption}

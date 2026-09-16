@@ -346,29 +346,27 @@ const userMessageStylesheet = StyleSheet.create((theme) => ({
     marginBottom: theme.spacing[4],
   },
   bubble: {
-    backgroundColor: theme.colors.surface3,
+    backgroundColor: theme.colors.surface2,
     borderRadius: theme.borderRadius["2xl"],
-    borderTopRightRadius: theme.borderRadius.sm,
     paddingHorizontal: theme.spacing[4],
-    paddingVertical: theme.spacing[4],
+    paddingVertical: theme.spacing[3],
     minWidth: 0,
     flexShrink: 1,
   },
-  // Codex-style user block, desktop only: full-width left-aligned block
-  // instead of the right-aligned chat bubble. Compact keeps the bubble.
+  // Refined right-aligned bubble, desktop only: elegant floating capsule with max width constraint
   containerDesktop: {
-    justifyContent: "flex-start",
+    justifyContent: "flex-end",
   },
   contentDesktop: {
-    alignItems: "stretch",
-    flex: 1,
+    alignItems: "flex-end",
+    maxWidth: "75%",
+    flexShrink: 1,
   },
   bubbleDesktop: {
-    borderTopRightRadius: theme.borderRadius["2xl"],
-    borderTopLeftRadius: theme.borderRadius.sm,
+    borderRadius: theme.borderRadius["2xl"],
   },
   trailingRowDesktop: {
-    alignSelf: "flex-start",
+    alignSelf: "flex-end",
   },
   text: {
     color: theme.colors.foreground,
@@ -630,6 +628,14 @@ const assistantTurnFooterStylesheet = StyleSheet.create((theme) => ({
     color: theme.colors.foregroundMuted,
     fontSize: STREAM_METADATA_FONT_SIZE,
   },
+  badgePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: isWeb ? "rgba(0, 0, 0, 0.04)" : theme.colors.surface2,
+    flexDirection: "row",
+    alignItems: "center",
+  },
 }));
 
 const TIMESTAMP_REVEAL_MS = 3000;
@@ -658,12 +664,16 @@ export const AssistantTurnFooter = memo(function AssistantTurnFooter({
     };
   }, []);
 
+  const { t } = useTranslation();
   const durationLabel = useMemo(
     () =>
       durationMs !== undefined && durationMs !== null
-        ? `Worked for ${formatDuration(durationMs)}`
+        ? t("message.status.workedFor", {
+            duration: formatDuration(durationMs),
+            defaultValue: `已处理 ${formatDuration(durationMs)}`,
+          })
         : "",
-    [durationMs],
+    [durationMs, t],
   );
   const timestampLabel = useMemo(
     () => (completedAt ? formatMessageTimestamp(completedAt) : ""),
@@ -709,6 +719,7 @@ export const AssistantTurnFooter = memo(function AssistantTurnFooter({
           onHoverOut={handleHoverOut}
           accessibilityRole={canSwap ? "button" : undefined}
           accessibilityLabel={canSwap ? `${durationLabel}, ended ${timestampLabel}` : primaryLabel}
+          style={assistantTurnFooterStylesheet.badgePill}
         >
           <View style={assistantTurnFooterStylesheet.labelWrapper}>
             {/* Sizer reserves space for whichever label is longer so the
@@ -1122,18 +1133,21 @@ const expandableBadgeStylesheet = StyleSheet.create((theme) => ({
     marginHorizontal: -13,
   },
   containerSpacing: {
-    marginBottom: theme.spacing[1],
+    marginBottom: 2,
   },
   containerLastInSequence: {
-    marginBottom: theme.spacing[4],
+    marginBottom: theme.spacing[2],
   },
   pressable: {
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: theme.borderRadius.md,
     borderWidth: theme.borderWidth[1],
     borderColor: "transparent",
     paddingHorizontal: theme.spacing[2],
-    paddingVertical: theme.spacing[1],
+    paddingVertical: 2,
     overflow: "hidden",
+  },
+  pressableHovered: {
+    backgroundColor: theme.colors.interactionHighlight,
   },
   pressablePressed: {
     opacity: 0.9,
@@ -1149,9 +1163,9 @@ const expandableBadgeStylesheet = StyleSheet.create((theme) => ({
     overflow: "hidden",
   },
   iconBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
     marginRight: theme.spacing[1],
@@ -1159,7 +1173,7 @@ const expandableBadgeStylesheet = StyleSheet.create((theme) => ({
   },
   label: {
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.base,
+    fontSize: theme.fontSize.sm,
     fontWeight: theme.fontWeight.normal,
     flexShrink: 0,
   },
@@ -1173,8 +1187,8 @@ const expandableBadgeStylesheet = StyleSheet.create((theme) => ({
   secondaryLabel: {
     flexShrink: 1,
     minWidth: 0,
-    color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.base,
+    color: theme.colors.foregroundExtraMuted,
+    fontSize: theme.fontSize.sm,
     fontWeight: theme.fontWeight.normal,
     marginLeft: theme.spacing[2],
   },
@@ -1223,15 +1237,14 @@ const expandableBadgeStylesheet = StyleSheet.create((theme) => ({
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
   },
-  // Codex-style card chrome, desktop only: tool rows read as cards instead of
-  // quiet lines. Compact keeps the borderless badge (density + touch space).
+  // Ghost pill chrome on desktop: quiet, compact, minimal noise
   pressableDesktopCard: {
-    backgroundColor: theme.colors.surface1,
-    borderColor: theme.colors.border,
-    paddingVertical: theme.spacing[2],
+    backgroundColor: "transparent",
+    borderColor: "transparent",
+    paddingVertical: 2,
   },
   iconBadgeDesktopCard: {
-    backgroundColor: theme.colors.surface3,
+    backgroundColor: "transparent",
   },
   detailWrapperBorderless: {
     borderWidth: 0,
@@ -2893,11 +2906,12 @@ export const ExpandableBadge = memo(function ExpandableBadge({
     () => [
       expandableBadgeStylesheet.pressable,
       !isCompact && expandableBadgeStylesheet.pressableDesktopCard,
+      isHovered && isInteractive ? expandableBadgeStylesheet.pressableHovered : null,
       isPressed && isInteractive ? expandableBadgeStylesheet.pressablePressed : null,
       isExpanded && expandableBadgeStylesheet.pressableExpanded,
       isExpanded && !borderlessWhenExpanded && expandableBadgeStylesheet.pressableExpandedAttached,
     ],
-    [borderlessWhenExpanded, isCompact, isExpanded, isInteractive, isPressed],
+    [borderlessWhenExpanded, isCompact, isExpanded, isHovered, isInteractive, isPressed],
   );
 
   const detailWrapperStyle = useMemo(

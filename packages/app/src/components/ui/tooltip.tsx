@@ -231,6 +231,7 @@ export function Tooltip({
   delayDuration = 0,
   enabledOnDesktop = true,
   enabledOnMobile = false,
+  openOnPress,
   children,
 }: PropsWithChildren<{
   open?: boolean;
@@ -239,6 +240,7 @@ export function Tooltip({
   delayDuration?: number;
   enabledOnDesktop?: boolean;
   enabledOnMobile?: boolean;
+  openOnPress?: boolean;
 }>): ReactElement {
   const triggerRef = useRef<View>(null);
   const [isOpen, setIsOpen] = useControllableOpenState({
@@ -249,6 +251,7 @@ export function Tooltip({
 
   const isCompact = useIsCompactFormFactor();
   const enabled = isCompact ? enabledOnMobile : enabledOnDesktop;
+  const resolvedOpenOnPress = openOnPress ?? isCompact;
 
   const value = useMemo<TooltipContextValue>(
     () => ({
@@ -256,10 +259,10 @@ export function Tooltip({
       setOpen: setIsOpen,
       triggerRef,
       enabled,
-      openOnPress: isCompact,
+      openOnPress: resolvedOpenOnPress,
       delayDuration,
     }),
-    [isOpen, setIsOpen, enabled, isCompact, delayDuration],
+    [isOpen, setIsOpen, enabled, resolvedOpenOnPress, delayDuration],
   );
 
   return <TooltipContext.Provider value={value}>{children}</TooltipContext.Provider>;
@@ -357,7 +360,7 @@ export function TooltipTrigger({
       }
       if (ctx.openOnPress) {
         clearOpenTimer();
-        ctx.setOpen(true);
+        ctx.setOpen(!ctx.open);
         return;
       }
       close();
@@ -508,6 +511,30 @@ export function TooltipContent({
   const contentStyle = useMemo(() => [styles.content, style], [style]);
 
   const handleDismiss = useCallback(() => ctx.setOpen(false), [ctx]);
+
+  useEffect(() => {
+    if (!isWeb || !ctx.open) return;
+
+    const handlePointerDown = (event: MouseEvent | PointerEvent) => {
+      const triggerNode = ctx.triggerRef.current as unknown as HTMLElement | null;
+      if (triggerNode && !triggerNode.contains?.(event.target as Node)) {
+        ctx.setOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        ctx.setOpen(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown, true);
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown, true);
+      window.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [ctx]);
 
   if (!ctx.open || !ctx.enabled) return null;
 

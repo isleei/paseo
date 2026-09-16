@@ -1,43 +1,27 @@
-import { useCallback, useMemo, useState, type ReactElement } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { ArrowUpRight, GitBranch, Sparkles } from "lucide-react-native";
-import { AdaptiveTextInput } from "@/components/adaptive-text-input";
-import { Button } from "@/components/ui/button";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { ChevronDown, FileDiff, GitBranch, GitCommit, Monitor } from "lucide-react-native";
+import { DiffStat } from "@/components/diff-stat";
 import { Section } from "@/components/ui/section";
-import { useToast } from "@/contexts/toast-context";
 import { useVisibleWorkspaceDiffStat } from "@/composer/workspace-diff-stat";
-import { useCheckoutGitActionsStore } from "@/git/actions-store";
+import { getForgeIconComponent } from "@/git/forge-icon";
 import { useWorkspacePrHint } from "@/git/use-pr-status-query";
-import { useHostFeature } from "@/runtime/host-features";
-import { ICON_SIZE, type Theme } from "@/styles/theme";
+import { useHosts } from "@/runtime/host-runtime";
+import { type Theme } from "@/styles/theme";
 import { openExternalUrl } from "@/utils/open-external-url";
-import {
-  formatDiffStat,
-  formatUpstreamDelta,
-  type RailGitState,
-} from "@/workspace-rail/rail-state";
+import { type RailGitState } from "@/workspace-rail/rail-state";
+import { BranchSwitcher } from "@/components/branch-switcher";
+import { GitFlyout, type GitFlyoutAnchorRect } from "./git-flyout";
 
 const ThemedGitBranch = withUnistyles(GitBranch);
-const ThemedSparkles = withUnistyles(Sparkles);
-const ThemedArrowUpRight = withUnistyles(ArrowUpRight);
+const ThemedChevronDown = withUnistyles(ChevronDown);
+const ThemedFileDiff = withUnistyles(FileDiff);
+const ThemedMonitor = withUnistyles(Monitor);
+const ThemedGitCommit = withUnistyles(GitCommit);
 
 const mutedColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
-
-/** The secondary button names the next useful thing, so the tree's state picks the verb. */
-type SecondaryAction = "commit-and-push" | "push" | "none";
-
-function resolveSecondaryAction(git: RailGitState): SecondaryAction {
-  if (!git.hasRemote) {
-    return "none";
-  }
-  if (git.isDirty) {
-    return "commit-and-push";
-  }
-  return git.ahead ? "push" : "none";
-}
 
 export function EnvironmentSection({
   serverId,
@@ -47,6 +31,7 @@ export function EnvironmentSection({
   divided,
   open,
   onToggle,
+  onOpenChanges,
 }: {
   serverId: string;
   cwd: string;
@@ -56,287 +41,252 @@ export function EnvironmentSection({
   divided: boolean;
   open: boolean;
   onToggle: () => void;
+  onOpenChanges?: () => void;
 }): ReactElement {
   const { t } = useTranslation();
-  const toast = useToast();
+  const hosts = useHosts();
+  const host = hosts.find((h) => h.serverId === serverId);
+  const isLocalHost =
+    !host ||
+    host.serverId === "local" ||
+    (typeof host.label === "string" &&
+      (host.label.includes(".local") || host.label.toLowerCase() === "localhost"));
+  const hostLabel = isLocalHost
+    ? t("workspace.git.rail.localHost", "本地")
+    : host?.label?.trim() || "本地";
+
   const diffStat = useVisibleWorkspaceDiffStat(serverId, workspaceId);
   const prHint = useWorkspacePrHint({ serverId, cwd, enabled: true });
-  const supportsGenerate = useHostFeature(serverId, "checkoutGitGenerateCommitMessage");
 
-  const [message, setMessage] = useState("");
-  const [resetKey, setResetKey] = useState(0);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [busyAction, setBusyAction] = useState<SecondaryAction | "commit" | null>(null);
-  const [errorMessage, setErrorMessage] = useState("");
+  const commitTriggerRef = useRef<View>(null);
+  const [anchorRect, setAnchorRect] = useState<GitFlyoutAnchorRect | null>(null);
+  const [isFlyoutOpen, setIsFlyoutOpen] = useState(false);
 
-  const isBusy = isGenerating || busyAction !== null;
-
-  const handleGenerate = useCallback(async () => {
-    if (isBusy) return;
-    setIsGenerating(true);
-    setErrorMessage("");
-    try {
-      const generated = await useCheckoutGitActionsStore
-        .getState()
-        .generateCommitMessage({ serverId, cwd });
-      setMessage(generated);
-      setResetKey((key) => key + 1);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : t("workspace.git.actions.commit.generateFailed"),
-      );
-    } finally {
-      setIsGenerating(false);
+  const handleOpenFlyout = useCallback(() => {
+    if (commitTriggerRef.current) {
+      commitTriggerRef.current.measureInWindow((x, y, width, height) => {
+        if (typeof x === "number" && !isNaN(x) && typeof y === "number" && !isNaN(y)) {
+          setAnchorRect({ x, y, width, height });
+        }
+        setIsFlyoutOpen(true);
+      });
+    } else {
+      setIsFlyoutOpen(true);
     }
-  }, [cwd, isBusy, serverId, t]);
+  }, []);
 
-  const runAction = useCallback(
-    async (action: "commit" | "commit-and-push" | "push") => {
-      if (isBusy) return;
-      setBusyAction(action);
-      setErrorMessage("");
-      try {
-        const store = useCheckoutGitActionsStore.getState();
-        if (action !== "push") {
-          let finalMessage = message.trim();
-          if (!finalMessage) {
-            if (!supportsGenerate) {
-              setErrorMessage(t("workspace.git.rail.emptyMessage"));
-              return;
-            }
-            setIsGenerating(true);
-            try {
-              finalMessage = await store.generateCommitMessage({ serverId, cwd });
-              setMessage(finalMessage);
-              setResetKey((key) => key + 1);
-            } finally {
-              setIsGenerating(false);
-            }
-          }
-          await store.commit({ serverId, cwd, message: finalMessage });
-          setMessage("");
-          setResetKey((key) => key + 1);
-        }
-        if (action !== "commit") {
-          await store.push({ serverId, cwd });
-        }
-        toast.show(
-          action === "commit"
-            ? t("workspace.git.actions.commit.success")
-            : t("workspace.git.actions.push.success"),
-          { variant: "success" },
-        );
-      } catch (error) {
-        setErrorMessage(
-          error instanceof Error ? error.message : t("workspace.git.actions.toasts.failedCommit"),
-        );
-      } finally {
-        setBusyAction(null);
-      }
-    },
-    [cwd, isBusy, message, serverId, supportsGenerate, t, toast],
-  );
+  const handleCloseFlyout = useCallback(() => {
+    setIsFlyoutOpen(false);
+  }, []);
 
-  const handleCommit = useCallback(() => void runAction("commit"), [runAction]);
-  const handleCommitAndPush = useCallback(() => void runAction("commit-and-push"), [runAction]);
-  const handlePush = useCallback(() => void runAction("push"), [runAction]);
   const handleOpenPullRequest = useCallback(() => {
     if (prHint) void openExternalUrl(prHint.url);
   }, [prHint]);
 
-  const summary = useMemo(() => {
-    const delta = formatUpstreamDelta(git);
-    return (
-      <View style={styles.summaryGroup}>
-        <ThemedGitBranch size={ICON_SIZE.sm} uniProps={mutedColorMapping} />
-        <Text style={styles.summaryText} numberOfLines={1}>
-          {git.branch ?? t("workspace.git.rail.detached")}
-        </Text>
-        {delta ? <Text style={styles.summaryText}>{delta}</Text> : null}
-      </View>
-    );
-  }, [git, t]);
+  const ForgeIcon = useMemo(
+    () => withUnistyles(getForgeIconComponent(prHint?.forge ?? "github")),
+    [prHint?.forge],
+  );
 
-  const diffLabel = formatDiffStat(diffStat);
-  const secondary = resolveSecondaryAction(git);
-  const commitDisabled = isBusy || !git.isDirty;
-  const pushDisabled = isBusy || !git.ahead;
+  const actionRowStyle = useCallback(
+    ({ pressed, hovered }: { pressed?: boolean; hovered?: boolean }) => [
+      styles.actionRow,
+      hovered && styles.actionRowHovered,
+      pressed && styles.actionRowPressed,
+    ],
+    [],
+  );
+
+  const renderBranchTrigger = useCallback(
+    ({ onPress, label, testID }: { onPress: () => void; label: string; testID?: string }) => (
+      <Pressable
+        onPress={onPress}
+        style={actionRowStyle}
+        accessibilityRole="button"
+        accessibilityLabel={t("branchSwitcher.currentBranch", { branchName: label })}
+        testID={testID}
+      >
+        <View style={styles.rowLeft}>
+          <ThemedGitBranch size={14} uniProps={mutedColorMapping} />
+          <Text style={styles.rowLabel} numberOfLines={1}>
+            {label}
+          </Text>
+        </View>
+        <ThemedChevronDown size={14} uniProps={mutedColorMapping} />
+      </Pressable>
+    ),
+    [actionRowStyle, t],
+  );
 
   return (
-    <Section
-      title={t("workspace.git.rail.environment")}
-      open={open}
-      onToggle={onToggle}
-      summary={summary}
-      variant="rail"
-      divided={divided}
-    >
-      <View style={styles.body}>
-        <Text style={styles.changeLine} numberOfLines={1}>
-          {diffLabel ??
-            (git.isDirty ? t("workspace.git.rail.dirty") : t("workspace.git.rail.clean"))}
-        </Text>
-
-        {prHint ? (
+    <>
+      <Section
+        title={t("workspace.git.rail.environmentInfo", "环境信息")}
+        open={open}
+        onToggle={onToggle}
+        variant="rail"
+        divided={divided}
+      >
+        <View style={styles.body}>
+          {/* Row 1: 变更 */}
           <Pressable
-            onPress={handleOpenPullRequest}
-            style={styles.prRow}
-            accessibilityRole="link"
-            accessibilityLabel={t("workspace.git.rail.openPullRequest", { number: prHint.number })}
-            testID="workspace-rail-pr"
-          >
-            <Text style={styles.prText} numberOfLines={1}>
-              #{prHint.number} · {t(`workspace.pr.states.${prHint.state}`)}
-            </Text>
-            <ThemedArrowUpRight size={12} uniProps={mutedColorMapping} />
-          </Pressable>
-        ) : null}
-
-        <AdaptiveTextInput
-          testID="workspace-rail-commit-input"
-          accessibilityLabel={t("workspace.git.actions.commit.label")}
-          initialValue={message}
-          resetKey={resetKey}
-          onChangeText={setMessage}
-          placeholder={t("workspace.git.rail.placeholder")}
-          style={styles.input}
-          multiline
-          numberOfLines={3}
-          editable={!isBusy}
-        />
-
-        {supportsGenerate ? (
-          <Pressable
-            onPress={handleGenerate}
-            disabled={isBusy}
-            style={styles.generateRow}
+            onPress={onOpenChanges}
+            disabled={!onOpenChanges}
+            style={actionRowStyle}
             accessibilityRole="button"
-            accessibilityLabel={t("workspace.git.actions.commit.sheet.generate")}
-            testID="workspace-rail-generate"
+            accessibilityLabel={t("workspace.git.rail.changes", "变更")}
           >
-            {isGenerating ? (
-              <LoadingSpinner size={14} color={styles.generateText.color} />
-            ) : (
-              <ThemedSparkles size={14} uniProps={mutedColorMapping} />
-            )}
-            <Text style={styles.generateText}>
-              {isGenerating
-                ? t("workspace.git.rail.generating")
-                : t("workspace.git.actions.commit.sheet.generate")}
-            </Text>
+            <View style={styles.rowLeft}>
+              <ThemedFileDiff size={14} uniProps={mutedColorMapping} />
+              <Text style={styles.rowLabel}>{t("workspace.git.rail.changes", "变更")}</Text>
+            </View>
+            <View style={styles.rowRightGroup}>
+              <DiffStat
+                additions={diffStat?.additions ?? 0}
+                deletions={diffStat?.deletions ?? 0}
+                testID="workspace-rail-diff-stat"
+              />
+            </View>
           </Pressable>
-        ) : null}
 
-        {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
+          {/* Row 2: 本地 */}
+          <View style={styles.row}>
+            <View style={styles.rowLeft}>
+              <ThemedMonitor size={14} uniProps={mutedColorMapping} />
+              <Text style={styles.rowLabel}>{hostLabel}</Text>
+            </View>
+          </View>
 
-        <View style={styles.actions}>
-          <Button
-            style={styles.actionFlex}
-            size="sm"
-            variant="default"
-            onPress={handleCommit}
-            disabled={commitDisabled}
-            testID="workspace-rail-commit"
-          >
-            {busyAction === "commit"
-              ? t("workspace.git.actions.commit.pending")
-              : t("workspace.git.actions.commit.label")}
-          </Button>
-          {secondary === "commit-and-push" ? (
-            <Button
-              style={styles.actionFlex}
-              size="sm"
-              variant="secondary"
-              onPress={handleCommitAndPush}
-              disabled={commitDisabled}
-              testID="workspace-rail-commit-push"
+          {/* Row 3: 分支 */}
+          <BranchSwitcher
+            currentBranchName={git.branch}
+            serverId={serverId}
+            workspaceId={workspaceId}
+            workspaceDirectory={cwd}
+            isGitCheckout
+            testID="workspace-rail-branch-switcher"
+            desktopPlacement="bottom-start"
+            containerStyle={styles.branchContainer}
+            renderTrigger={renderBranchTrigger}
+          />
+
+          {/* Row 4: 提交或推送 */}
+          <View ref={commitTriggerRef} collapsable={false}>
+            <Pressable
+              onPress={handleOpenFlyout}
+              style={actionRowStyle}
+              accessibilityRole="button"
+              accessibilityLabel={t("workspace.git.rail.commitOrPush", "提交或推送")}
+              testID="workspace-rail-commit"
             >
-              {busyAction === "commit-and-push"
-                ? t("workspace.git.rail.commitPushing")
-                : t("workspace.git.rail.commitAndPush")}
-            </Button>
-          ) : null}
-          {secondary === "push" ? (
-            <Button
-              style={styles.actionFlex}
-              size="sm"
-              variant="secondary"
-              onPress={handlePush}
-              disabled={pushDisabled}
-              testID="workspace-rail-push"
+              <View style={styles.rowLeft}>
+                <ThemedGitCommit size={14} uniProps={mutedColorMapping} />
+                <Text style={styles.actionLabel}>
+                  {t("workspace.git.rail.commitOrPush", "提交或推送")}
+                </Text>
+              </View>
+            </Pressable>
+          </View>
+
+          {/* Row 5: PR 状态 */}
+          {prHint ? (
+            <Pressable
+              onPress={handleOpenPullRequest}
+              style={actionRowStyle}
+              accessibilityRole="button"
+              accessibilityLabel={t("workspace.git.rail.openPr", "打开拉取请求")}
+              testID="workspace-rail-pr"
             >
-              {busyAction === "push"
-                ? t("workspace.git.rail.pushing")
-                : t("workspace.git.actions.push.label")}
-            </Button>
-          ) : null}
+              <View style={styles.rowLeft}>
+                <ForgeIcon size={14} uniProps={mutedColorMapping} />
+                <Text style={styles.actionLabel} numberOfLines={1}>
+                  {`#${prHint.number} · ${t(`workspace.pr.states.${prHint.state}`)}`}
+                </Text>
+              </View>
+            </Pressable>
+          ) : (
+            <View style={styles.row}>
+              <View style={styles.rowLeft}>
+                <ForgeIcon size={14} uniProps={mutedColorMapping} />
+                <Text style={styles.cleanLabel} numberOfLines={1}>
+                  {t("workspace.git.rail.prUnavailable", "无法获取拉取请求状态")}
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
-      </View>
-    </Section>
+      </Section>
+
+      <GitFlyout
+        serverId={serverId}
+        workspaceId={workspaceId}
+        cwd={cwd}
+        git={git}
+        diffStat={diffStat}
+        isOpen={isFlyoutOpen}
+        onClose={handleCloseFlyout}
+        anchorRect={anchorRect}
+      />
+    </>
   );
 }
 
 const styles = StyleSheet.create((theme) => ({
-  summaryGroup: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[2],
-    flexShrink: 1,
-  },
-  summaryText: {
-    color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.sm,
-    flexShrink: 1,
-  },
-  summaryDelta: {
-    color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.sm,
-  },
   body: {
     paddingHorizontal: theme.spacing[4],
-    gap: theme.spacing[2],
+    gap: theme.spacing[1.5],
   },
-  changeLine: {
-    color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.sm,
-  },
-  prRow: {
+  row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing[1],
+    justifyContent: "space-between",
+    paddingVertical: theme.spacing[1.5],
+    paddingHorizontal: theme.spacing[2],
+    borderRadius: theme.borderRadius.md,
+    minHeight: 28,
   },
-  prText: {
-    color: theme.colors.foregroundMuted,
+  rowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+    flex: 1,
+    minWidth: 0,
+  },
+  rowRightGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1.5],
+  },
+  rowLabel: {
+    color: theme.colors.foreground,
     fontSize: theme.fontSize.sm,
     flexShrink: 1,
   },
-  input: {
-    backgroundColor: theme.colors.surface2,
-    borderRadius: theme.borderRadius.md,
-    borderWidth: theme.borderWidth[1],
-    borderColor: theme.colors.border,
-    paddingHorizontal: theme.spacing[2],
-    paddingVertical: theme.spacing[2],
-    minHeight: 64,
-  },
-  generateRow: {
+  actionRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing[2],
+    justifyContent: "space-between",
+    paddingVertical: theme.spacing[1.5],
+    paddingHorizontal: theme.spacing[2],
+    borderRadius: theme.borderRadius.md,
+    minHeight: 28,
   },
-  generateText: {
-    color: theme.colors.foregroundMuted,
+  actionRowHovered: {
+    backgroundColor: theme.colors.surface2,
+  },
+  actionRowPressed: {
+    backgroundColor: theme.colors.surface3,
+  },
+  actionLabel: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.medium,
+  },
+  cleanLabel: {
+    color: theme.colors.foregroundExtraMuted,
     fontSize: theme.fontSize.sm,
   },
-  error: {
-    color: theme.colors.statusDanger,
-    fontSize: theme.fontSize.sm,
-  },
-  actions: {
-    flexDirection: "row",
-    gap: theme.spacing[2],
-  },
-  actionFlex: {
-    flex: 1,
+  branchContainer: {
+    width: "100%",
   },
 }));

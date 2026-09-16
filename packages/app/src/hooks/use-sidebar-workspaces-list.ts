@@ -157,19 +157,13 @@ export function useSidebarWorkspacesList(options?: {
       : EMPTY_PROJECT_NAMES;
 
   useEffect(() => {
-    const orderStore = useSidebarOrderStore.getState();
     const updates = computeSidebarOrderUpdates({
       projects,
       persistedProjectOrder,
-      getWorkspaceOrder: (projectViewKey) =>
-        orderStore.workspaceOrderByProject[projectViewKey] ?? EMPTY_ORDER,
     });
 
     if (updates.projectOrder) {
-      orderStore.setProjectOrder(updates.projectOrder);
-    }
-    for (const { projectViewKey, order } of updates.workspaceOrders) {
-      orderStore.setWorkspaceOrder(projectViewKey, order);
+      useSidebarOrderStore.getState().setProjectOrder(updates.projectOrder);
     }
   }, [persistedProjectOrder, projects]);
 

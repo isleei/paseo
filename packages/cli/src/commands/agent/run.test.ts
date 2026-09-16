@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   resolveExistingRunWorkspace,
   resolveRunCallerAgentId,
+  resolveSharedRunWorkspace,
   runRunCommand,
   type AgentRunOptions,
 } from "./run";
@@ -115,5 +116,59 @@ describe("runRunCommand option validation", () => {
       { newWorkspace: "worktree", worktreeMode: "container" },
       /Unsupported worktree mode/,
     );
+  });
+
+  it("rejects --shared combined with --workspace", async () => {
+    await expectInvalidOptions(
+      { shared: true, workspace: "ws-1" },
+      /--shared and --workspace cannot be combined/,
+    );
+  });
+
+  it("rejects --shared combined with worktree workspaces", async () => {
+    await expectInvalidOptions(
+      { shared: true, newWorkspace: "worktree" },
+      /--shared cannot be combined with worktree workspaces/,
+    );
+  });
+});
+
+describe("shared run workspace resolution", () => {
+  function sharedCapableClient(workspace: unknown) {
+    return {
+      getLastServerInfoMessage: () => ({ features: { sharedWorkspace: true } }),
+      createWorkspace: async () => workspace,
+    };
+  }
+
+  it("resolves the daemon-owned shared workspace directory", async () => {
+    const client = sharedCapableClient({
+      workspace: { id: "wks_shared", workspaceDirectory: "/home/.paseo/shared" },
+    });
+    await expect(resolveSharedRunWorkspace(client)).resolves.toEqual({
+      id: "wks_shared",
+      cwd: "/home/.paseo/shared",
+    });
+  });
+
+  it("rejects shared runs against daemons without the capability", async () => {
+    const client = {
+      getLastServerInfoMessage: () => ({ features: {} }),
+      createWorkspace: async () => {
+        throw new Error("must not be called");
+      },
+    };
+    await expect(resolveSharedRunWorkspace(client)).rejects.toMatchObject({
+      code: "UNSUPPORTED",
+      message: "The connected daemon does not support shared workspaces",
+    });
+  });
+
+  it("surfaces shared workspace creation failures", async () => {
+    const client = sharedCapableClient({ workspace: null, error: "boom" });
+    await expect(resolveSharedRunWorkspace(client)).rejects.toMatchObject({
+      code: "WORKSPACE_CREATE_FAILED",
+      message: "boom",
+    });
   });
 });

@@ -286,6 +286,13 @@ export class WorkspaceDirectory {
       activeAgents,
       activeWorkspaceIds,
     );
+    // Recency includes archived agents so a workspace stays near the top after
+    // its last live agent is archived, matching the sidebar's "what did I just
+    // work on" sort.
+    const recencyAgentsByWorkspaceId = groupAgentsByWorkspaceId(
+      agents.filter((agent) => this.deps.isProviderVisibleToClient(agent.provider)),
+      activeWorkspaceIds,
+    );
 
     // Resolve the workspace-level `statusEnteredAt` (see aggregate semantics
     // on `resolveStatusEnteredAt`).
@@ -293,16 +300,23 @@ export class WorkspaceDirectory {
     for (const [workspaceId, descriptor] of descriptorsByWorkspaceId) {
       const contributingAgents = contributingAgentsByWorkspaceId.get(workspaceId) ?? [];
       const activityEntries = activityEntriesByWorkspaceId.get(workspaceId) ?? [];
+      const persisted = activeRecordsByWorkspaceId.get(workspaceId);
       const result = this.resolveStatusEnteredAt({
         workspaceId,
         winningBucket: descriptor.status,
         contributingAgents,
         activityEntries,
         previous: this.bucketHistoryByWorkspaceId.get(workspaceId) ?? null,
-        workspaceCreatedAt: activeRecordsByWorkspaceId.get(workspaceId)?.createdAt ?? null,
+        workspaceCreatedAt: persisted?.createdAt ?? null,
         nowIso,
       });
       descriptor.statusEnteredAt = result.statusEnteredAt;
+      descriptor.activityAt = resolveActivityAt({
+        workspaceCreatedAt: persisted?.createdAt ?? null,
+        workspaceUpdatedAt: persisted?.updatedAt ?? null,
+        agents: recencyAgentsByWorkspaceId.get(workspaceId) ?? [],
+        activityEntries,
+      });
       if (result.recordUpdate) {
         this.bucketHistoryByWorkspaceId.set(workspaceId, result.recordUpdate);
       } else if (result.recordDelete) {
@@ -695,6 +709,34 @@ export class WorkspaceDirectory {
       },
     };
   }
+}
+
+function considerTimestamp(latestMs: number, iso: string | null | undefined): number {
+  if (!iso) return latestMs;
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms) || ms <= latestMs) return latestMs;
+  return ms;
+}
+
+function resolveActivityAt(input: {
+  workspaceCreatedAt: string | null;
+  workspaceUpdatedAt: string | null;
+  agents: readonly AgentSnapshotPayload[];
+  activityEntries: readonly WorkspaceBucketTimestampEntry[];
+}): string | null {
+  let latestMs = Number.NEGATIVE_INFINITY;
+  latestMs = considerTimestamp(latestMs, input.workspaceCreatedAt);
+  latestMs = considerTimestamp(latestMs, input.workspaceUpdatedAt);
+  for (const agent of input.agents) {
+    latestMs = considerTimestamp(latestMs, agent.updatedAt);
+    latestMs = considerTimestamp(latestMs, agent.lastUserMessageAt);
+    latestMs = considerTimestamp(latestMs, agent.attentionTimestamp);
+  }
+  for (const entry of input.activityEntries) {
+    latestMs = considerTimestamp(latestMs, entry.changedAtIso);
+  }
+  if (!Number.isFinite(latestMs)) return null;
+  return new Date(latestMs).toISOString();
 }
 
 function groupAgentsByWorkspaceId(

@@ -86,6 +86,7 @@ import { useActiveWorktreeNewAction } from "@/hooks/use-active-worktree-new-acti
 import { useGlobalNewWorkspaceAction } from "@/hooks/use-global-new-workspace-action";
 import { useLatchedBoolean } from "@/hooks/use-latched-boolean";
 import { useFaviconStatus } from "@/hooks/use-favicon-status";
+import { useIslandSync, useIslandVisibleSession } from "@/desktop/island/use-island-sync";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { resolveExplorerSidebarPresentation } from "@/workspace-tabs/explorer-sidebar";
 import { KeyboardShiftProvider } from "@/hooks/use-keyboard-shift-style";
@@ -675,6 +676,7 @@ function ProvidersWrapper({ children }: { children: ReactNode }) {
         <OfferLinkListener upsertDaemonFromOfferUrl={upsertConnectionFromOfferUrl} />
         <HostSessionManager />
         <FaviconStatusSync />
+        <IslandSync />
         {children}
       </VoiceProvider>
     </AppearanceProvider>
@@ -879,6 +881,12 @@ function AppWithSidebar({ children }: { children: ReactNode }) {
 
 function FaviconStatusSync() {
   useFaviconStatus();
+  return null;
+}
+
+function IslandSync() {
+  useIslandSync();
+  useIslandVisibleSession();
   return null;
 }
 

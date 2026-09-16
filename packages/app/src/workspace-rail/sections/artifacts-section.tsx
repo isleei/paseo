@@ -34,7 +34,10 @@ export function ArtifactsSection({
   const [showAll, setShowAll] = useState(false);
   const { produced, intermediate } = useMemo(() => splitArtifacts(artifacts), [artifacts]);
   const summary = useMemo(
-    () => <CountChip label={String(artifacts.length)} testID="workspace-rail-artifacts-count" />,
+    () =>
+      artifacts.length > 0 ? (
+        <CountChip label={String(artifacts.length)} testID="workspace-rail-artifacts-count" />
+      ) : null,
     [artifacts.length],
   );
   const visibleProduced = showAll ? produced : produced.slice(0, COLLAPSED_ARTIFACT_LIMIT);
@@ -51,29 +54,37 @@ export function ArtifactsSection({
       divided={divided}
     >
       <View style={styles.list}>
-        {visibleProduced.map((artifact) => (
-          <ArtifactRow key={artifact.path} artifact={artifact} onOpen={onOpenArtifact} />
-        ))}
-        {hiddenCount > 0 ? (
-          <Pressable
-            onPress={handleShowAll}
-            accessibilityRole="button"
-            testID="workspace-rail-artifacts-more"
-            style={styles.moreRow}
-          >
-            <Text style={styles.moreText}>
-              {t("workspace.git.rail.moreItems", { count: hiddenCount })}
-            </Text>
-          </Pressable>
-        ) : null}
-        {intermediate.length > 0 ? (
+        {artifacts.length === 0 ? (
+          <Text style={styles.emptyText}>{t("workspace.git.rail.noArtifacts", "暂无产物")}</Text>
+        ) : (
           <>
-            <Text style={styles.groupLabel}>{t("workspace.git.rail.artifactsIntermediate")}</Text>
-            {intermediate.map((artifact) => (
+            {visibleProduced.map((artifact) => (
               <ArtifactRow key={artifact.path} artifact={artifact} onOpen={onOpenArtifact} />
             ))}
+            {hiddenCount > 0 ? (
+              <Pressable
+                onPress={handleShowAll}
+                accessibilityRole="button"
+                testID="workspace-rail-artifacts-more"
+                style={styles.moreRow}
+              >
+                <Text style={styles.moreText}>
+                  {t("workspace.git.rail.moreItems", { count: hiddenCount })}
+                </Text>
+              </Pressable>
+            ) : null}
+            {intermediate.length > 0 ? (
+              <>
+                <Text style={styles.groupLabel}>
+                  {t("workspace.git.rail.artifactsIntermediate")}
+                </Text>
+                {intermediate.map((artifact) => (
+                  <ArtifactRow key={artifact.path} artifact={artifact} onOpen={onOpenArtifact} />
+                ))}
+              </>
+            ) : null}
           </>
-        ) : null}
+        )}
       </View>
     </Section>
   );
@@ -123,6 +134,11 @@ const styles = StyleSheet.create((theme) => ({
   list: {
     paddingHorizontal: theme.spacing[4],
     gap: theme.spacing[1],
+  },
+  emptyText: {
+    color: theme.colors.foregroundExtraMuted,
+    fontSize: theme.fontSize.sm,
+    paddingVertical: theme.spacing[1],
   },
   row: {
     flexDirection: "row",

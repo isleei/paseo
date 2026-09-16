@@ -42,6 +42,7 @@ import {
   type DraftAgentControlsProps,
 } from "@/composer/agent-controls";
 import { ContextWindowMeter } from "@/components/context-window-meter";
+import { TokenRateIndicator } from "@/composer/token-rate/indicator";
 import { KeyboardTranslateView } from "@/components/keyboard-translate-view";
 import { useImageAttachmentPicker } from "@/hooks/use-image-attachment-picker";
 import { selectAgentTurnPresentation, useSessionStore } from "@/stores/session-store";
@@ -2243,6 +2244,11 @@ function ComposerContentImpl({
     [handleOpenAttachment, handleRemoveAttachment, isComposerLocked, selectedAttachments, t],
   );
 
+  const tokenRateIndicator = useMemo(
+    () => <TokenRateIndicator serverId={serverId} agentId={agentId} />,
+    [agentId, serverId],
+  );
+
   const queueList = useMemo(
     () =>
       renderQueueTrack({
@@ -2368,6 +2374,7 @@ function ComposerContentImpl({
                   onFocusChange={handleFocusChange}
                   onHeightChange={onComposerHeightChange}
                   inputWrapperStyle={inputWrapperStyle}
+                  headerContent={tokenRateIndicator}
                   attachmentSlot={attachmentTray}
                   inputMode={inputMode}
                   readOnly={readOnly}
@@ -2397,6 +2404,9 @@ function ComposerContentImpl({
               />
               {pluginAttachments.picker}
             </View>
+            <Text style={styles.disclaimerText}>
+              {t("composer.disclaimer", "内容由 AI 生成，请注意核实")}
+            </Text>
           </View>
         </View>
       </KeyboardTranslateView>
@@ -2415,8 +2425,8 @@ const animatedStaticStyles = RNStyleSheet.create({
 
 const styles = StyleSheet.create((theme: Theme) => ({
   borderSeparator: {
-    height: theme.borderWidth[1],
-    backgroundColor: theme.colors.border,
+    height: 0,
+    backgroundColor: "transparent",
   },
   inputAreaContainer: {
     flexShrink: 1,
@@ -2427,7 +2437,15 @@ const styles = StyleSheet.create((theme: Theme) => ({
     width: "100%",
     overflow: "visible",
     paddingHorizontal: theme.spacing[4],
-    paddingBottom: theme.spacing[4],
+    paddingTop: theme.spacing[2],
+    paddingBottom: theme.spacing[3],
+  },
+  disclaimerText: {
+    fontSize: 11,
+    color: theme.colors.foregroundExtraMuted,
+    textAlign: "center",
+    marginTop: theme.spacing[1],
+    opacity: 0.8,
   },
   inputAreaLocked: {
     opacity: 0.6,

@@ -1396,6 +1396,16 @@ function ResolvedWorkspaceDesktopTabsRow({
     </View>
   );
 
+  if (
+    tabs.length <= 1 &&
+    !paneMaximized &&
+    !showPaneSplitActions &&
+    !showPaneMaximizeAction &&
+    !focusModeEnabled
+  ) {
+    return null;
+  }
+
   return <RenderProfile id="WorkspaceDesktopTabsRow">{row}</RenderProfile>;
 }
 function ResolvedDesktopTabChip({

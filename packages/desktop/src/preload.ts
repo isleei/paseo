@@ -91,6 +91,20 @@ contextBridge.exposeInMainWorld("paseoDesktop", {
     sendNotification: (payload: { title: string; body?: string; data?: Record<string, unknown> }) =>
       ipcRenderer.invoke("paseo:notification:send", payload),
   },
+  island: {
+    push: (agents: unknown[]) => ipcRenderer.invoke("paseo:island:push", agents),
+    setEnabled: (enabled: boolean) => ipcRenderer.invoke("paseo:island:set-enabled", enabled),
+    setMascotSkin: (skin: string) => ipcRenderer.invoke("paseo:island:set-mascot-skin", skin),
+    setSoundSettings: (settings: unknown) =>
+      ipcRenderer.invoke("paseo:island:set-sound-settings", settings),
+    setDisplayTarget: (target: unknown) =>
+      ipcRenderer.invoke("paseo:island:set-display-target", target),
+    setVisibleSession: (sessionId: string | string[] | null) =>
+      ipcRenderer.invoke("paseo:island:set-visible-session", sessionId),
+    acknowledgeRead: (agentId: string) =>
+      ipcRenderer.invoke("paseo:island:acknowledge-read", agentId),
+    getState: () => ipcRenderer.invoke("paseo:island:get-state"),
+  },
   opener: {
     openUrl: (url: string) => ipcRenderer.invoke("paseo:opener:openUrl", url),
   },

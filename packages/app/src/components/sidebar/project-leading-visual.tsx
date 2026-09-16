@@ -60,7 +60,7 @@ export function ProjectLeadingVisual({
   projectViewKey,
   backdrop,
   chevron = null,
-  showChevron = false,
+  showChevron: _showChevron = false,
   isArchiving = false,
 }: {
   displayName: string;
@@ -74,14 +74,6 @@ export function ProjectLeadingVisual({
   showChevron?: boolean;
   isArchiving?: boolean;
 }) {
-  if (showChevron && chevron !== null) {
-    return (
-      <View style={styles.projectLeadingVisualSlot}>
-        <ProjectInlineChevron chevron={chevron} />
-      </View>
-    );
-  }
-
   if (isArchiving) {
     return (
       <View style={styles.projectLeadingVisualSlot} testID="project-status-indicator-archiving">
@@ -91,13 +83,20 @@ export function ProjectLeadingVisual({
   }
 
   return (
-    <ProjectStatusIndicator
-      iconDataUri={iconDataUri}
-      displayName={displayName}
-      projectViewKey={projectViewKey}
-      statusBucket={statusBucket}
-      backdrop={backdrop}
-    />
+    <View style={styles.projectLeadingVisualContainer}>
+      {chevron !== null ? (
+        <View style={styles.chevronSlot}>
+          <ProjectInlineChevron chevron={chevron} />
+        </View>
+      ) : null}
+      <ProjectStatusIndicator
+        iconDataUri={iconDataUri}
+        displayName={displayName}
+        projectViewKey={projectViewKey}
+        statusBucket={statusBucket}
+        backdrop={backdrop}
+      />
+    </View>
   );
 }
 
@@ -272,6 +271,17 @@ const styles = StyleSheet.create((theme) => {
     // icon inside it. Rows lay their leading visual out with alignItems:flex-start, so a
     // 16pt slot next to a 20pt line box puts the icon 2pt above the title and the kebab —
     // which is why the workspace status indicator is also 20 tall. Keep the two in step.
+    projectLeadingVisualContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing[1],
+    },
+    chevronSlot: {
+      width: 14,
+      height: LEADING_SLOT_HEIGHT,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     projectLeadingVisualSlot: {
       width: theme.iconSize.md,
       height: LEADING_SLOT_HEIGHT,

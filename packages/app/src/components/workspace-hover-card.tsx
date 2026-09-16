@@ -139,7 +139,15 @@ function WorkspaceHoverCardDesktop({
   const contentRef = useRef<View>(null);
   const [open, setOpen] = useState(false);
   const graceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerHoveredRef = useRef(false);
+
+  const clearOpenTimer = useCallback(() => {
+    if (openTimerRef.current) {
+      clearTimeout(openTimerRef.current);
+      openTimerRef.current = null;
+    }
+  }, []);
 
   const clearGraceTimer = useCallback(() => {
     if (graceTimerRef.current) {
@@ -159,15 +167,27 @@ function WorkspaceHoverCardDesktop({
   const handleTriggerEnter = useCallback(() => {
     triggerHoveredRef.current = true;
     clearGraceTimer();
+    clearOpenTimer();
     if (!isDragging && !disabled) {
-      setOpen(true);
+      openTimerRef.current = setTimeout(() => {
+        openTimerRef.current = null;
+        setOpen(true);
+      }, 700);
     }
-  }, [clearGraceTimer, disabled, isDragging]);
+  }, [clearGraceTimer, clearOpenTimer, disabled, isDragging]);
 
   const handleTriggerLeave = useCallback(() => {
     triggerHoveredRef.current = false;
+    clearOpenTimer();
     scheduleClose();
-  }, [scheduleClose]);
+  }, [clearOpenTimer, scheduleClose]);
+
+  useEffect(() => {
+    return () => {
+      clearOpenTimer();
+      clearGraceTimer();
+    };
+  }, [clearGraceTimer, clearOpenTimer]);
 
   // While open, the safe zone covers trigger + content + the bridge between
   // them. Close only fires when the pointer leaves the safe zone; re-entering

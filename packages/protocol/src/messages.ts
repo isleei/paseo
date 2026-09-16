@@ -2618,6 +2618,12 @@ export const WorkspaceCreateRequestSchema = z.object({
       projectId: z.string().optional(),
     }),
     z.object({
+      // Daemon-owned catch-all directory (<PASEO_HOME>/shared) for
+      // project-less tasks. The path resolves server-side so remote clients
+      // never need to know the daemon's home directory.
+      kind: z.literal("shared"),
+    }),
+    z.object({
       kind: z.literal("worktree"),
       // The project whose repo the worktree is cut from.
       cwd: z.string().optional(),
@@ -3542,6 +3548,9 @@ export const ServerInfoStatusPayloadSchema = z
         workspaceSetupRun: z.boolean().optional(),
         // COMPAT(workspaceTerminals): added in v0.8.0, remove gate after 2027-09-05.
         workspaceTerminals: z.boolean().optional(),
+        // COMPAT(sharedWorkspace): added in v0.8.0 for the daemon-owned shared
+        // directory source. Remove gate after 2027-09-20.
+        sharedWorkspace: z.boolean().optional(),
         // COMPAT(checkoutForgeSetAutoMerge): added in v0.2.0-beta.1. Remove the
         // feature gate and checkoutGithubSetAutoMerge fallback after 2027-01-17
         // once the supported daemon floor is >= v0.2.0.

@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { FolderPlus, GitBranch, Import, Server, Settings, X } from "lucide-react-native";
+import { FolderPlus, Import, Server, Settings, X } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
@@ -49,13 +49,12 @@ import { useCloseAgentListGesture } from "@/mobile-panels/gestures";
 import { MobilePanelOverlay } from "@/mobile-panels/presentation";
 import { buildSettingsAddHostRoute, buildSettingsRoute } from "@/utils/host-routes";
 import { openHostOverview } from "@/navigation/settings-navigation";
+import { isWeb } from "@/constants/platform";
 import { SidebarAgentListSkeleton } from "./sidebar-agent-list-skeleton";
 import { SidebarCalloutSlot } from "./sidebar-callout-slot";
 import { SidebarWorkspaceList } from "./sidebar-workspace-list";
 
 type SidebarTheme = ReturnType<typeof useUnistyles>["theme"];
-
-const DEV_BUILD_LABEL = process.env.EXPO_PUBLIC_PASEO_DEV_BUILD_LABEL?.trim() || null;
 
 interface SidebarSharedProps {
   theme: SidebarTheme;
@@ -376,11 +375,13 @@ function SidebarHostPicker({
   label,
   onAddHost,
   onOpenHostSettings,
+  avatarMode = false,
 }: {
   theme: SidebarTheme;
   label: string;
   onAddHost: () => void;
   onOpenHostSettings: (serverId: string) => void;
+  avatarMode?: boolean;
 }) {
   const hosts = useHosts();
   const triggerRef = useRef<View | null>(null);
@@ -394,6 +395,44 @@ function SidebarHostPicker({
   );
 
   const handleOpen = useCallback(() => setIsOpen(true), []);
+
+  const trigger = avatarMode ? (
+    <Tooltip delayDuration={300}>
+      <TooltipTrigger asChild>
+        <Pressable
+          ref={triggerRef}
+          style={styles.footerAvatar}
+          testID="sidebar-hosts-trigger"
+          nativeID="sidebar-hosts-trigger"
+          collapsable={false}
+          accessible
+          accessibilityLabel={label}
+          accessibilityRole="button"
+          onPress={handleOpen}
+        >
+          {({ hovered }) => (
+            <Server
+              size={theme.iconSize.sm}
+              color={hovered ? theme.colors.foreground : theme.colors.foregroundMuted}
+            />
+          )}
+        </Pressable>
+      </TooltipTrigger>
+      <TooltipContent side="top" align="center" offset={8}>
+        <Text style={styles.tooltipText}>{label}</Text>
+      </TooltipContent>
+    </Tooltip>
+  ) : (
+    <FooterIconButton
+      buttonRef={triggerRef}
+      onPress={handleOpen}
+      testID="sidebar-hosts-trigger"
+      label={label}
+      icon={Server}
+      iconSize={theme.iconSize.sm}
+      theme={theme}
+    />
+  );
 
   return (
     <HostPicker
@@ -409,19 +448,11 @@ function SidebarHostPicker({
       onOpenHostSettings={onOpenHostSettings}
       searchable
       desktopPlacement="top-start"
-      desktopMinWidth={240}
+      desktopMinWidth={180}
       addHostTestID="sidebar-host-add"
       hostOptionTestID={sidebarHostOptionTestID}
     >
-      <FooterIconButton
-        buttonRef={triggerRef}
-        onPress={handleOpen}
-        testID="sidebar-hosts-trigger"
-        label={label}
-        icon={Server}
-        iconSize={theme.iconSize.sm}
-        theme={theme}
-      />
+      {trigger}
     </HostPicker>
   );
 }
@@ -469,6 +500,13 @@ function SidebarFooter({
 
   return (
     <View style={styles.sidebarFooter}>
+      <SidebarHostPicker
+        theme={theme}
+        label={labels.hosts}
+        onAddHost={handleAddHost}
+        onOpenHostSettings={handleOpenHostSettings}
+        avatarMode
+      />
       <FooterAddProjectButton
         onPress={handleOpenProject}
         label={labels.addProject}
@@ -476,12 +514,6 @@ function SidebarFooter({
         theme={theme}
       />
       <View style={styles.footerIconRow}>
-        <SidebarHostPicker
-          theme={theme}
-          label={labels.hosts}
-          onAddHost={handleAddHost}
-          onOpenHostSettings={handleOpenHostSettings}
-        />
         <FooterIconButton
           onPress={handleImportSession}
           testID="sidebar-import-session"
@@ -731,26 +763,14 @@ function DesktopSidebar({
     >
       <View style={desktopSidebarBorderStyle}>
         <View style={styles.sidebarDragArea}>
-          {ownsTopLeft || DEV_BUILD_LABEL ? (
+          {ownsTopLeft ? (
             <View style={styles.desktopChromeRow}>
               <TitlebarDragRegion />
-              {DEV_BUILD_LABEL ? (
-                <View
-                  pointerEvents="none"
-                  style={styles.devBuildBadge}
-                  testID="dev-build-label"
-                  accessibilityLabel={`Development build: ${DEV_BUILD_LABEL}`}
-                >
-                  <GitBranch size={12} color={theme.colors.accentForeground} />
-                  <Text numberOfLines={1} ellipsizeMode="tail" style={styles.devBuildBadgeText}>
-                    {DEV_BUILD_LABEL}
-                  </Text>
-                </View>
-              ) : null}
             </View>
           ) : (
             <TitlebarDragRegion />
           )}
+          <SidebarBrandHeader />
           <SidebarNavRows style={sidebarHeaderGroupStyle} />
         </View>
 
@@ -797,6 +817,17 @@ function DesktopSidebar({
         />
       </View>
     </Animated.View>
+  );
+}
+
+function SidebarBrandHeader() {
+  return (
+    <View style={styles.brandHeader}>
+      <Text style={styles.brandTitle}>Paimon</Text>
+      <View style={styles.brandBetaBadge}>
+        <Text style={styles.brandBetaBadgeText}>Beta</Text>
+      </View>
+    </View>
   );
 }
 
@@ -984,5 +1015,43 @@ const styles = StyleSheet.create((theme) => ({
   tooltipText: {
     fontSize: theme.fontSize.base,
     color: theme.colors.popoverForeground,
+  },
+  // Brand header — shows "Paseo [Beta]" at the top of the desktop sidebar
+  brandHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+    paddingHorizontal: theme.spacing[3],
+    paddingTop: theme.spacing[2],
+    paddingBottom: theme.spacing[2],
+    borderBottomWidth: 0,
+  },
+  brandTitle: {
+    fontSize: 16,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.foreground,
+    letterSpacing: -0.2,
+    flex: 1,
+  },
+  brandBetaBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: isWeb ? "rgba(0, 0, 0, 0.05)" : theme.colors.interactionHighlight,
+  },
+  brandBetaBadgeText: {
+    fontSize: 11,
+    fontWeight: theme.fontWeight.medium,
+    color: theme.colors.foregroundMuted,
+  },
+  // Footer avatar — circular host indicator on the left of the footer bar
+  footerAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.surface3,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
 }));

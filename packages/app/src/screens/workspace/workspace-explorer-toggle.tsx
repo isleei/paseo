@@ -1,4 +1,4 @@
-import { PanelRight } from "lucide-react-native";
+import { ListTodo, PanelRight } from "lucide-react-native";
 import { type StyleProp, type ViewStyle } from "react-native";
 import { withUnistyles } from "react-native-unistyles";
 import { HeaderToggleButton } from "@/components/headers/header-toggle-button";
@@ -10,6 +10,8 @@ import {
 import type { ShortcutKey } from "@/utils/format-shortcut";
 
 const ThemedPanelRight = withUnistyles(PanelRight);
+const ThemedListTodo = withUnistyles(ListTodo);
+const NO_SHORTCUT_KEYS: ShortcutKey[] = [];
 
 interface WorkspaceExplorerToggleProps {
   onPress: () => void;
@@ -92,4 +94,41 @@ export function WorkspaceExplorerSidebarToggle({
 }: DesktopWorkspaceExplorerToggleProps) {
   if (owner !== "window") return null;
   return <WorkspaceExplorerToggle {...toggleProps} mobile={false} />;
+}
+
+export interface WorkspaceHeaderRailToggleProps {
+  onPress: () => void;
+  label: string;
+  tooltipLabel: string;
+  accessibilityState: { expanded: boolean };
+  style?: StyleProp<ViewStyle>;
+}
+
+export function WorkspaceHeaderRailToggle({
+  onPress,
+  label,
+  tooltipLabel,
+  accessibilityState,
+  style,
+}: WorkspaceHeaderRailToggleProps) {
+  return (
+    <HeaderToggleButton
+      testID="workspace-rail-toggle"
+      onPress={onPress}
+      tooltipLabel={tooltipLabel}
+      tooltipKeys={NO_SHORTCUT_KEYS}
+      tooltipSide="bottom"
+      style={style}
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={accessibilityState}
+    >
+      <ThemedListTodo
+        size={iconButtonChromeGlyphSize("large")}
+        strokeWidth={1.5}
+        uniProps={accessibilityState.expanded ? mutedIconColorMapping : extraMutedIconColorMapping}
+      />
+    </HeaderToggleButton>
+  );
 }

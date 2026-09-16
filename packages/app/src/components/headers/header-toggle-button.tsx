@@ -51,11 +51,11 @@ export function HeaderToggleButton({
       ({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) =>
         iconButtonChromeStyle({
           size: "large",
-          state: { hovered: Boolean(hovered), pressed },
+          state: { hovered: Boolean(hovered), pressed, active: Boolean(expandedState) },
           disabled: Boolean(disabled),
           style,
         }),
-    [disabled, style],
+    [disabled, expandedState, style],
   );
 
   return (

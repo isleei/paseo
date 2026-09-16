@@ -1289,4 +1289,13 @@ describe("workspace message schemas", () => {
     expect(newDirectory.type).toBe("workspace.create.request");
     expect(newDirectory.source.kind).toBe("directory");
   });
+
+  test("workspace.create.request accepts the shared directory source", () => {
+    const shared = WorkspaceCreateRequestSchema.parse({
+      type: "workspace.create.request",
+      requestId: "req-shared",
+      source: { kind: "shared" },
+    });
+    expect(shared.source).toEqual({ kind: "shared" });
+  });
 });

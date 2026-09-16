@@ -72,8 +72,14 @@ export class CreationClient {
       if (request.workspaceId || request.agent?.agentId)
         throw new Error("Update the host to use caller-selected creation IDs.");
       const { agent, ...workspaceInput } = request;
-      const sourceCwd =
-        request.source.kind === "directory" ? request.source.path : request.source.cwd;
+      // Shared workspaces resolve their directory server-side; the agent cwd
+      // falls back to the created workspace below.
+      let sourceCwd: string | undefined;
+      if (request.source.kind === "directory") {
+        sourceCwd = request.source.path;
+      } else if (request.source.kind === "worktree") {
+        sourceCwd = request.source.cwd;
+      }
       const relativeCwd =
         agent && sourceCwd ? relativeDirectory(agent.config!.cwd, sourceCwd) : undefined;
       const workspace = await this.deps.legacyWorkspace(workspaceInput);
@@ -90,9 +96,15 @@ export class CreationClient {
         error: null,
       });
       if (!agent) return workspace;
-      const cwd = `${workspace.workspace.workspaceDirectory!.replace(/[\\/]+$/, "")}${
-        relativeCwd ?? relativeDirectory(agent.config!.cwd, workspace.workspace.projectRootPath)
-      }`;
+      // Shared sources have no caller-known directory: run the agent at the
+      // workspace root the daemon resolved.
+      const cwd =
+        request.source.kind === "shared"
+          ? workspace.workspace.workspaceDirectory!.replace(/[\\/]+$/, "")
+          : `${workspace.workspace.workspaceDirectory!.replace(/[\\/]+$/, "")}${
+              relativeCwd ??
+              relativeDirectory(agent.config!.cwd, workspace.workspace.projectRootPath)
+            }`;
       const created = await this.legacyAgent({
         ...agent,
         config: { ...agent.config!, cwd },
