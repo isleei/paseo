@@ -185,6 +185,7 @@ export function useIslandSync() {
         );
         const unlistenNewMessage = await listenToDesktopEvent("island-new-message", () => {
           try {
+            console.info("[island] received new-message, navigating");
             router.push(buildNewWorkspaceRoute());
           } catch (error) {
             console.warn("[island] new-message navigation failed", error);
@@ -192,6 +193,7 @@ export function useIslandSync() {
         });
         const unlistenOpenSettings = await listenToDesktopEvent("island-open-settings", () => {
           try {
+            console.info("[island] received open-settings, navigating");
             router.push(buildSettingsSectionRoute("notifications"));
           } catch (error) {
             console.warn("[island] open-settings navigation failed", error);

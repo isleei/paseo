@@ -91,8 +91,10 @@ function readPermissions(value: unknown): PaseoIslandAgentPush["pendingPermissio
 }
 
 function broadcast(channel: string, payload: unknown): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) win.webContents.send(channel, payload);
+  const targets = BrowserWindow.getAllWindows().filter((win) => !win.isDestroyed());
+  log.info("[island] broadcast", { channel, windows: targets.length });
+  for (const win of targets) {
+    win.webContents.send(channel, payload);
   }
 }
 
