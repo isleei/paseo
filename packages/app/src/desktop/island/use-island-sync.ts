@@ -180,6 +180,17 @@ export function useIslandSync() {
             const agentId = typeof payload?.agentId === "string" ? payload.agentId.trim() : "";
             const serverId = typeof payload?.serverId === "string" ? payload.serverId.trim() : "";
             if (!agentId || !serverId) return;
+            // Ack on focus, not on route params: agent navigation usually lands
+            // on a workspace route (no agentId param), so param-watching alone
+            // would never clear the card. Ack never resolves pending
+            // interactions — it only marks the card seen.
+            const island = getDesktopHost()?.island;
+            void island?.setVisibleSession?.(agentId).catch(() => {
+              // Best effort; the card still fades via dwell timers.
+            });
+            void island?.acknowledgeRead?.(agentId).catch(() => {
+              // Best effort; unread clears on the next push cycle.
+            });
             navigateToAgent({ serverId, agentId });
           },
         );
