@@ -507,11 +507,17 @@ export class MacAgentIslandNativeHost {
     }
 
     if (payload.type === "expand" && this.child === child) {
+      log.info("native helper expand", {
+        displayId: typeof payload.displayId === "number" ? payload.displayId : null,
+      });
       this.options.onExpand(typeof payload.displayId === "number" ? payload.displayId : null);
       return;
     }
 
     if (payload.type === "collapse" && this.child === child) {
+      log.info("native helper collapse", {
+        displayId: typeof payload.displayId === "number" ? payload.displayId : null,
+      });
       this.options.onCollapse(typeof payload.displayId === "number" ? payload.displayId : null);
       return;
     }
@@ -521,6 +527,7 @@ export class MacAgentIslandNativeHost {
       this.child === child &&
       typeof payload.sessionId === "string"
     ) {
+      log.info("native helper focus-session", { sessionId: payload.sessionId });
       this.options.onFocusSession(payload.sessionId);
       return;
     }
@@ -531,6 +538,10 @@ export class MacAgentIslandNativeHost {
       typeof payload.requestId === "string" &&
       isAgentIslandPermissionAction(payload.action)
     ) {
+      log.info("native helper permission-action", {
+        requestId: payload.requestId,
+        action: payload.action,
+      });
       this.options.onPermissionAction({
         requestId: payload.requestId,
         action: payload.action,
@@ -539,21 +550,25 @@ export class MacAgentIslandNativeHost {
     }
 
     if (payload.type === "open-settings" && this.child === child) {
+      log.info("native helper open-settings");
       this.options.onOpenSettings();
       return;
     }
 
     if (payload.type === "new-message" && this.child === child) {
+      log.info("native helper new-message");
       this.options.onNewMessage();
       return;
     }
 
     if (payload.type === "toggle-sound" && this.child === child) {
+      log.info("native helper toggle-sound");
       this.options.onToggleSound();
       return;
     }
 
     if (payload.type === "outside-click" && this.child === child) {
+      log.info("native helper outside-click");
       this.options.onOutsideClick();
       return;
     }

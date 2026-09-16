@@ -184,10 +184,18 @@ export function useIslandSync() {
           },
         );
         const unlistenNewMessage = await listenToDesktopEvent("island-new-message", () => {
-          router.push(buildNewWorkspaceRoute());
+          try {
+            router.push(buildNewWorkspaceRoute());
+          } catch (error) {
+            console.warn("[island] new-message navigation failed", error);
+          }
         });
         const unlistenOpenSettings = await listenToDesktopEvent("island-open-settings", () => {
-          router.push(buildSettingsSectionRoute("notifications"));
+          try {
+            router.push(buildSettingsSectionRoute("notifications"));
+          } catch (error) {
+            console.warn("[island] open-settings navigation failed", error);
+          }
         });
         if (disposed) {
           unlistenPermission();
