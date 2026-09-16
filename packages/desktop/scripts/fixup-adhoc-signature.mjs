@@ -40,13 +40,10 @@ function main() {
     "entitlements.mac.inherit.adhoc.plist",
   );
 
-  sign(path.join(contents, "MacOS", appName), mainPlist);
   for (const helper of ["Helper", "Helper (GPU)", "Helper (Plugin)", "Helper (Renderer)"]) {
-    sign(
-      path.join(contents, "Frameworks", `${appName} ${helper}.app`, "Contents", "MacOS", `${appName} ${helper}`),
-      inheritPlist,
-    );
+    sign(path.join(contents, "Frameworks", `${appName} ${helper}.app`), inheritPlist);
   }
+  sign(appPath, mainPlist);
 
   execFileSync("codesign", ["--verify", "--deep", "--strict", appPath], { stdio: "inherit" });
   console.log(`[fixup-adhoc-signature] ${appPath} re-signed for local launch`);

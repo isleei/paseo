@@ -86,7 +86,7 @@ const styles = StyleSheet.create((theme: Theme) => ({
   container: {
     flexDirection: "row",
     alignItems: "baseline",
-    alignSelf: "flex-start",
+    alignSelf: "flex-end",
     flexWrap: "wrap",
     gap: theme.spacing[1],
   },

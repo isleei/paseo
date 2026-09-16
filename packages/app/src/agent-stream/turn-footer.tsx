@@ -229,11 +229,9 @@ const stylesheet = StyleSheet.create((theme) => ({
   turnFooterRow: {
     marginTop: theme.spacing[2] + 5,
   },
-  // Codex-style turn grouping, desktop only: a hairline above the completed /
-  // working footer separates one assistant turn from the next user message.
+  // Natural turn grouping, desktop only: clear whitespace without a hard hairline.
   turnFooterDesktopDivider: {
-    borderTopWidth: theme.borderWidth[1],
-    borderTopColor: theme.colors.border,
+    borderTopWidth: 0,
     paddingTop: theme.spacing[3],
   },
   turnFooterSlot: {

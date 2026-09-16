@@ -85,6 +85,7 @@ import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
 import { AutocompletePopover } from "@/components/ui/autocomplete-popover";
 import type { AutocompleteOption } from "@/components/ui/autocomplete";
 import { useAgentAutocomplete } from "@/hooks/use-agent-autocomplete";
+import { useComposerPromptHistory } from "./use-composer-prompt-history";
 import { usePluginClientSlashCommands } from "@/plugins/client-slash-commands";
 import {
   executePluginClientSlashCommand,
@@ -1374,6 +1375,13 @@ function ComposerContentImpl({
     [selectAutocompleteOption],
   );
 
+  const { onKeyPress: handlePromptHistoryKeyPress, recordSubmittedPrompt } =
+    useComposerPromptHistory({
+      serverId,
+      agentId,
+      replaceUserInput,
+    });
+
   // Clear send error when user edits the input
   useEffect(() => {
     setCursorIndex((current) => Math.min(current, userInput.length));
@@ -1620,6 +1628,7 @@ function ComposerContentImpl({
 
   const handleSubmit = useCallback(
     (payload: MessagePayload) => {
+      recordSubmittedPrompt(payload.text);
       const outgoingAttachments = buildOutgoingAttachments(attachments);
       const clientSlashCommand = resolveClientSlashCommand({
         text: payload.text,
@@ -1644,8 +1653,9 @@ function ComposerContentImpl({
       attachments,
       blurOnSubmit,
       buildOutgoingAttachments,
-      runClientSlashCommand,
       pluginClientSlashCommands,
+      recordSubmittedPrompt,
+      runClientSlashCommand,
       runPluginClientSlashCommand,
       sendMessageWithContent,
     ],
@@ -1880,6 +1890,7 @@ function ComposerContentImpl({
 
   const handleQueue = useCallback(
     (payload: MessagePayload) => {
+      recordSubmittedPrompt(payload.text);
       const outgoingAttachments = buildOutgoingAttachments(attachments);
       const clientSlashCommand = resolveClientSlashCommand({
         text: payload.text,
@@ -1901,6 +1912,7 @@ function ComposerContentImpl({
       buildOutgoingAttachments,
       pluginClientSlashCommands,
       queueMessage,
+      recordSubmittedPrompt,
       runClientSlashCommand,
       runPluginClientSlashCommand,
     ],
@@ -1908,10 +1920,15 @@ function ComposerContentImpl({
 
   const hasSendableContent = userInput.trim().length > 0 || selectedAttachments.length > 0;
 
-  // Handle keyboard navigation for command autocomplete.
+  // Handle keyboard navigation for command autocomplete and prompt history.
   const handleCommandKeyPress = useCallback(
-    (event: ComposerKeyPressEvent) => autocompleteOnKeyPressRef.current(event),
-    [],
+    (event: ComposerKeyPressEvent) => {
+      if (autocompleteOnKeyPressRef.current(event)) {
+        return true;
+      }
+      return handlePromptHistoryKeyPress(event);
+    },
+    [handlePromptHistoryKeyPress],
   );
 
   const cancelButtonStyle = useMemo(
@@ -2438,7 +2455,7 @@ const styles = StyleSheet.create((theme: Theme) => ({
     overflow: "visible",
     paddingHorizontal: theme.spacing[4],
     paddingTop: theme.spacing[2],
-    paddingBottom: theme.spacing[3],
+    paddingBottom: theme.spacing[4],
   },
   disclaimerText: {
     fontSize: 11,

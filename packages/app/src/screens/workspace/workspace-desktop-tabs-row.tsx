@@ -1546,8 +1546,7 @@ const styles = StyleSheet.create((theme) => ({
   tabsContainer: {
     minWidth: 0,
     height: WORKSPACE_SECONDARY_HEADER_HEIGHT,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderBottomWidth: 0,
     backgroundColor: theme.colors.surface0,
     flexDirection: "row",
     alignItems: "center",

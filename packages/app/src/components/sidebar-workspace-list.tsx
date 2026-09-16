@@ -230,6 +230,8 @@ interface SidebarWorkspaceListProps {
   onAddProject?: () => void;
   onImportSession?: () => void;
   listFooterComponent?: ReactElement | null;
+  // Rendered inside the scroll area at the very top, above the Pinned section and above the workspace list.
+  listTopComponent?: ReactElement | null;
   // Rendered inside the scroll area, below the Pinned section and above the workspace
   // list. Holds the "Workspaces" section header so pinned items sit above it.
   listHeaderComponent?: ReactElement | null;

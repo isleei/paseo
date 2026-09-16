@@ -1933,7 +1933,8 @@ const styles = StyleSheet.create((theme: Theme) => ({
     gap: theme.spacing[3],
     backgroundColor: theme.colors.surface0,
     borderWidth: theme.borderWidth[1],
-    borderColor: theme.colors.border,
+    borderColor:
+      theme.colorScheme !== "dark" && isWeb ? "rgba(0, 0, 0, 0.06)" : theme.colors.borderAccent,
     borderRadius: 20,
     paddingVertical: {
       xs: theme.spacing[2],
@@ -1944,13 +1945,16 @@ const styles = StyleSheet.create((theme: Theme) => ({
       md: theme.spacing[4],
     },
     shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: theme.colorScheme === "dark" ? 0.25 : 0.08,
+    shadowRadius: 20,
+    elevation: 6,
     ...(isWeb
       ? {
-          boxShadow: "0 4px 20px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.04)",
+          boxShadow:
+            theme.colorScheme === "dark"
+              ? "0 8px 28px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08)"
+              : "0 8px 28px rgba(0, 0, 0, 0.07), 0 2px 6px rgba(0, 0, 0, 0.03)",
           transitionProperty: "border-color, box-shadow",
           transitionDuration: "200ms",
           transitionTimingFunction: "ease-in-out",

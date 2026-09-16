@@ -219,14 +219,14 @@ function WorkspaceInfoRailInner({
           <TasksSection
             key="tasks"
             tasks={tasks ?? EMPTY_TASKS}
-            divided={Boolean(git)}
+            divided={false}
             open={isSectionOpen(closedSections, "tasks")}
             onToggle={handleToggleTasks}
           />
           <ArtifactsSection
             key="artifacts"
             artifacts={sessionDerived.artifacts}
-            divided
+            divided={false}
             isExpanded={isSectionOpen(closedSections, "artifacts")}
             onToggleExpanded={handleToggleArtifacts}
             onOpenArtifact={handleOpenFile}
@@ -236,7 +236,7 @@ function WorkspaceInfoRailInner({
             webSources={sessionDerived.webSources}
             projectFiles={sessionDerived.projectFiles}
             uploadedCount={uploadedCount}
-            divided
+            divided={false}
             isExpanded={isSectionOpen(closedSections, "sources")}
             onToggleExpanded={handleToggleSources}
             onOpenWebSource={handleOpenWebSource}
@@ -246,7 +246,7 @@ function WorkspaceInfoRailInner({
             <SubagentsSection
               serverId={serverId}
               parentAgentId={agentId}
-              divided
+              divided={false}
               open={isSectionOpen(closedSections, "subagents")}
               onToggle={handleToggleSubagents}
             />
@@ -270,11 +270,15 @@ const styles = StyleSheet.create((theme) => ({
     maxHeight: "100%",
     backgroundColor: theme.colors.surface1,
     borderWidth: theme.borderWidth[1],
-    borderColor: isWeb ? "rgba(0, 0, 0, 0.08)" : theme.colors.border,
-    borderRadius: theme.borderRadius.xl,
+    borderColor:
+      theme.colorScheme !== "dark" && isWeb ? "rgba(0, 0, 0, 0.04)" : theme.colors.borderAccent,
+    borderRadius: theme.borderRadius["2xl"],
     ...(isWeb
       ? {
-          boxShadow: "0 4px 16px rgba(0, 0, 0, 0.08)",
+          boxShadow:
+            theme.colorScheme === "dark"
+              ? "0 8px 24px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.2)"
+              : "0 8px 24px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03)",
         }
       : theme.shadow.md),
     overflow: "hidden",
@@ -303,7 +307,8 @@ const styles = StyleSheet.create((theme) => ({
     top: 0,
     backgroundColor: theme.colors.surface1,
     borderWidth: theme.borderWidth[1],
-    borderColor: isWeb ? "rgba(0, 0, 0, 0.08)" : theme.colors.border,
+    borderColor:
+      theme.colorScheme !== "dark" && isWeb ? "rgba(0, 0, 0, 0.04)" : theme.colors.borderAccent,
     borderRightWidth: 0,
     borderTopLeftRadius: theme.borderRadius.md,
     borderBottomLeftRadius: theme.borderRadius.md,
@@ -311,7 +316,10 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: theme.spacing[1],
     ...(isWeb
       ? {
-          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+          boxShadow:
+            theme.colorScheme === "dark"
+              ? "0 4px 16px rgba(0, 0, 0, 0.3)"
+              : "0 4px 16px rgba(0, 0, 0, 0.06)",
         }
       : theme.shadow.md),
   },

@@ -39,6 +39,7 @@ import {
   resolveExplorerSidebarDockSizes,
   resolveExplorerSidebarWidth,
 } from "@/components/explorer-sidebar-layout";
+import { useExplorerSidebarPresentation } from "@/components/explorer-sidebar-toggle-animation";
 import { RetainedPanel } from "@/components/retained-panel";
 import {
   hasMultipleVisiblePanes,
@@ -47,7 +48,6 @@ import {
 } from "@/components/split-container-focus";
 import { shouldFocusPaneFromEventTarget } from "@/components/split-container-pane-focus";
 import {
-  removeWindowChromeCorner,
   WindowChromeRegion,
   WindowChromeSafeArea,
   useWindowChromeCorners,
@@ -441,17 +441,28 @@ export function SplitContainer({
       }),
     [requestedExplorerSidebarWidth, workspaceShellWidth],
   );
-  const renderExplorerSidebarDock = Boolean(
+  const explorerSidebarOpen = Boolean(
     !focusModeEnabled && explorerSidebarPane && explorerSidebarPane.hidden !== true,
   );
-  const showRailPadding = Boolean(hasRail && !renderExplorerSidebarDock);
-  const mainColumnWindowChromeCorners = renderExplorerSidebarDock
-    ? removeWindowChromeCorner(inheritedWindowChromeCorners, "top-right")
-    : inheritedWindowChromeCorners;
   const mainColumnStyle = styles.mainColumn;
   const explorerSidebarDockStyle = useMemo(
     () => [styles.explorerSidebarDock, { width: explorerSidebarWidth }],
     [explorerSidebarWidth],
+  );
+  const explorerSidebar = useExplorerSidebarPresentation({
+    open: explorerSidebarOpen,
+    hasPane: Boolean(explorerSidebarPane),
+    dockWidth: explorerSidebarWidth,
+    hasRail,
+    inheritedWindowChromeCorners,
+    dockStyle: explorerSidebarDockStyle,
+  });
+  const renderExplorerSidebarDock = explorerSidebar.shouldRender;
+  const showRailPadding = explorerSidebar.showRailPadding;
+  const mainColumnWindowChromeCorners = explorerSidebar.mainColumnWindowChromeCorners;
+  const explorerSidebarGroupStyle = useMemo(
+    () => [styles.explorerSidebarGroup, explorerSidebar.animatedGroupStyle],
+    [explorerSidebar.animatedGroupStyle],
   );
   const handleWorkspaceShellLayout = useCallback((event: LayoutChangeEvent) => {
     const nextWidth = event.nativeEvent.layout.width;
@@ -713,7 +724,14 @@ export function SplitContainer({
             </View>
           </WindowChromeRegion>
           {renderExplorerSidebarDock && explorerSidebarPane ? (
-            <>
+            <Animated.View
+              style={explorerSidebarGroupStyle}
+              pointerEvents={explorerSidebar.pointerEvents}
+              accessibilityElementsHidden={!explorerSidebar.accessible}
+              importantForAccessibility={
+                explorerSidebar.accessible ? "auto" : "no-hide-descendants"
+              }
+            >
               <ResizeHandle
                 testID="workspace-explorer-sidebar-resize-handle"
                 direction="horizontal"
@@ -744,7 +762,7 @@ export function SplitContainer({
                   headerAction={renderExplorerSidebarHeaderAction?.()}
                 />
               </View>
-            </>
+            </Animated.View>
           ) : null}
         </View>
         <DragOverlay dropAnimation={null}>
@@ -1413,6 +1431,12 @@ const styles = StyleSheet.create((theme) => ({
   },
   splitRootContainerWithRail: {
     paddingRight: 288 + theme.spacing[3] * 2,
+  },
+  explorerSidebarGroup: {
+    flexDirection: "row",
+    flexShrink: 0,
+    minHeight: 0,
+    overflow: "hidden",
   },
   explorerSidebarDock: {
     flexShrink: 0,

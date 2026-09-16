@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { FolderPlus, Import, Server, Settings, X } from "lucide-react-native";
+import { Import, Server, Settings, X } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
@@ -8,15 +8,23 @@ import {
   Text,
   useWindowDimensions,
   View,
-  type PressableStateCallbackType,
 } from "react-native";
 import { Gesture } from "react-native-gesture-handler";
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { TitlebarDragRegion } from "@/components/desktop/titlebar-drag-region";
 import { resolveDesktopSidebarWidth } from "@/components/desktop-sidebar-layout";
+import {
+  SIDEBAR_TOGGLE_DURATION_MS,
+  SIDEBAR_TOGGLE_EASING,
+} from "@/components/sidebar-toggle-animation";
 import {
   SIDEBAR_RESIZE_ACTIVATION_OFFSET,
   SIDEBAR_RESIZE_FAIL_OFFSET,
@@ -49,7 +57,6 @@ import { useCloseAgentListGesture } from "@/mobile-panels/gestures";
 import { MobilePanelOverlay } from "@/mobile-panels/presentation";
 import { buildSettingsAddHostRoute, buildSettingsRoute } from "@/utils/host-routes";
 import { openHostOverview } from "@/navigation/settings-navigation";
-import { isWeb } from "@/constants/platform";
 import { SidebarAgentListSkeleton } from "./sidebar-agent-list-skeleton";
 import { SidebarCalloutSlot } from "./sidebar-callout-slot";
 import { SidebarWorkspaceList } from "./sidebar-workspace-list";
@@ -82,11 +89,9 @@ interface SidebarSharedProps {
 }
 
 interface SidebarLabels {
-  addProject: string;
   hosts: string;
   importSession: string;
   settings: string;
-  searchHosts: string;
   closeSidebar: string;
 }
 
@@ -189,11 +194,9 @@ export const LeftSidebar = memo(function LeftSidebar({ active }: { active: boole
 
   const labels = useMemo(
     (): SidebarLabels => ({
-      addProject: t("sidebar.actions.addProject"),
       hosts: t("sidebar.actions.hosts"),
       importSession: t("importSession.title"),
       settings: t("sidebar.actions.settings"),
-      searchHosts: t("sidebar.host.searchPlaceholder"),
       closeSidebar: t("sidebar.actions.closeSidebar"),
     }),
     [t],
@@ -277,7 +280,7 @@ function FooterIconButton({
   onPress: () => void;
   testID: string;
   label: string;
-  icon: typeof FolderPlus;
+  icon: typeof Import;
   iconSize?: number;
   shortcutKeys?: ReturnType<typeof useShortcutKeys>;
   theme: SidebarTheme;
@@ -303,64 +306,6 @@ function FooterIconButton({
               color={hovered ? theme.colors.foreground : theme.colors.foregroundMuted}
             />
           )}
-        </Pressable>
-      </TooltipTrigger>
-      <TooltipContent side="top" align="center" offset={8}>
-        <IconTooltipContent label={label} shortcutKeys={shortcutKeys} />
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-function footerAddProjectButtonStyle({
-  hovered,
-}: PressableStateCallbackType & { hovered?: boolean }) {
-  return [styles.footerAddProjectButton, Boolean(hovered) && styles.footerAddProjectButtonHovered];
-}
-
-function FooterAddProjectButton({
-  onPress,
-  label,
-  shortcutKeys,
-  theme,
-}: {
-  onPress: () => void;
-  label: string;
-  shortcutKeys: ReturnType<typeof useShortcutKeys>;
-  theme: SidebarTheme;
-}) {
-  return (
-    <Tooltip delayDuration={300}>
-      <TooltipTrigger asChild>
-        <Pressable
-          style={footerAddProjectButtonStyle}
-          testID="sidebar-add-project"
-          nativeID="sidebar-add-project"
-          accessible
-          accessibilityLabel={label}
-          accessibilityRole="button"
-          onPress={onPress}
-        >
-          {({ hovered }) => {
-            const isHovered = Boolean(hovered);
-            return (
-              <>
-                <FolderPlus
-                  size={theme.iconSize.sm}
-                  color={isHovered ? theme.colors.foreground : theme.colors.foregroundMuted}
-                />
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    styles.footerAddProjectLabel,
-                    isHovered && styles.footerAddProjectLabelHovered,
-                  ]}
-                >
-                  {label}
-                </Text>
-              </>
-            );
-          }}
         </Pressable>
       </TooltipTrigger>
       <TooltipContent side="top" align="center" offset={8}>
@@ -474,7 +419,6 @@ function IconTooltipContent({
 
 function SidebarFooter({
   theme,
-  handleOpenProject,
   handleImportSession,
   handleSettings,
   labels,
@@ -482,20 +426,16 @@ function SidebarFooter({
   handleOpenHostSettings,
 }: {
   theme: SidebarTheme;
-  handleOpenProject: () => void;
   handleImportSession: () => void;
   handleSettings: () => void;
   labels: {
-    addProject: string;
     hosts: string;
     importSession: string;
     settings: string;
-    searchHosts: string;
   };
   handleAddHost: () => void;
   handleOpenHostSettings: (serverId: string) => void;
 }) {
-  const newAgentKeys = useShortcutKeys("new-agent");
   const settingsKeys = useShortcutKeys("toggle-settings");
 
   return (
@@ -507,12 +447,7 @@ function SidebarFooter({
         onOpenHostSettings={handleOpenHostSettings}
         avatarMode
       />
-      <FooterAddProjectButton
-        onPress={handleOpenProject}
-        label={labels.addProject}
-        shortcutKeys={newAgentKeys}
-        theme={theme}
-      />
+      <View style={styles.footerSpacer} />
       <View style={styles.footerIconRow}>
         <FooterIconButton
           onPress={handleImportSession}
@@ -636,7 +571,6 @@ function MobileSidebar({
 
         <SidebarFooter
           theme={theme}
-          handleOpenProject={handleOpenProject}
           handleImportSession={handleImportSession}
           handleSettings={handleSettings}
           labels={labels}
@@ -685,14 +619,30 @@ function DesktopSidebar({
   });
 
   const startWidthRef = useRef(visibleSidebarWidth);
-  const resizeWidth = useSharedValue(visibleSidebarWidth);
+  const resizeWidth = useSharedValue(active ? visibleSidebarWidth : 0);
+  const prevActiveRef = useRef(active);
   const [resizePressed, setResizePressed] = useState(false);
   const showResizeGrip = useCallback(() => setResizePressed(true), []);
   const hideResizeGrip = useCallback(() => setResizePressed(false), []);
 
+  // Open/close animates width so the sidebar slides instead of display:none.
+  // While already open, width snaps (viewport resize, post-drag store commit).
   useEffect(() => {
-    resizeWidth.value = visibleSidebarWidth;
-  }, [resizeWidth, visibleSidebarWidth]);
+    if (!active) {
+      resizeWidth.value = withTiming(0, {
+        duration: SIDEBAR_TOGGLE_DURATION_MS,
+        easing: SIDEBAR_TOGGLE_EASING,
+      });
+    } else if (prevActiveRef.current) {
+      resizeWidth.value = visibleSidebarWidth;
+    } else {
+      resizeWidth.value = withTiming(visibleSidebarWidth, {
+        duration: SIDEBAR_TOGGLE_DURATION_MS,
+        easing: SIDEBAR_TOGGLE_EASING,
+      });
+    }
+    prevActiveRef.current = active;
+  }, [active, resizeWidth, visibleSidebarWidth]);
 
   const resizeGesture = useMemo(
     () =>
@@ -739,12 +689,8 @@ function DesktopSidebar({
   }));
 
   const desktopSidebarStyle = useMemo(
-    () => [
-      staticStyles.desktopSidebar,
-      !active && staticStyles.desktopSidebarHidden,
-      resizeAnimatedStyle,
-    ],
-    [active, resizeAnimatedStyle],
+    () => [staticStyles.desktopSidebar, resizeAnimatedStyle],
+    [resizeAnimatedStyle],
   );
   const desktopSidebarBorderStyle = useMemo(
     () => [styles.desktopSidebarBorder, { flex: 1, paddingTop: insetsTop }],
@@ -801,7 +747,6 @@ function DesktopSidebar({
 
         <SidebarFooter
           theme={theme}
-          handleOpenProject={handleOpenProject}
           handleImportSession={handleImportSession}
           handleSettings={handleSettings}
           labels={labels}
@@ -824,9 +769,6 @@ function SidebarBrandHeader() {
   return (
     <View style={styles.brandHeader}>
       <Text style={styles.brandTitle}>Paimon</Text>
-      <View style={styles.brandBetaBadge}>
-        <Text style={styles.brandBetaBadgeText}>Beta</Text>
-      </View>
     </View>
   );
 }
@@ -861,9 +803,8 @@ const workspacesSectionHeaderElement = <WorkspacesSectionHeader />;
 const staticStyles = RNStyleSheet.create({
   desktopSidebar: {
     position: "relative" as const,
-  },
-  desktopSidebarHidden: {
-    display: "none",
+    // Width animates to 0 on close; clip so content does not paint past the rail.
+    overflow: "hidden" as const,
   },
 });
 
@@ -872,8 +813,7 @@ const styles = StyleSheet.create((theme) => ({
     paddingTop: theme.spacing[2],
     gap: 2,
     paddingBottom: theme.spacing[1.5],
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderBottomWidth: 0,
   },
   sidebarHeaderGroupBelowChrome: {
     paddingTop: 0,
@@ -926,8 +866,7 @@ const styles = StyleSheet.create((theme) => ({
     backgroundColor: theme.colors.surfaceSidebar,
   },
   desktopSidebarBorder: {
-    borderRightWidth: 1,
-    borderRightColor: theme.colors.border,
+    borderRightWidth: 0,
     backgroundColor: theme.colors.surfaceSidebar,
   },
   sidebarDragArea: {
@@ -943,61 +882,24 @@ const styles = StyleSheet.create((theme) => ({
     borderBottomWidth: theme.borderWidth[1],
     borderBottomColor: "transparent",
   },
-  devBuildBadge: {
-    maxWidth: "60%",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[1],
-    paddingHorizontal: theme.spacing[2],
-    paddingVertical: 2,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.accent,
-  },
-  devBuildBadgeText: {
-    minWidth: 0,
-    flexShrink: 1,
-    color: theme.colors.accentForeground,
-    fontSize: theme.fontSize.sm,
-    fontWeight: theme.fontWeight.medium,
-  },
   sidebarFooter: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: theme.spacing[2],
     paddingHorizontal: theme.spacing[2],
-    paddingVertical: theme.spacing[3],
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    paddingTop: theme.spacing[3],
+    paddingBottom: theme.spacing[3],
+    borderTopWidth: 0,
+  },
+  footerSpacer: {
+    flex: 1,
   },
   footerIconRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[2],
     flexShrink: 0,
-  },
-  footerAddProjectButton: {
-    minWidth: 0,
-    minHeight: 32,
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[2],
-    paddingVertical: theme.spacing[1.5],
-    paddingHorizontal: theme.spacing[2],
-    borderRadius: theme.borderRadius.lg,
-  },
-  footerAddProjectButtonHovered: {
-    backgroundColor: theme.colors.surfaceSidebarHover,
-  },
-  footerAddProjectLabel: {
-    minWidth: 0,
-    flexShrink: 1,
-    fontSize: theme.fontSize.base,
-    fontWeight: theme.fontWeight.normal,
-    color: theme.colors.foregroundMuted,
-  },
-  footerAddProjectLabelHovered: {
-    color: theme.colors.foreground,
   },
   footerIconButton: {
     width: 28,
@@ -1016,7 +918,7 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.base,
     color: theme.colors.popoverForeground,
   },
-  // Brand header — shows "Paseo [Beta]" at the top of the desktop sidebar
+  // Brand header — shows "Paimon" at the top of the desktop sidebar
   brandHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -1032,17 +934,6 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foreground,
     letterSpacing: -0.2,
     flex: 1,
-  },
-  brandBetaBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: isWeb ? "rgba(0, 0, 0, 0.05)" : theme.colors.interactionHighlight,
-  },
-  brandBetaBadgeText: {
-    fontSize: 11,
-    fontWeight: theme.fontWeight.medium,
-    color: theme.colors.foregroundMuted,
   },
   // Footer avatar — circular host indicator on the left of the footer bar
   footerAvatar: {

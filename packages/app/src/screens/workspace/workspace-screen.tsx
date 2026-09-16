@@ -3939,6 +3939,7 @@ function WorkspaceScreenContent({
     () =>
       showScreenHeader ? (
         <ScreenHeader
+          borderless
           left={
             <>
               <SidebarMenuToggle />
@@ -4386,8 +4387,7 @@ const styles = StyleSheet.create((theme) => ({
     height: 16,
   },
   tabsContainer: {
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderBottomWidth: 0,
     backgroundColor: theme.colors.surface0,
     flexDirection: "row",
     alignItems: "center",

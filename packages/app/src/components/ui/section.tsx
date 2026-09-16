@@ -63,7 +63,7 @@ export function Section({
 }: SectionProps) {
   const isRail = variant === "rail";
   return (
-    <View>
+    <View style={isRail ? sectionKitStyles.railSection : undefined}>
       {divided ? <View style={sectionKitStyles.divider} /> : null}
       <Pressable
         accessibilityLabel={accessibilityLabel}
@@ -159,6 +159,9 @@ export const sectionKitStyles = StyleSheet.create((theme) => ({
   sectionBody: {
     paddingBottom: theme.spacing[3],
   },
+  railSection: {
+    marginVertical: theme.spacing[1],
+  },
   railHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -169,7 +172,8 @@ export const sectionKitStyles = StyleSheet.create((theme) => ({
   },
   divider: {
     height: 1,
-    backgroundColor: isWeb ? "rgba(0, 0, 0, 0.05)" : theme.colors.border,
+    backgroundColor:
+      theme.colorScheme !== "dark" && isWeb ? "rgba(0, 0, 0, 0.04)" : theme.colors.borderAccent,
   },
   railTitle: {
     fontSize: 14,

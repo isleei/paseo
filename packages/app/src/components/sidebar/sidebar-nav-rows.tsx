@@ -27,9 +27,17 @@ interface SidebarNavRowProps {
   onBeforeNavigate?: () => void;
 }
 
+export type SidebarNavRowsMode = "all" | "pinned" | "scrollable";
+
 interface SidebarNavRowsProps extends SidebarNavRowProps {
   /** Style for the group wrapper, which the sidebar owns. */
   style?: StyleProp<ViewStyle>;
+  /**
+   * "all" (default): render all visible nav rows.
+   * "pinned": only render the pinned action ("new-workspace").
+   * "scrollable": render all visible rows except the pinned action.
+   */
+  mode?: SidebarNavRowsMode;
 }
 
 /**
@@ -37,9 +45,17 @@ interface SidebarNavRowsProps extends SidebarNavRowProps {
  * `sidebarNavItems` preference. Renders nothing — not even the bordered group
  * wrapper — when every item is hidden.
  */
-export function SidebarNavRows({ style, onBeforeNavigate }: SidebarNavRowsProps) {
+export function SidebarNavRows({ style, onBeforeNavigate, mode = "all" }: SidebarNavRowsProps) {
   const { items } = useSidebarNavItems();
-  const visibleItems = useMemo(() => items.filter((item) => item.visible), [items]);
+  const visibleItems = useMemo(() => {
+    return items.filter((item) => {
+      if (!item.visible) return false;
+      const isNewWorkspace = item.kind === "builtin" && item.id === "new-workspace";
+      if (mode === "pinned") return isNewWorkspace;
+      if (mode === "scrollable") return !isNewWorkspace;
+      return true;
+    });
+  }, [items, mode]);
 
   if (visibleItems.length === 0) return null;
 
