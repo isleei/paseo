@@ -414,12 +414,29 @@ export class PaseoIslandService {
     if (this.isFreshCompletion(agent, prevStatus)) {
       return applyAgentIslandEvent(this.state, meta, { type: "done", data: {} }, now);
     }
+    if (
+      agent.status === "idle" &&
+      (prevStatus === "running" || prevStatus === "initializing") &&
+      agent.requiresAttention &&
+      agent.attentionReason === "error"
+    ) {
+      return applyAgentIslandEvent(
+        this.state,
+        meta,
+        { type: "error", data: { message: agent.title ?? "Agent failed", isTerminal: true } },
+        now,
+      );
+    }
     if (agent.status === "idle" && prevStatus !== "idle" && !agent.requiresAttention) {
+      // Quiet finish: settle the session without raising unread, so routine
+      // completions don't badge the island for hours. Attention finishes and
+      // errors above still notify.
       return applyAgentIslandEvent(
         this.state,
         meta,
         { type: "status", data: { isRunning: false, status: "Done" } },
         now,
+        { suppressCompletionAttention: true },
       );
     }
     return false;

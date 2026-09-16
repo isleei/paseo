@@ -48,7 +48,12 @@ interface TestDisplayState {
     title: string;
     permissionAction: { requestId: string } | null;
   }>;
-  pillSnapshot: { activeSessionCount: number; sessionCount: number };
+  pillSnapshot: {
+    activeSessionCount: number;
+    sessionCount: number;
+    unreadCompletedCount: number;
+    attentionCount: number;
+  };
   mascotSkin: string;
 }
 
@@ -168,6 +173,53 @@ describe("PaseoIslandService", () => {
     hostOptions?.onFocusSession("a9");
     expect(events).toContainEqual({ type: "focus-agent", agentId: "a9" });
     expect(service.getAgentServerId("a9")).toBeNull();
+    service.shutdown();
+  });
+
+  it("settles quiet finishes without badging the island", () => {
+    const { service } = makeService();
+    const base = {
+      agentId: "a1",
+      serverId: "s1",
+      title: "hello",
+      projectName: null,
+      agentKind: "opencode",
+      pendingPermissions: [],
+      requiresAttention: false,
+      attentionReason: null,
+      lastAssistantText: null,
+      statusText: null,
+    } as const;
+    service.pushAgents([{ ...base, status: "running" }]);
+    expect(published[published.length - 1]?.state.sessions).toHaveLength(1);
+    service.pushAgents([{ ...base, status: "idle" }]);
+    const latest = published[published.length - 1]?.state;
+    expect(latest?.sessions).toHaveLength(0);
+    expect(latest?.pillSnapshot.unreadCompletedCount).toBe(0);
+    expect(latest?.pillSnapshot.attentionCount).toBe(0);
+    service.shutdown();
+  });
+
+  it("surfaces running-to-idle error attention as an error card", () => {
+    const { service } = makeService();
+    const base = {
+      agentId: "a1",
+      serverId: "s1",
+      title: "hello",
+      projectName: null,
+      agentKind: "opencode",
+      pendingPermissions: [],
+      lastAssistantText: null,
+      statusText: null,
+    } as const;
+    service.pushAgents([
+      { ...base, status: "running", requiresAttention: false, attentionReason: null },
+    ]);
+    service.pushAgents([
+      { ...base, status: "idle", requiresAttention: true, attentionReason: "error" },
+    ]);
+    const latest = published[published.length - 1]?.state;
+    expect(latest?.sessions[0]).toMatchObject({ sessionId: "a1", phase: "error" });
     service.shutdown();
   });
 });
