@@ -53,6 +53,7 @@ import {
   type ResolveAgentCreateConfigResult,
   type McpServerConfig,
   type ProviderCatalog,
+  type ProviderLaunchSpec,
   type SteerActiveTurnOptions,
   type SteerResult,
   type ToolCallDetail,
@@ -404,6 +405,58 @@ const OPENCODE_HEADERS_TIMEOUT_TOKENS = [
   "headers_timeout",
   "und_err_headers_timeout",
 ] as const;
+
+// A turn that dies with one of these errors is worth re-dispatching: the
+// failure is the network / provider edge, not the user's prompt. The
+// motivating case is `UnknownError: unknown certificate verification error`
+// killing a long build turn that the user then has to manually re-send.
+const OPENCODE_TURN_MAX_RETRIES = 2;
+const OPENCODE_TURN_RETRY_DELAYS_MS = [2_000, 5_000];
+
+const OPENCODE_RETRYABLE_ERROR_TOKENS = [
+  "certificate",
+  "cert verification",
+  "tls",
+  "ssl",
+  "econnreset",
+  "etimedout",
+  "eai_again",
+  "enotfound",
+  "econnrefused",
+  "econnaborted",
+  "socket hang up",
+  "fetch failed",
+  "failed to fetch",
+  "network",
+  "timeout",
+  "timed out",
+  "temporarily",
+  "try again",
+  "rate limit",
+  "too many requests",
+  "overloaded",
+  "service unavailable",
+  "bad gateway",
+  "gateway timeout",
+  "internal server error",
+] as const;
+
+const OPENCODE_RETRYABLE_STATUS_CODE_PATTERN = /\b(429|502|503|504)\b/;
+const OPENCODE_NON_RETRYABLE_ERROR_TOKENS = ["abort", "cancel", "interrupt", "not found"] as const;
+
+export function isRetryableOpenCodeTurnError(error: unknown): boolean {
+  const normalized = toDiagnosticErrorMessage(error).trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  if (OPENCODE_NON_RETRYABLE_ERROR_TOKENS.some((token) => normalized.includes(token))) {
+    return false;
+  }
+  if (OPENCODE_RETRYABLE_STATUS_CODE_PATTERN.test(normalized)) {
+    return true;
+  }
+  return OPENCODE_RETRYABLE_ERROR_TOKENS.some((token) => normalized.includes(token));
+}
 
 const OpencodeToolStateSchema = z
   .object({
@@ -1425,6 +1478,7 @@ export const __openCodeInternals = {
   isSelectableOpenCodeAgent,
   mapOpenCodeAgentToMode,
   resolveOpenCodeHomeDir,
+  isRetryableOpenCodeTurnError,
   get OpenCodeAgentSession() {
     return OpenCodeAgentSession;
   },
@@ -1785,6 +1839,21 @@ export class OpenCodeAgentClient implements AgentClient {
     });
     const availability = await checkProviderLaunchAvailable(launch);
     return availability.available;
+  }
+
+  async getLaunchSpec(): Promise<ProviderLaunchSpec> {
+    const launch = await resolveProviderLaunch({
+      commandConfig: this.runtimeSettings?.command,
+      defaultBinary: "opencode",
+    });
+    const availability = await checkProviderLaunchAvailable(launch);
+    if (!availability.available) {
+      throw new Error("OpenCode binary not found while resolving launch spec");
+    }
+    return {
+      command: [availability.resolvedPath ?? launch.command, ...launch.args],
+      env: this.runtimeSettings?.env,
+    };
   }
 
   async shutdown(): Promise<void> {
@@ -3382,6 +3451,16 @@ class OpenCodeAgentSession implements AgentSession {
   private readonly subscribers = new Set<(event: AgentStreamEvent) => void>();
   private nextTurnOrdinal = 0;
   private turnState: OpenCodeTurnState = { status: "idle" };
+  private turnRetryAttempt = 0;
+  private turnRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastPromptDispatch: {
+    prompt: AgentPromptInput;
+    options?: AgentRunOptions;
+    parts: ReturnType<typeof buildOpenCodePromptParts>;
+    model: { providerID: string; modelID: string } | undefined;
+    effectiveMode: string | null;
+    effectiveVariant: string | null;
+  } | null = null;
   /**
    * Settlement of every session-scoped abort issued so far. It outlives the stop
    * that issued it because a request still in flight can cancel a replacement
@@ -3790,6 +3869,9 @@ class OpenCodeAgentSession implements AgentSession {
     const turnId = this.createTurnId();
     this.materializedParts.clear();
     this.turnState = { status: "running", turnId };
+    this.clearTurnRetryTimer();
+    this.turnRetryAttempt = 0;
+    this.lastPromptDispatch = null;
     this.notifySubscribers({ type: "turn_started", provider: "opencode" }, turnId);
 
     const slashCommand = await this.resolveSlashCommandInvocation(prompt);
@@ -3886,84 +3968,171 @@ class OpenCodeAgentSession implements AgentSession {
     } else {
       const dispatchMessageId = createOpenCodeMessageId();
       this.activeDispatchMessageId = dispatchMessageId;
+      this.lastPromptDispatch = {
+        prompt,
+        ...(options ? { options } : {}),
+        parts,
+        model,
+        effectiveMode: effectiveMode ?? null,
+        effectiveVariant: effectiveVariant ?? null,
+      };
       // Wrap in an async IIFE so a synchronous throw from promptAsync (e.g.
       // SDK input validation) is caught alongside async rejections. A plain
       // `.then().catch()` chain would let a sync throw escape unhandled.
       void (async () => {
-        this.traceOpenCode("provider.opencode.prompt_async.start", {
-          turnId,
-          sessionId: this.sessionId,
-          model,
-          effectiveMode,
-          effectiveVariant,
-          partTypes: parts.map((p) => p.type),
-        });
-        try {
-          const systemPrompt = composeSystemPromptParts(
-            this.config.systemPrompt,
-            this.config.daemonAppendSystemPrompt,
-            thinkingRouting.systemNudge,
-          );
-          const permission = buildOpenCodePermissionRules(
-            this.config.providerOptions,
-            this.config.toolPolicy,
-          );
-          const promptResponse = await this.client.session.promptAsync({
-            sessionID: this.sessionId,
-            directory: this.config.cwd,
-            messageID: dispatchMessageId,
-            parts,
-            ...(options?.outputSchema
-              ? {
-                  format: {
-                    type: "json_schema" as const,
-                    schema: options.outputSchema as Record<string, unknown>,
-                  },
-                }
-              : {}),
-            ...(systemPrompt ? { system: systemPrompt } : {}),
-            ...(permission ? { permission } : {}),
-            ...(model ? { model } : {}),
-            ...(effectiveMode ? { agent: effectiveMode } : {}),
-            ...(effectiveVariant ? { variant: effectiveVariant } : {}),
-          });
-          this.traceOpenCode("provider.opencode.prompt_async.response", {
-            turnId,
-            hasError: promptResponse.error !== undefined,
-            error: promptResponse.error,
-            data: promptResponse.data,
-          });
-          if (promptResponse.error) {
-            this.finishForegroundTurn(
-              {
-                type: "turn_failed",
-                provider: "opencode",
-                error: toDiagnosticErrorMessage(promptResponse.error),
-              },
-              turnId,
-            );
-          }
-        } catch (error) {
-          this.traceOpenCode("provider.opencode.prompt_async.throw", {
-            turnId,
-            error:
-              error instanceof Error
-                ? { name: error.name, message: error.message, stack: error.stack }
-                : String(error),
-          });
-          this.finishForegroundTurn(
-            {
-              type: "turn_failed",
-              provider: "opencode",
-              error: toDiagnosticErrorMessage(error),
-            },
-            turnId,
-          );
-        }
+        await this.issuePromptAsync(turnId, dispatchMessageId);
       })();
     }
 
     return { turnId };
+  }
+
+  private async issuePromptAsync(turnId: string, dispatchMessageId: string): Promise<void> {
+    const dispatch = this.lastPromptDispatch;
+    if (!dispatch || this.activeForegroundTurnId !== turnId || this.closed) {
+      return;
+    }
+    const { parts, model, effectiveMode, effectiveVariant, options } = dispatch;
+    this.traceOpenCode("provider.opencode.prompt_async.start", {
+      turnId,
+      sessionId: this.sessionId,
+      model,
+      effectiveMode,
+      effectiveVariant,
+      partTypes: parts.map((p) => p.type),
+    });
+    try {
+      const thinkingRouting = resolvePaseoThinkingRouting(this.config.thinkingOptionId);
+      const systemPrompt = composeSystemPromptParts(
+        this.config.systemPrompt,
+        this.config.daemonAppendSystemPrompt,
+        thinkingRouting.systemNudge,
+      );
+      const permission = buildOpenCodePermissionRules(
+        this.config.providerOptions,
+        this.config.toolPolicy,
+      );
+      const promptResponse = await this.client.session.promptAsync({
+        sessionID: this.sessionId,
+        directory: this.config.cwd,
+        messageID: dispatchMessageId,
+        parts,
+        ...(options?.outputSchema
+          ? {
+              format: {
+                type: "json_schema" as const,
+                schema: options.outputSchema as Record<string, unknown>,
+              },
+            }
+          : {}),
+        ...(systemPrompt ? { system: systemPrompt } : {}),
+        ...(permission ? { permission } : {}),
+        ...(model ? { model } : {}),
+        ...(effectiveMode ? { agent: effectiveMode } : {}),
+        ...(effectiveVariant ? { variant: effectiveVariant } : {}),
+      });
+      this.traceOpenCode("provider.opencode.prompt_async.response", {
+        turnId,
+        hasError: promptResponse.error !== undefined,
+        error: promptResponse.error,
+        data: promptResponse.data,
+      });
+      if (promptResponse.error) {
+        const message = toDiagnosticErrorMessage(promptResponse.error);
+        if (this.maybeScheduleTurnRetry(turnId, message)) {
+          return;
+        }
+        this.finishForegroundTurn(
+          {
+            type: "turn_failed",
+            provider: "opencode",
+            error: message,
+          },
+          turnId,
+        );
+      }
+    } catch (error) {
+      this.traceOpenCode("provider.opencode.prompt_async.throw", {
+        turnId,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
+      const message = toDiagnosticErrorMessage(error);
+      if (this.maybeScheduleTurnRetry(turnId, message)) {
+        return;
+      }
+      this.finishForegroundTurn(
+        {
+          type: "turn_failed",
+          provider: "opencode",
+          error: message,
+        },
+        turnId,
+      );
+    }
+  }
+
+  private maybeScheduleTurnRetry(turnId: string, message: string): boolean {
+    if (this.closed) {
+      return false;
+    }
+    if (this.turnState.status !== "running" || this.activeForegroundTurnId !== turnId) {
+      return false;
+    }
+    if (!this.lastPromptDispatch) {
+      return false;
+    }
+    if (this.turnRetryAttempt >= OPENCODE_TURN_MAX_RETRIES) {
+      return false;
+    }
+    if (!isRetryableOpenCodeTurnError(message)) {
+      return false;
+    }
+    this.turnRetryAttempt += 1;
+    const attempt = this.turnRetryAttempt;
+    const delayMs = OPENCODE_TURN_RETRY_DELAYS_MS[attempt - 1] ?? 5_000;
+    this.logger.warn(
+      { sessionId: this.sessionId, turnId, attempt, delayMs, error: message },
+      "OpenCode turn hit a retryable error; re-dispatching prompt",
+    );
+    this.notifySubscribers(
+      {
+        type: "timeline",
+        provider: "opencode",
+        item: {
+          type: "error",
+          message: `Provider retry (attempt ${attempt}/${OPENCODE_TURN_MAX_RETRIES}): ${message}`,
+        },
+      },
+      turnId,
+    );
+    this.clearTurnRetryTimer();
+    this.turnRetryTimer = setTimeout(() => {
+      this.turnRetryTimer = null;
+      if (this.closed) {
+        return;
+      }
+      if (this.turnState.status !== "running" || this.activeForegroundTurnId !== turnId) {
+        return;
+      }
+      if (!this.lastPromptDispatch) {
+        return;
+      }
+      const retryMessageId = createOpenCodeMessageId();
+      this.activeDispatchMessageId = retryMessageId;
+      void this.issuePromptAsync(turnId, retryMessageId);
+    }, delayMs);
+    this.turnRetryTimer.unref?.();
+    return true;
+  }
+
+  private clearTurnRetryTimer(): void {
+    if (this.turnRetryTimer) {
+      clearTimeout(this.turnRetryTimer);
+      this.turnRetryTimer = null;
+    }
   }
 
   private async awaitEventStreamReady(turnAbortController: AbortController): Promise<void> {
@@ -4533,6 +4702,12 @@ class OpenCodeAgentSession implements AgentSession {
           turnId,
           type: terminalEvent.type,
         });
+        if (
+          terminalEvent.type === "turn_failed" &&
+          this.maybeScheduleTurnRetry(turnId, terminalEvent.error)
+        ) {
+          return;
+        }
         this.finishForegroundTurn(terminalEvent, turnId);
         return;
       }
@@ -4597,6 +4772,9 @@ class OpenCodeAgentSession implements AgentSession {
     this.pendingClientMessageId = null;
     this.activeDispatchMessageId = null;
     this.abortController = null;
+    this.clearTurnRetryTimer();
+    this.turnRetryAttempt = 0;
+    this.lastPromptDispatch = null;
     this.notifySubscribers({ type: "turn_started", provider: "opencode" }, turnId);
     return turnId;
   }
@@ -4620,6 +4798,9 @@ class OpenCodeAgentSession implements AgentSession {
     } else {
       this.runningToolCalls.clear();
     }
+    this.clearTurnRetryTimer();
+    this.turnRetryAttempt = 0;
+    this.lastPromptDispatch = null;
     this.pendingUserMessageText = null;
     this.pendingClientMessageId = null;
     this.pendingSteerSubmissions = [];
@@ -4655,6 +4836,9 @@ class OpenCodeAgentSession implements AgentSession {
     this.pendingClientMessageId = null;
     this.pendingSteerSubmissions = [];
     this.abortController = null;
+    this.clearTurnRetryTimer();
+    this.turnRetryAttempt = 0;
+    this.lastPromptDispatch = null;
     return abort;
   }
 
@@ -4947,6 +5131,8 @@ class OpenCodeAgentSession implements AgentSession {
   async close(): Promise<void> {
     try {
       this.closed = true;
+      this.clearTurnRetryTimer();
+      this.lastPromptDispatch = null;
       this.abortController?.abort();
       this.recoveryAbortController.abort();
       this.unsubscribeEvents?.();

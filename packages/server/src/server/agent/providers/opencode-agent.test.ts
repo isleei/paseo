@@ -2225,6 +2225,108 @@ describe("OpenCode adapter startTurn error handling", () => {
     }
   });
 
+  test("classifies transient provider errors as retryable", () => {
+    const { isRetryableOpenCodeTurnError } = __openCodeInternals;
+    expect(
+      isRetryableOpenCodeTurnError({
+        name: "UnknownError",
+        data: { message: "unknown certificate verification error" },
+      }),
+    ).toBe(true);
+    expect(isRetryableOpenCodeTurnError(new Error("fetch failed: socket hang up"))).toBe(true);
+    expect(isRetryableOpenCodeTurnError("Provider overloaded, please try again later")).toBe(true);
+    expect(isRetryableOpenCodeTurnError("request failed with status 503")).toBe(true);
+    expect(isRetryableOpenCodeTurnError("rate limit exceeded (429)")).toBe(true);
+    expect(
+      isRetryableOpenCodeTurnError({
+        name: "MessageAbortedError",
+        data: { message: "aborted" },
+      }),
+    ).toBe(false);
+    expect(isRetryableOpenCodeTurnError("something broke")).toBe(false);
+    expect(isRetryableOpenCodeTurnError("Active dispatch not found")).toBe(false);
+  });
+
+  test("retries a turn that fails with a certificate verification error", async () => {
+    const { parent, openCode } = await createParentSession("ses_retry_cert");
+    openCode.sessionPromptAsyncEvents = [];
+    const turnPromise = collectTurnEvents(streamSession(parent, "rebuild the desktop app"));
+    await vi.waitFor(() => expect(openCode.calls.sessionPromptAsync).toHaveLength(1));
+    openCode.emitEvent({
+      type: "session.error",
+      properties: {
+        sessionID: "ses_retry_cert",
+        error: {
+          name: "UnknownError",
+          data: { message: "unknown certificate verification error" },
+        },
+      },
+    });
+    await vi.waitFor(() => expect(openCode.calls.sessionPromptAsync).toHaveLength(2), {
+      timeout: 10_000,
+    });
+    openCode.emitEvent({ type: "session.idle", properties: { sessionID: "ses_retry_cert" } });
+    const turn = await turnPromise;
+    expect(turn.turnFailed).toBe(false);
+    expect(turn.turnCompleted).toBe(true);
+    expect(
+      turn.allTimelineItems.some(
+        (item) => item.type === "error" && item.message.includes("Provider retry (attempt 1/2)"),
+      ),
+    ).toBe(true);
+    await parent.close();
+  }, 30_000);
+
+  test("does not retry a non-transient turn failure", async () => {
+    const { parent, openCode } = await createParentSession("ses_retry_fatal");
+    openCode.sessionPromptAsyncEvents = [];
+    const turnPromise = collectTurnEvents(streamSession(parent, "do something"));
+    await vi.waitFor(() => expect(openCode.calls.sessionPromptAsync).toHaveLength(1));
+    openCode.emitEvent({
+      type: "session.error",
+      properties: {
+        sessionID: "ses_retry_fatal",
+        error: { name: "ProviderError", message: "invalid request: bad tool name" },
+      },
+    });
+    const turn = await turnPromise;
+    expect(turn.turnFailed).toBe(true);
+    expect(openCode.calls.sessionPromptAsync).toHaveLength(1);
+    await parent.close();
+  }, 30_000);
+
+  test("gives up after exhausting turn retries", async () => {
+    const { parent, openCode } = await createParentSession("ses_retry_exhaust");
+    openCode.sessionPromptAsyncEvents = [];
+    const turnPromise = collectTurnEvents(streamSession(parent, "rebuild the desktop app"));
+    await vi.waitFor(() => expect(openCode.calls.sessionPromptAsync).toHaveLength(1));
+    const fail = () =>
+      openCode.emitEvent({
+        type: "session.error",
+        properties: {
+          sessionID: "ses_retry_exhaust",
+          error: {
+            name: "UnknownError",
+            data: { message: "unknown certificate verification error" },
+          },
+        },
+      });
+    fail();
+    await vi.waitFor(() => expect(openCode.calls.sessionPromptAsync).toHaveLength(2), {
+      timeout: 10_000,
+    });
+    fail();
+    await vi.waitFor(() => expect(openCode.calls.sessionPromptAsync).toHaveLength(3), {
+      timeout: 15_000,
+    });
+    fail();
+    const turn = await turnPromise;
+    expect(turn.turnFailed).toBe(true);
+    expect(turn.error).toContain("unknown certificate verification error");
+    expect(openCode.calls.sessionPromptAsync).toHaveLength(3);
+    await parent.close();
+  }, 60_000);
+
   test("uses OpenCode native steer admission and reconciles the user echo", async () => {
     const { parent: session, openCode } = await createParentSession("ses_native_steer");
     openCode.sessionPromptAsyncEvents = [];
