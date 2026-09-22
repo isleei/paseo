@@ -132,6 +132,14 @@ describe("findProjectIcon", () => {
     expect(result).toBe(join(tempDir, "favicon.png"));
   });
 
+  it("skips an empty candidate so a real lower-priority icon still wins", async () => {
+    writeFileSync(join(tempDir, "favicon.ico"), Buffer.alloc(0));
+    writeFileSync(join(tempDir, "logo.png"), "logo");
+
+    const result = await findProjectIcon(tempDir);
+    expect(result).toBe(join(tempDir, "logo.png"));
+  });
+
   it("prioritizes priority dirs over root", async () => {
     writeFileSync(join(tempDir, "logo.png"), "root logo");
     mkdirSync(join(tempDir, "public"));
@@ -421,12 +429,21 @@ describe("getProjectIcon", () => {
     expect(result).toBeNull();
   });
 
-  it("returns icon data for ICO files (assumed square)", async () => {
+  it("returns null for a .ico file with no ICO header", async () => {
     writeFileSync(join(tempDir, "favicon.ico"), "ico content");
 
     const result = await getProjectIcon(tempDir);
-    expect(result).not.toBeNull();
-    expect(result?.mimeType).toBe("image/x-icon");
+    expect(result).toBeNull();
+  });
+
+  it("returns null for an empty favicon.ico", async () => {
+    // Laravel's skeleton ships exactly this, and the daemon used to report it as an
+    // icon with an empty payload — which renders as a blank slot on every client.
+    mkdirSync(join(tempDir, "public"), { recursive: true });
+    writeFileSync(join(tempDir, "public", "favicon.ico"), Buffer.alloc(0));
+
+    const result = await getProjectIcon(tempDir);
+    expect(result).toBeNull();
   });
 
   it("reports PNG for a .ico file that actually contains PNG data", async () => {

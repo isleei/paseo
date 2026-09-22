@@ -198,15 +198,19 @@ function sniffMimeType(buffer: Buffer): string | null {
   ) {
     return "image/webp";
   }
-  if (
+  if (hasIcoHeader(buffer)) {
+    return "image/x-icon";
+  }
+  return null;
+}
+
+function hasIcoHeader(buffer: Buffer): boolean {
+  return (
     buffer.length >= 6 &&
     buffer.readUInt16LE(0) === 0 &&
     buffer.readUInt16LE(2) === 1 &&
     buffer.readUInt16LE(4) > 0
-  ) {
-    return "image/x-icon";
-  }
-  return null;
+  );
 }
 
 /**
@@ -276,7 +280,11 @@ function matchesPattern(filename: string, pattern: string): boolean {
 async function isExistingFile(fullPath: string): Promise<boolean> {
   try {
     const stats = await stat(fullPath);
-    return stats.isFile();
+    // An empty file is not an icon. Laravel's skeleton ships a 0-byte
+    // public/favicon.ico, and accepting it both shadows a real lower-priority
+    // candidate (logo.png sits behind favicon.ico in ICON_PATTERNS) and yields
+    // an icon the daemon then serves with no bytes behind it.
+    return stats.isFile() && stats.size > 0;
   } catch {
     return false;
   }
@@ -508,7 +516,19 @@ export async function getProjectIcon(projectDir: string): Promise<ProjectIcon | 
     }
 
     const fileBuffer = await readFile(iconPath);
-    let mimeType = sniffMimeType(fileBuffer) ?? getMimeType(iconPath);
+    if (fileBuffer.length === 0) {
+      return null;
+    }
+
+    const sniffed = sniffMimeType(fileBuffer);
+    let mimeType = sniffed ?? getMimeType(iconPath);
+    // A .ico the sniffer could not read is not an ICO — the extension is the
+    // only evidence, and it is not evidence. Without this, a placeholder file
+    // named favicon.ico is reported as an icon and the client renders its
+    // empty payload instead of the project's initial.
+    if (mimeType === "image/x-icon" && !hasIcoHeader(fileBuffer)) {
+      return null;
+    }
     let buffer: Buffer = fileBuffer;
     if (mimeType === "image/x-icon") {
       const pngFrame = extractIcoPngFrame(fileBuffer);

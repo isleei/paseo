@@ -8,6 +8,7 @@ import type {
 import type { ManagedAgent } from "../../agent/agent-manager.js";
 import type { StoredAgentRecord } from "../../agent/agent-storage.js";
 import { resolveEffectiveThinkingOptionId, toAgentPayload } from "../../agent/agent-projections.js";
+import { getParentAgentIdFromLabels } from "@getpaseo/protocol/agent-labels";
 
 type AgentUpdatePayload = Extract<SessionOutboundMessage, { type: "agent_update" }>["payload"];
 type AgentUpdatesFilter = NonNullable<
@@ -52,6 +53,7 @@ export interface AgentUpdatesServiceDeps {
   buildStoredAgentPayload(record: StoredAgentRecord): AgentSnapshotPayload;
   isProviderVisibleToClient(provider: string): boolean;
   buildProjectPlacementForWorkspaceId(workspaceId: string): Promise<ProjectPlacementPayload | null>;
+  buildProjectPlacementForStandaloneCwd(cwd: string): Promise<ProjectPlacementPayload | null>;
   emitWorkspaceUpdateForWorkspaceId(workspaceId: string): Promise<void>;
   sequenceAgentUpdate<T extends AgentUpdatePayload>(
     payload: T,
@@ -218,6 +220,22 @@ export function createAgentUpdatesService(deps: AgentUpdatesServiceDeps): AgentU
     subscriptions.delete(subscriptionId);
   }
 
+  function isStandaloneRootAgent(agent: AgentSnapshotPayload): boolean {
+    return !agent.workspaceId && getParentAgentIdFromLabels(agent.labels) === null;
+  }
+
+  function buildProjectPlacementForAgent(
+    agent: AgentSnapshotPayload,
+  ): Promise<ProjectPlacementPayload | null> {
+    if (agent.workspaceId) {
+      return deps.buildProjectPlacementForWorkspaceId(agent.workspaceId);
+    }
+    if (!isStandaloneRootAgent(agent)) {
+      return Promise.resolve(null);
+    }
+    return deps.buildProjectPlacementForStandaloneCwd(agent.cwd);
+  }
+
   function hasSubscription(): boolean {
     return subscriptions.size > 0;
   }
@@ -231,9 +249,7 @@ export function createAgentUpdatesService(deps: AgentUpdatesServiceDeps): AgentU
     );
     if (observers.length === 0) return false;
     const payload = await deps.enrichAgentPayload(toAgentPayload(agent));
-    const project = payload.workspaceId
-      ? await deps.buildProjectPlacementForWorkspaceId(payload.workspaceId)
-      : null;
+    const project = await buildProjectPlacementForAgent(payload);
     return (
       project !== null &&
       observers.some(
@@ -247,9 +263,7 @@ export function createAgentUpdatesService(deps: AgentUpdatesServiceDeps): AgentU
   async function publishPayload(payload: AgentSnapshotPayload): Promise<void> {
     const observers = [...subscriptions.values()];
     if (observers.length === 0) return;
-    const project = payload.workspaceId
-      ? await deps.buildProjectPlacementForWorkspaceId(payload.workspaceId)
-      : null;
+    const project = await buildProjectPlacementForAgent(payload);
     for (const sub of observers) {
       const matches =
         project && matchesAgentUpdatesFilter({ agent: payload, project, filter: sub.filter });

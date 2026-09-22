@@ -197,6 +197,8 @@ Kimi Code usage follows the CLI-managed credential file at `KIMI_CODE_HOME` or `
 
 Cursor usage reads the desktop `state.vscdb` token first, then `cursor-agent`'s `~/.config/cursor/auth.json`. Headless hosts only have the CLI file.
 
+Cline usage reads the CLI-managed `~/.cline/data/settings/providers.json` (`cline` and `cline-pass` logins, freshest token wins) or `CLINE_API_KEY`/`CLINE_TOKEN`. It shows ClinePass windows (5-hour, weekly, monthly) when subscribed, plus the pay-as-you-go credit balance.
+
 ### Usage fetchers are read-only on credentials
 
 A fetcher reads the provider's credential file and never writes it. On a 401 or 403 it returns `unavailable` and leaves refresh to the provider's own CLI: redeeming a refresh token in the fetcher invalidates the CLI's copy (refresh tokens are single-use), and rewriting the file through the fetcher's Zod schema drops any field the schema does not model, corrupting the file for the CLI.

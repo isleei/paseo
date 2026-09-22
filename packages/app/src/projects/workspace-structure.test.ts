@@ -1,18 +1,24 @@
 import { describe, expect, test } from "vitest";
 import type { ProjectDescriptor, WorkspaceDescriptor } from "@/stores/session-store";
-import { buildWorkspaceStructureProjects, createProjectViewKey } from "./workspace-structure";
+import {
+  buildWorkspaceStructureProjects,
+  createProjectViewKey,
+  stabilizeWorkspaceKeyOrder,
+} from "./workspace-structure";
 
 function project(input: {
   id: string;
   key: string | null;
   root: string;
   name?: string;
+  createdAt?: string;
 }): ProjectDescriptor {
   return {
     projectId: input.id,
     projectKey: input.key,
     projectDisplayName: input.name ?? "acme/app",
     projectCustomName: null,
+    ...(input.createdAt ? { createdAt: input.createdAt } : {}),
     projectRootPath: input.root,
     projectKind: "git",
   };
@@ -115,6 +121,35 @@ describe("buildWorkspaceStructureProjects", () => {
     expect(result[0]?.workspaceKeys).toEqual(["host-a:ws-newer", "host-a:ws-older"]);
   });
 
+  test("orders projects by addition time, newest first", () => {
+    const result = buildWorkspaceStructureProjects({
+      sessions: [
+        {
+          serverId: "host-a",
+          projects: [
+            project({
+              id: "prj_alpha",
+              key: "project-alpha",
+              root: "/repos/alpha",
+              name: "alpha",
+              createdAt: "2026-09-20T00:00:00.000Z",
+            }),
+            project({
+              id: "prj_zeta",
+              key: "project-zeta",
+              root: "/repos/zeta",
+              name: "zeta",
+              createdAt: "2026-09-21T00:00:00.000Z",
+            }),
+          ],
+          workspaces: [],
+        },
+      ],
+    });
+
+    expect(result.map((item) => item.projectName)).toEqual(["zeta", "alpha"]);
+  });
+
   test("falls back to name then id when workspaces share an activity time", () => {
     const zeta = workspace("ws-zeta", "prj_a", "/a/app");
     zeta.name = "zeta";
@@ -213,5 +248,57 @@ describe("buildWorkspaceStructureProjects", () => {
     expect(result.find((item) => item.projectKey === placementShapedKey)?.viewKey).toBe(
       placementShapedKey,
     );
+  });
+});
+
+describe("stabilizeWorkspaceKeyOrder", () => {
+  test("keeps the previous order when membership is unchanged", () => {
+    const previous = new Map([["paseo", ["s:b", "s:a", "s:c"]]]);
+    const result = stabilizeWorkspaceKeyOrder({
+      previous,
+      freshProjects: [{ viewKey: "paseo", workspaceKeys: ["s:c", "s:b", "s:a"] }],
+    });
+
+    expect(result.get("paseo")).toEqual(["s:b", "s:a", "s:c"]);
+    expect(result.get("paseo")).toBe(previous.get("paseo"));
+  });
+
+  test("adopts the fresh order when a workspace arrives", () => {
+    const previous = new Map([["paseo", ["s:b", "s:a"]]]);
+    const fresh = ["s:new", "s:b", "s:a"];
+    const result = stabilizeWorkspaceKeyOrder({
+      previous,
+      freshProjects: [{ viewKey: "paseo", workspaceKeys: fresh }],
+    });
+
+    expect(result.get("paseo")).toEqual(["s:new", "s:b", "s:a"]);
+    expect(result.get("paseo")).toBe(fresh);
+  });
+
+  test("keeps survivor order when a workspace leaves", () => {
+    const previous = new Map([["paseo", ["s:b", "s:a", "s:c"]]]);
+    const result = stabilizeWorkspaceKeyOrder({
+      previous,
+      freshProjects: [{ viewKey: "paseo", workspaceKeys: ["s:c", "s:a"] }],
+    });
+
+    expect(result.get("paseo")).toEqual(["s:a", "s:c"]);
+  });
+
+  test("uses the fresh order for projects without a snapshot", () => {
+    const fresh = ["s:b", "s:a"];
+    const result = stabilizeWorkspaceKeyOrder({
+      previous: new Map([["other", ["s:x"]]]),
+      freshProjects: [{ viewKey: "paseo", workspaceKeys: fresh }],
+    });
+
+    expect(result.get("paseo")).toBe(fresh);
+  });
+
+  test("returns fresh references when there is no previous snapshot", () => {
+    const fresh = [{ viewKey: "paseo", workspaceKeys: ["s:a"] }];
+    const result = stabilizeWorkspaceKeyOrder({ previous: null, freshProjects: fresh });
+
+    expect(result.get("paseo")).toBe(fresh[0]?.workspaceKeys);
   });
 });

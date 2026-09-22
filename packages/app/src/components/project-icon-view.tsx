@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { type StyleProp, Text, type TextStyle, View } from "react-native";
 import { ProjectIconImage } from "@/components/project-icon-image";
+import { parseIconDataUri } from "@/components/project-icon-data-uri";
 import { deriveIdentityColorName, identityColor } from "@/styles/identity-colors";
 
 const WHITE_TEXT = { color: "#ffffff" } as const;
@@ -28,6 +29,10 @@ export function projectIconRadius(size: number): number {
  * Geometry lives here, not at the call site. It used to be five copies of the same
  * width/height/radius/centering block, which is how the radius drifted apart in the first
  * place — pass a `size` and the shape follows.
+ *
+ * A data URI with no payload is treated as no icon. The daemon reports one whenever it
+ * discovers a file it cannot serve — an empty `public/favicon.ico` is the common case — and
+ * rendering it hides the initial behind an image that draws nothing.
  */
 
 export function ProjectIconView({
@@ -65,8 +70,10 @@ export function ProjectIconView({
     [fallbackStyles, initial, textStyles],
   );
 
-  return iconDataUri ? (
-    <ProjectIconImage dataUri={iconDataUri} fallback={fallback} style={box} />
+  const renderableIconDataUri = iconDataUri && parseIconDataUri(iconDataUri) ? iconDataUri : null;
+
+  return renderableIconDataUri ? (
+    <ProjectIconImage dataUri={renderableIconDataUri} fallback={fallback} style={box} />
   ) : (
     fallback
   );

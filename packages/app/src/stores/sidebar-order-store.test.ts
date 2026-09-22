@@ -23,6 +23,7 @@ describe("migrateSidebarOrderState", () => {
       workspaceOrderByProject: {
         "project-a": ["host-a:main", "host-a:feature", "host-b:main"],
       },
+      pinnedAtByConversationKey: {},
     });
   });
 
@@ -45,5 +46,17 @@ describe("migrateSidebarOrderState", () => {
     });
 
     expect(migrated.pinnedWorkspaceOrder).toEqual(["host-a:one", "host-b:two"]);
+  });
+
+  it("keeps conversation pins", () => {
+    const migrated = migrateSidebarOrderState({
+      pinnedAtByConversationKey: {
+        " host-a:one ": " 2026-01-01T00:00:00Z ",
+        "": "2026-01-01T00:00:00Z",
+      },
+    });
+    expect(migrated.pinnedAtByConversationKey).toEqual({
+      "host-a:one": "2026-01-01T00:00:00Z",
+    });
   });
 });

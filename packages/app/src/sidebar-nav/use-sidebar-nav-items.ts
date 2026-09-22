@@ -1,7 +1,10 @@
 import { useCallback, useMemo } from "react";
 import { useAppSettings } from "@/hooks/use-settings";
 import { useInstalledPlugins } from "@/plugins/registry";
-import { groupPluginSidebarContributions } from "@/plugins/sidebar-groups";
+import {
+  groupPluginSidebarContributions,
+  groupPluginSidebarPanelContributions,
+} from "@/plugins/sidebar-groups";
 import {
   moveSidebarNavItem,
   resolveSidebarNavItems,
@@ -21,21 +24,27 @@ export function useSidebarNavItems(): UseSidebarNavItemsReturn {
   const { settings, updateSettings } = useAppSettings();
   const preferences = settings.sidebarNavItems;
   const pluginGroups = useMemo(() => groupPluginSidebarContributions(plugins), [plugins]);
+  const panelGroups = useMemo(() => groupPluginSidebarPanelContributions(plugins), [plugins]);
 
   const items = useMemo(
     () =>
       resolveSidebarNavItems({
         pluginGroups,
+        panelGroups,
         preferences,
       }),
-    [pluginGroups, preferences],
+    [panelGroups, pluginGroups, preferences],
   );
 
   const setVisible = useCallback(
     (key: string, visible: boolean) => {
       void updateSettings((current) => {
         const previous = current.sidebarNavItems;
-        const currentItems = resolveSidebarNavItems({ pluginGroups, preferences: previous });
+        const currentItems = resolveSidebarNavItems({
+          pluginGroups,
+          panelGroups,
+          preferences: previous,
+        });
         return {
           sidebarNavItems: setSidebarNavItemVisible({
             items: currentItems,
@@ -46,14 +55,18 @@ export function useSidebarNavItems(): UseSidebarNavItemsReturn {
         };
       });
     },
-    [pluginGroups, updateSettings],
+    [panelGroups, pluginGroups, updateSettings],
   );
 
   const move = useCallback(
     (key: string, direction: "up" | "down") => {
       void updateSettings((current) => {
         const previous = current.sidebarNavItems;
-        const currentItems = resolveSidebarNavItems({ pluginGroups, preferences: previous });
+        const currentItems = resolveSidebarNavItems({
+          pluginGroups,
+          panelGroups,
+          preferences: previous,
+        });
         return {
           sidebarNavItems: moveSidebarNavItem({
             items: currentItems,
@@ -64,7 +77,7 @@ export function useSidebarNavItems(): UseSidebarNavItemsReturn {
         };
       });
     },
-    [pluginGroups, updateSettings],
+    [panelGroups, pluginGroups, updateSettings],
   );
 
   return { items, setVisible, move };

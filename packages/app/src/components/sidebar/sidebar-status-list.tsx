@@ -19,6 +19,9 @@ import {
 import { NestableScrollContainer } from "react-native-draggable-flatlist";
 import type { GestureType } from "react-native-gesture-handler";
 import { navigateToWorkspace } from "@/stores/navigation-active-workspace-store";
+import { navigateToAgent } from "@/utils/navigate-to-agent";
+import { parseHostAgentRouteFromPathname } from "@/utils/host-routes";
+import { usePathname } from "expo-router";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { type SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list";
 import type { StatusBucket } from "@/hooks/sidebar-status-view-model";
@@ -44,6 +47,13 @@ import { WorkspaceRenameModal } from "@/components/workspace-rename-modal";
 import { useWorkspaceClipboardActions } from "@/hooks/use-workspace-clipboard-actions";
 import { redirectIfArchivingActiveWorkspace } from "@/utils/sidebar-workspace-archive-redirect";
 import { useWorkspaceArchive } from "@/workspace/use-workspace-archive";
+import { useArchiveAgent } from "@/hooks/use-archive-agent";
+import { useSessionStore } from "@/stores/session-store";
+import {
+  isWorkspaceBackedOneToOne,
+  resolveArchiveForSidebarRow,
+  selectConversationAgentRefs,
+} from "@/hooks/sidebar-conversations";
 import { toWorktreeArchiveRisk } from "@/git/worktree-archive-warning";
 import type { ShortcutKey } from "@/utils/format-shortcut";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
@@ -182,7 +192,10 @@ export function SidebarStatusWorkspaceList({
         inStatusGroup={false}
         shortcutNumber={statusShortcutIndex.get(workspace.workspaceKey) ?? null}
         showShortcutBadge={showShortcutBadges}
-        canPin={supportsPinningByServerId.get(workspace.serverId) === true}
+        canPin={
+          !isWorkspaceBackedOneToOne(workspace) ||
+          supportsPinningByServerId.get(workspace.serverId) === true
+        }
         onToggleWorkspacePin={onToggleWorkspacePin}
         onWorkspacePress={onWorkspacePress}
         drag={drag}
@@ -363,7 +376,10 @@ function StatusGroupRows({
               })}
               shortcutNumber={shortcutIndex.get(workspace.workspaceKey) ?? null}
               showShortcutBadge={showShortcutBadges}
-              canPin={supportsPinningByServerId.get(workspace.serverId) === true}
+              canPin={
+                !isWorkspaceBackedOneToOne(workspace) ||
+                supportsPinningByServerId.get(workspace.serverId) === true
+              }
               onToggleWorkspacePin={onToggleWorkspacePin}
               onWorkspacePress={onWorkspacePress}
             />
@@ -528,15 +544,38 @@ const StatusWorkspaceRow = memo(function StatusWorkspaceRow({
   dragHandleProps?: DraggableListDragHandleProps;
 }) {
   const activeWorkspaceSelection = useActiveWorkspaceSelection();
-  const selected =
-    activeWorkspaceSelection?.serverId === workspace.serverId &&
-    activeWorkspaceSelection?.workspaceId === workspace.workspaceId;
+  const agentSelection = parseHostAgentRouteFromPathname(usePathname());
+  const focusedAgentId = useSessionStore((state) =>
+    activeWorkspaceSelection
+      ? (state.sessions[activeWorkspaceSelection.serverId]?.focusedAgentId ?? null)
+      : null,
+  );
+  const selected = workspace.standalone
+    ? agentSelection?.serverId === workspace.serverId &&
+      agentSelection.agentId === workspace.agentId
+    : activeWorkspaceSelection?.serverId === workspace.serverId &&
+      activeWorkspaceSelection?.workspaceId === workspace.workspaceId &&
+      (!workspace.agentId || focusedAgentId === workspace.agentId);
 
   const handlePress = useCallback(() => {
     if (!workspace.serverId) return;
     onWorkspacePress?.();
-    navigateToWorkspace({ serverId: workspace.serverId, workspaceId: workspace.workspaceId });
-  }, [onWorkspacePress, workspace.serverId, workspace.workspaceId]);
+    if (workspace.standalone && workspace.agentId) {
+      navigateToAgent({ serverId: workspace.serverId, agentId: workspace.agentId });
+      return;
+    }
+    navigateToWorkspace({
+      serverId: workspace.serverId,
+      workspaceId: workspace.workspaceId,
+      target: workspace.agentId ? { kind: "agent", agentId: workspace.agentId } : undefined,
+    });
+  }, [
+    onWorkspacePress,
+    workspace.agentId,
+    workspace.serverId,
+    workspace.standalone,
+    workspace.workspaceId,
+  ]);
 
   return (
     <StatusWorkspaceRowWithMenu
@@ -600,7 +639,12 @@ function StatusWorkspaceRowWithMenu({
   const toast = useToast();
   const [isHidingWorkspace, setIsHidingWorkspace] = useState(false);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
-  const isArchiving = workspace.archivingAt !== null || isHidingWorkspace;
+  const { archiveAgent, isArchivingAgent } = useArchiveAgent();
+  const agentArchivePending = Boolean(
+    workspace.agentId &&
+    isArchivingAgent({ serverId: workspace.serverId, agentId: workspace.agentId }),
+  );
+  const isArchiving = workspace.archivingAt !== null || isHidingWorkspace || agentArchivePending;
 
   const redirectAfterArchive = useCallback(() => {
     redirectIfArchivingActiveWorkspace({
@@ -624,8 +668,41 @@ function StatusWorkspaceRowWithMenu({
 
   const handleArchive = useCallback(() => {
     if (isArchiving) return;
+    const target = resolveArchiveForSidebarRow({
+      agentId: workspace.agentId,
+      workspaceId: workspace.workspaceId,
+      standalone: workspace.standalone,
+      agents: selectConversationAgentRefs(
+        {
+          [workspace.serverId]: {
+            agents: useSessionStore.getState().sessions[workspace.serverId]?.agents,
+          },
+        },
+        [workspace.serverId],
+      ),
+    });
+    if (target.kind === "agent") {
+      void archiveAgent({ serverId: workspace.serverId, agentId: target.agentId }).catch(
+        (error) => {
+          toast.error(
+            error instanceof Error ? error.message : t("sidebar.workspace.toasts.archiveFailed"),
+          );
+        },
+      );
+      return;
+    }
     archiveController.archive();
-  }, [archiveController, isArchiving]);
+  }, [
+    archiveAgent,
+    archiveController,
+    isArchiving,
+    t,
+    toast,
+    workspace.agentId,
+    workspace.serverId,
+    workspace.standalone,
+    workspace.workspaceId,
+  ]);
 
   const clipboard = useWorkspaceClipboardActions();
   const handleCopyPath = useCallback(() => {
@@ -690,7 +767,7 @@ function StatusWorkspaceRowWithMenu({
         onArchive={handleArchive}
         onCopyBranchName={workspace.projectKind === "git" ? handleCopyBranchName : undefined}
         onCopyPath={handleCopyPath}
-        onRename={handleOpenRename}
+        onRename={workspace.standalone ? undefined : handleOpenRename}
         onMarkAsRead={hasClearableAttention ? handleMarkAsRead : undefined}
         onMarkAsUnread={canMarkUnread ? handleMarkAsUnread : undefined}
         archiveShortcutKeys={selected ? archiveShortcutKeys : null}

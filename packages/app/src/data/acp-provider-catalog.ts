@@ -340,6 +340,15 @@ const CATALOG_DATA = [
     command: ["npx", "-y", "@qoder-ai/qodercli@1.1.4", "--acp"],
   },
   {
+    id: "qoder-cn",
+    title: "Qoder CN CLI",
+    description: "AI coding assistant with agentic capabilities (China)",
+    version: "1.1.4",
+    iconId: "qoder-cn",
+    installLink: "https://qoder.cn",
+    command: ["npx", "-y", "@qodercn-ai/qoderclicn@1.1.4", "--acp"],
+  },
+  {
     id: "qwen-code",
     title: "Qwen Code",
     description: "Alibaba's Qwen coding assistant",

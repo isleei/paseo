@@ -1499,7 +1499,7 @@ test("agent_update placement does not refresh git snapshots", async () => {
   });
 });
 
-test("agent_update emits remove when the agent has no workspaceId", async () => {
+test("agent_update emits a project placement for a standalone root agent", async () => {
   const emitted: SessionOutboundMessage[] = [];
   const getSnapshot = vi.fn(async () => {
     throw new Error("getSnapshot should not be called for unregistered agent_update placement");
@@ -1529,8 +1529,13 @@ test("agent_update emits remove when the agent has no workspaceId", async () => 
   expect(getSnapshot).not.toHaveBeenCalled();
   const update = emitted.find((message) => message.type === "agent_update");
   expect(update?.payload).toMatchObject({
-    kind: "remove",
-    agentId: "agent-1",
+    kind: "upsert",
+    agent: { id: "agent-1" },
+    project: {
+      projectKey: UNREGISTERED_CWD,
+      projectName: "unregistered",
+      workspaceName: null,
+    },
   });
 });
 
@@ -2746,6 +2751,41 @@ test("active-scoped fetch_agents includes only unarchived agents in active works
   expect(result.pageInfo.hasMore).toBe(false);
 });
 
+test("active-scoped fetch_agents includes standalone root agents", async () => {
+  const session = createSessionForWorkspaceTests();
+  session.listAgentPayloads = async () => [
+    makeAgent({
+      id: "standalone-root",
+      cwd: "/tmp/standalone-root",
+      status: "running",
+      updatedAt: "2026-03-01T12:02:00.000Z",
+    }),
+    makeAgent({
+      id: "standalone-child",
+      cwd: "/tmp/standalone-root",
+      status: "running",
+      updatedAt: "2026-03-01T12:01:00.000Z",
+      labels: { "paseo.parent-agent-id": "standalone-root" },
+    }),
+  ];
+
+  const result = await session.listFetchAgentsEntries({
+    type: "fetch_agents_request",
+    requestId: "req-active-standalone",
+    scope: "active",
+  });
+
+  expect(agentIdsFromEntries(result.entries)).toEqual(["standalone-root"]);
+  expect(result.entries[0]?.project).toEqual(
+    expect.objectContaining({
+      projectKey: "/tmp/standalone-root",
+      projectName: "standalone-root",
+      workspaceName: null,
+      checkout: expect.objectContaining({ cwd: "/tmp/standalone-root", isGit: false }),
+    }),
+  );
+});
+
 test("active-scoped fetch_agents pages within active scope instead of global history", async () => {
   const session = createSessionForWorkspaceTests();
   const project = createPersistedProjectRecord({
@@ -3847,6 +3887,7 @@ test("archiving the last workspace emits a remove carrying the now-empty project
       projectId: project.projectId,
       projectDisplayName: "repo",
       projectCustomName: null,
+      createdAt: project.createdAt,
       projectCustomIconRevision: null,
       projectRootPath: REPO_CWD,
       projectKind: "git",

@@ -66,6 +66,12 @@ interface PluginWorkspacePanelBase {
   title: string;
   icon: string;
   locations?: readonly PluginPanelLocation[];
+  /**
+   * List this panel in the left sidebar. The entry only appears while a workspace
+   * is active and opens the panel in that workspace. Only workspace-context panels
+   * can opt in; agent panels need an agent the sidebar cannot bind. Defaults to false.
+   */
+  sidebar?: boolean;
 }
 
 export interface PluginWorkspacePanelProps extends PluginNavigableHostProps {

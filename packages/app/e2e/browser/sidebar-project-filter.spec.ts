@@ -70,10 +70,10 @@ test.describe("Sidebar project filter", () => {
   test("keeps the display menu reachable when the pinned section swallows the filtered project", async ({
     page,
   }) => {
-    // Pinning hoists a chat out of its project, and a project whose chats are ALL hoisted is
-    // dropped from the project list entirely. Filter to that project and the list body has no
-    // project rows left — so the header, which carries the only route back to the filter page,
-    // has to survive on the strength of the filter alone.
+    // A project filter still has to keep the display menu mounted when the visible set
+    // shrinks. Pinning used to hoist the only matching chat out of the project list; it now
+    // stays in the project, but the header must remain the way back to the filter page either
+    // way.
     const alpha = await seedWorkspace({
       repoPrefix: "project-filter-pinned-",
       title: "Pinned work",

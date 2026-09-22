@@ -21,6 +21,8 @@ import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
 import { openPreferredWorkspaceTarget } from "@/workspace-tabs/open-beside";
 import { openComposerChanges } from "@/workspace-tabs/open-supporting-view";
 
+import { useIsWorkspaceRailActive } from "@/workspace-rail/use-is-rail-active";
+
 /**
  * The pane's ambient context — workspace changes, subagents, and tasks — as a row of pills above
  * the composer.
@@ -28,8 +30,8 @@ import { openComposerChanges } from "@/workspace-tabs/open-supporting-view";
  * The row shares the composer's keyboard transform and owns the space between itself and the
  * transcript. Each pill owns its action while tab placement stays behind the workspace boundary.
  *
- * On wide layouts the workspace rail owns the same data, so the tasks and workspace-changes pills
- * render on compact layouts only; wide layouts read them from the rail.
+ * On wide layouts the workspace rail owns the same data, so the subagents, tasks, and workspace-changes pills
+ * render on compact layouts (or when the rail is collapsed/hidden) only; wide layouts read them from the rail.
  */
 export const AgentTracks = memo(function AgentTracks({
   serverId,
@@ -55,6 +57,8 @@ export const AgentTracks = memo(function AgentTracks({
   const { tabId, openTab } = usePaneContext();
   const hasWorkspaceDiffStat = useWorkspaceHasDiffStat(serverId, workspaceId);
   const isCompact = useIsCompactFormFactor();
+  const isRailActive = useIsWorkspaceRailActive({ serverId, workspaceId });
+  const showSubagents = !isRailActive;
   const canSplit = supportsDesktopPaneSplits() && !isCompact;
   const openInSidePane = useSettings((settings) => settings.openInSidePane);
   const workspaceKey = buildWorkspaceTabPersistenceKey({ serverId, workspaceId });
@@ -123,6 +127,7 @@ export const AgentTracks = memo(function AgentTracks({
       archiveFinishedStatus,
       hasPluginComposerPills,
       isCompact,
+      showSubagents,
     })
   ) {
     return null;
@@ -131,16 +136,18 @@ export const AgentTracks = memo(function AgentTracks({
   return (
     <ComposerTrackBar>
       {isCompact ? <AgentTaskList tasks={tasks} /> : null}
-      <SubagentsTrack
-        serverId={serverId}
-        rows={subagentRows}
-        onOpenSubagent={handleOpenSubagent}
-        onOpenProviderSubagent={handleOpenProviderSubagent}
-        onArchiveSubagent={archiveSubagent}
-        onArchiveFinished={onArchiveFinished}
-        archiveFinishedStatus={archiveFinishedStatus}
-        onDetachSubagent={canDetachSubagents ? detachSubagent : undefined}
-      />
+      {showSubagents ? (
+        <SubagentsTrack
+          serverId={serverId}
+          rows={subagentRows}
+          onOpenSubagent={handleOpenSubagent}
+          onOpenProviderSubagent={handleOpenProviderSubagent}
+          onArchiveSubagent={archiveSubagent}
+          onArchiveFinished={onArchiveFinished}
+          archiveFinishedStatus={archiveFinishedStatus}
+          onDetachSubagent={canDetachSubagents ? detachSubagent : undefined}
+        />
+      ) : null}
       <PluginComposerPills
         serverId={serverId}
         workspaceId={workspaceId}
@@ -164,17 +171,16 @@ export function hasAgentTracks({
   archiveFinishedStatus,
   hasPluginComposerPills = false,
   isCompact = false,
+  showSubagents = true,
 }: {
   subagentRows: readonly SubagentRow[];
   tasks: readonly TodoEntry[] | undefined;
   archiveFinishedStatus: ArchiveFinishedStatus;
   hasPluginComposerPills?: boolean;
   isCompact?: boolean;
+  showSubagents?: boolean;
 }): boolean {
-  return (
-    subagentRows.length > 0 ||
-    (isCompact && Boolean(tasks?.length)) ||
-    archiveFinishedStatus.kind !== "idle" ||
-    hasPluginComposerPills
-  );
+  const hasSubagentTracks =
+    showSubagents && (subagentRows.length > 0 || archiveFinishedStatus.kind !== "idle");
+  return hasSubagentTracks || (isCompact && Boolean(tasks?.length)) || hasPluginComposerPills;
 }

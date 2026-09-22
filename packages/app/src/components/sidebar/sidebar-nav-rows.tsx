@@ -6,6 +6,7 @@ import { View, type StyleProp, type ViewStyle } from "react-native";
 import { SidebarHeaderRow } from "@/components/sidebar/sidebar-header-row";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
 import { PluginSidebarItemRow } from "@/plugins/sidebar-items";
+import { PluginSidebarPanelRow } from "@/plugins/sidebar-panels";
 import { canCreateWorktreeForProjectKind } from "@/projects/host-projects";
 import { useHostFeature } from "@/runtime/host-features";
 import {
@@ -65,6 +66,15 @@ export function SidebarNavRows({ style, onBeforeNavigate, mode = "all" }: Sideba
         if (item.kind === "plugin") {
           return (
             <PluginSidebarItemRow
+              key={item.key}
+              group={item.group}
+              onBeforeNavigate={onBeforeNavigate}
+            />
+          );
+        }
+        if (item.kind === "plugin-panel") {
+          return (
+            <PluginSidebarPanelRow
               key={item.key}
               group={item.group}
               onBeforeNavigate={onBeforeNavigate}

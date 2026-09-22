@@ -20,6 +20,7 @@ export interface ProjectHostEntry {
   projectId: string;
   projectName: string;
   projectCustomName: string | null;
+  createdAt?: string;
   serverName: string;
   isOnline: boolean;
   repoRoot: string;
@@ -35,6 +36,7 @@ export interface ProjectSummary {
   viewKey: string;
   projectName: string;
   projectCustomName?: string | null;
+  createdAt?: string;
   hosts: ProjectHostEntry[];
   totalWorkspaceCount: number;
   hostCount: number;
@@ -87,6 +89,7 @@ interface HostGroup {
   projectId: string;
   projectName: string;
   projectCustomName: string | null;
+  createdAt?: string;
   serverName: string;
   isOnline: boolean;
   workspaces: WorkspaceDescriptor[];
@@ -107,10 +110,11 @@ interface ProjectGroup {
 function findProjectMetadata(
   host: ProjectHost,
   projectId: string,
-): { customName: string | null; displayName: string } | null {
+): { createdAt?: string; customName: string | null; displayName: string } | null {
   for (const project of host.projects) {
     if (project.projectId === projectId) {
       return {
+        createdAt: project.createdAt,
         customName: project.projectCustomName ?? null,
         displayName: project.projectDisplayName,
       };
@@ -174,6 +178,7 @@ function toHostEntry(group: HostGroup): ProjectHostEntry {
     projectId: group.projectId,
     projectName: group.projectName,
     projectCustomName: group.projectCustomName,
+    createdAt: group.createdAt,
     serverName: group.serverName,
     isOnline: group.isOnline,
     repoRoot,
@@ -196,12 +201,17 @@ function compareHosts(left: ProjectHostEntry, right: ProjectHostEntry): number {
 
 function toProjectSummary(draft: ProjectGroup): ProjectSummary {
   const hosts = Array.from(draft.hostsByServerId.values()).map(toHostEntry).sort(compareHosts);
+  const createdAt = hosts.reduce<string | undefined>(
+    (latest, host) => selectLaterCreatedAt(latest, host.createdAt),
+    undefined,
+  );
   const totalWorkspaceCount = hosts.reduce((sum, host) => sum + host.workspaceCount, 0);
   const onlineHostCount = hosts.filter((host) => host.isOnline).length;
   return {
     viewKey: draft.viewKey,
     projectName: draft.projectName,
     projectCustomName: draft.projectCustomName,
+    createdAt,
     hosts,
     totalWorkspaceCount,
     hostCount: hosts.length,
@@ -243,6 +253,7 @@ function addHostProjects(
         projectId,
         projectName: customName?.displayName ?? hostProject.projectName,
         projectCustomName: customName?.customName ?? null,
+        createdAt: customName?.createdAt,
         serverName: host.serverName,
         isOnline: host.isOnline,
         workspaces: [],
@@ -287,6 +298,10 @@ export function buildProjects(input: BuildProjectsInput): BuildProjectsResult {
 
   const projects = Array.from(groups.values()).map(toProjectSummary);
   projects.sort((left, right) => {
+    const createdAt = compareCreatedAtDesc(left.createdAt, right.createdAt);
+    if (createdAt !== 0) {
+      return createdAt;
+    }
     const name = left.projectName.localeCompare(right.projectName);
     if (name !== 0) {
       return name;
@@ -295,4 +310,21 @@ export function buildProjects(input: BuildProjectsInput): BuildProjectsResult {
   });
 
   return { projects };
+}
+
+function compareCreatedAtDesc(left: string | undefined, right: string | undefined): number {
+  const leftMs = left ? Date.parse(left) : Number.NaN;
+  const rightMs = right ? Date.parse(right) : Number.NaN;
+  const hasLeft = !Number.isNaN(leftMs);
+  const hasRight = !Number.isNaN(rightMs);
+  if (hasLeft && hasRight && leftMs !== rightMs) return rightMs - leftMs;
+  if (hasLeft !== hasRight) return hasLeft ? -1 : 1;
+  return 0;
+}
+
+function selectLaterCreatedAt(
+  current: string | undefined,
+  candidate: string | undefined,
+): string | undefined {
+  return compareCreatedAtDesc(current, candidate) <= 0 ? current : candidate;
 }

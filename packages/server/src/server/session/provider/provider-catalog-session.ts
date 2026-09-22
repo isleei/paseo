@@ -20,6 +20,7 @@ import {
 } from "../../agent/agent-sdk-types.js";
 import type { ProviderAvailability } from "../../agent/agent-manager.js";
 import type { ProviderUsageService } from "../../../services/quota-fetcher/service.js";
+import type { EnvironmentService } from "../../agent/environment/environment-service.js";
 import { expandTilde } from "../../../utils/path.js";
 
 // COMPAT(customModeIcons): the only mode icons known to clients before v0.1.84. Any
@@ -57,6 +58,7 @@ export interface ProviderCatalogSessionOptions {
   host: ProviderCatalogSessionHost;
   providerSnapshotManager: ProviderSnapshotManager;
   providerUsageService: ProviderUsageService;
+  environmentService: EnvironmentService;
   logger: pino.Logger;
 }
 
@@ -71,6 +73,7 @@ export class ProviderCatalogSession {
   private readonly host: ProviderCatalogSessionHost;
   private readonly providerSnapshotManager: ProviderSnapshotManager;
   private readonly providerUsageService: ProviderUsageService;
+  private readonly environmentService: EnvironmentService;
   private readonly logger: pino.Logger;
   private unsubscribeSnapshotEvents: (() => void) | null = null;
 
@@ -78,6 +81,7 @@ export class ProviderCatalogSession {
     this.host = options.host;
     this.providerSnapshotManager = options.providerSnapshotManager;
     this.providerUsageService = options.providerUsageService;
+    this.environmentService = options.environmentService;
     this.logger = options.logger;
   }
 
@@ -510,6 +514,63 @@ export class ProviderCatalogSession {
           requestType: msg.type,
           error: `Failed to list provider usage: ${err.message}`,
           code: "provider_usage_list_failed",
+        },
+      });
+    }
+  }
+
+  async handleEnvironmentCheckRequest(
+    msg: Extract<SessionInboundMessage, { type: "environment.check.request" }>,
+  ): Promise<void> {
+    try {
+      const providers = await this.environmentService.check();
+      this.host.emit({
+        type: "environment.check.response",
+        payload: {
+          requestId: msg.requestId,
+          fetchedAt: new Date().toISOString(),
+          providers: providers.filter((entry) =>
+            this.host.isProviderVisibleToClient(entry.provider),
+          ),
+        },
+      });
+    } catch (error) {
+      this.logger.error({ err: error }, "Failed to check provider environment");
+      this.host.emit({
+        type: "rpc_error",
+        payload: {
+          requestId: msg.requestId,
+          requestType: msg.type,
+          error: `Failed to check provider environment: ${getErrorMessage(error)}`,
+          code: "environment_check_failed",
+        },
+      });
+    }
+  }
+
+  async handleEnvironmentUpgradeRequest(
+    msg: Extract<SessionInboundMessage, { type: "environment.upgrade.request" }>,
+  ): Promise<void> {
+    try {
+      const results = await this.environmentService.upgrade(
+        msg.provider ? [msg.provider] : undefined,
+      );
+      this.host.emit({
+        type: "environment.upgrade.response",
+        payload: {
+          requestId: msg.requestId,
+          results: results.filter((result) => this.host.isProviderVisibleToClient(result.provider)),
+        },
+      });
+    } catch (error) {
+      this.logger.error({ err: error }, "Failed to upgrade provider environment");
+      this.host.emit({
+        type: "rpc_error",
+        payload: {
+          requestId: msg.requestId,
+          requestType: msg.type,
+          error: `Failed to upgrade provider environment: ${getErrorMessage(error)}`,
+          code: "environment_upgrade_failed",
         },
       });
     }

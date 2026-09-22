@@ -52,6 +52,9 @@ import {
 import { ProvidersSection } from "@/screens/settings/providers-section";
 import { ProviderUsageSettingsSection } from "@/provider-usage/settings-section";
 import { useProviderUsage } from "@/provider-usage/use-provider-usage";
+import { EnvironmentSettingsSection } from "@/environment/settings-section";
+import { useEnvironmentCheck } from "@/environment/use-environment-check";
+import type { AgentProvider } from "@getpaseo/protocol/agent-types";
 import { HostAppearanceSection } from "@/screens/settings/host-appearance-section";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
 import { useSessionStore } from "@/stores/session-store";
@@ -318,6 +321,36 @@ export function HostWorkspacesPage({ serverId }: { serverId: string }) {
 
 export function HostProvidersPage({ serverId }: { serverId: string }) {
   const host = useHostProfile(serverId);
+  const {
+    view: environmentView,
+    upgradingProvider,
+    upgradingAll,
+    lastResults,
+    refresh: refreshEnvironment,
+    upgradeOne,
+    upgradeAll,
+  } = useEnvironmentCheck(serverId);
+  const handleRefreshEnvironment = useCallback(() => {
+    void refreshEnvironment();
+  }, [refreshEnvironment]);
+  const handleUpgradeOne = useCallback(
+    (provider: AgentProvider) => {
+      void upgradeOne(provider);
+    },
+    [upgradeOne],
+  );
+  const handleUpgradeAll = useCallback(() => {
+    void upgradeAll();
+  }, [upgradeAll]);
+  const upgradableCount = useMemo(
+    () =>
+      environmentView.kind === "ready"
+        ? environmentView.payload.providers.filter(
+            (entry) => entry.status === "update-available" && entry.channel === "npm",
+          ).length
+        : 0,
+    [environmentView],
+  );
 
   if (!host) {
     return <HostNotFound />;
@@ -326,6 +359,17 @@ export function HostProvidersPage({ serverId }: { serverId: string }) {
   return (
     <View>
       <ProvidersSection serverId={serverId} />
+      <EnvironmentSettingsSection
+        serverId={serverId}
+        view={environmentView}
+        upgradingProvider={upgradingProvider}
+        upgradingAll={upgradingAll}
+        upgradableCount={upgradableCount}
+        lastResults={lastResults}
+        onRefresh={handleRefreshEnvironment}
+        onUpgrade={handleUpgradeOne}
+        onUpgradeAll={handleUpgradeAll}
+      />
     </View>
   );
 }

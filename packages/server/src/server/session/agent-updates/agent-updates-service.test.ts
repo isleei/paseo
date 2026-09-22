@@ -28,6 +28,7 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
 function makeAgentPayload(input: {
   id: string;
   workspaceId?: string;
+  cwd?: string;
   provider?: string;
   status?: AgentSnapshotPayload["status"];
   updatedAt?: string;
@@ -42,7 +43,7 @@ function makeAgentPayload(input: {
   return {
     id: input.id,
     provider,
-    cwd: "/tmp/repo",
+    cwd: input.cwd ?? "/tmp/repo",
     ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
     model: null,
     thinkingOptionId: input.thinkingOptionId ?? null,
@@ -98,6 +99,7 @@ function buildHarness() {
   const payloadById = new Map<string, AgentSnapshotPayload>();
   const queuedPayloadBuilds: Promise<AgentSnapshotPayload>[] = [];
   const projectByWorkspaceId = new Map<string, ProjectPlacementPayload | null>();
+  const projectByStandaloneCwd = new Map<string, ProjectPlacementPayload | null>();
   let providerVisible: (provider: string) => boolean = () => true;
   let buildAgentPayloadError: Error | null = null;
   let enrichProjectedPayload = false;
@@ -132,6 +134,8 @@ function buildHarness() {
     isProviderVisibleToClient: (provider) => providerVisible(provider),
     buildProjectPlacementForWorkspaceId: async (workspaceId) =>
       projectByWorkspaceId.get(workspaceId) ?? null,
+    buildProjectPlacementForStandaloneCwd: async (cwd) =>
+      projectByStandaloneCwd.get(cwd) ?? makeProject({ projectKey: cwd, workspaceName: null }),
     emitWorkspaceUpdateForWorkspaceId: async (workspaceId) => {
       workspaceUpdates.push(workspaceId);
     },
@@ -159,6 +163,8 @@ function buildHarness() {
       payloadById.set(payload.id, payload);
       if (payload.workspaceId) {
         projectByWorkspaceId.set(payload.workspaceId, project);
+      } else {
+        projectByStandaloneCwd.set(payload.cwd, project);
       }
       return payload;
     },
@@ -343,6 +349,40 @@ describe("forwardLiveAgent", () => {
       { kind: "upsert", agent: expect.objectContaining({ id: "a" }), project: makeProject() },
     ]);
     expect(h.workspaceUpdates).toEqual(["ws-1"]);
+  });
+
+  test("emits an upsert for a standalone root agent", async () => {
+    const h = buildHarness();
+    h.service.beginSubscription({ subscriptionId: "sub", filter: {} });
+    h.service.flushBootstrapped("sub");
+    const standalone = makeAgentPayload({ id: "standalone", cwd: "/tmp/standalone" });
+    const project = makeProject({ projectKey: "/tmp/standalone", workspaceName: null });
+    h.register(standalone, project);
+
+    await h.service.forwardLiveAgent(h.managed("standalone"));
+
+    expect(h.agentUpdates()).toEqual([
+      {
+        kind: "upsert",
+        agent: expect.objectContaining({ id: "standalone" }),
+        project,
+      },
+    ]);
+  });
+
+  test("keeps standalone subagents out of the directory", async () => {
+    const h = buildHarness();
+    h.service.beginSubscription({ subscriptionId: "sub", filter: {} });
+    h.service.flushBootstrapped("sub");
+    const child = makeAgentPayload({
+      id: "child",
+      labels: { "paseo.parent-agent-id": "parent" },
+    });
+    h.register(child);
+
+    await h.service.forwardLiveAgent(h.managed("child"));
+
+    expect(h.agentUpdates()).toEqual([{ kind: "remove", agentId: "child" }]);
   });
 
   test("never projects MCP credentials into ordinary client updates", async () => {

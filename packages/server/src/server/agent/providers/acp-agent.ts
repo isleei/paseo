@@ -788,6 +788,27 @@ function mapExtensionNotificationUsage(params: Record<string, unknown>): AgentUs
   return mapLooseACPUsage(update.usage);
 }
 
+// Static context window sizes for ACP providers whose CLI never reports
+// `usage_update.size`. Without a max the client cannot render usage at all,
+// so this fills the gap the same way direct providers seed it from model
+// metadata. Values must come from the vendor's published model docs.
+const KNOWN_ACP_MODEL_CONTEXT_WINDOWS: Record<string, Record<string, number>> = {
+  grok: {
+    // https://docs.x.ai/developers/models/grok-4.6
+    "grok-4.6": 500_000,
+  },
+};
+
+function resolveKnownContextWindowMaxTokens(
+  provider: string,
+  model: string | null,
+): number | undefined {
+  if (!model) {
+    return undefined;
+  }
+  return KNOWN_ACP_MODEL_CONTEXT_WINDOWS[provider]?.[model];
+}
+
 export function resolveACPModeSelection({
   modeId,
   availableModes,
@@ -3203,6 +3224,12 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     const merged = mergeAgentUsage(this.currentTurnUsage, usage);
     if (!merged) {
       return [];
+    }
+    if (merged.contextWindowMaxTokens === undefined) {
+      const knownMaxTokens = resolveKnownContextWindowMaxTokens(this.provider, this.currentModel);
+      if (knownMaxTokens !== undefined) {
+        merged.contextWindowMaxTokens = knownMaxTokens;
+      }
     }
     if (this.currentTurnUsage && isSameAgentUsage(this.currentTurnUsage, merged)) {
       return [];

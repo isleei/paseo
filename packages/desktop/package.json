@@ -15,6 +15,7 @@
   },
   "main": "dist/main.js",
   "scripts": {
+    "prebuild": "node ./scripts/ensure-electron-web-dist.mjs",
     "build": "npm --prefix ../.. run build:server:clean && npm run build:island-helper && npm run build:main && electron-builder --config electron-builder.yml",
     "build:island-helper": "node ./scripts/build-island-helper.mjs",
     "fixup:adhoc": "node ./scripts/fixup-adhoc-signature.mjs",

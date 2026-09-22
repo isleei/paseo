@@ -8,18 +8,21 @@ interface SidebarOrderStoreState {
   projectOrder: string[];
   pinnedWorkspaceOrder: string[];
   workspaceOrderByProject: Record<string, string[]>;
+  pinnedAtByConversationKey: Record<string, string>;
   getProjectOrder: () => string[];
   setProjectOrder: (keys: string[]) => void;
   getPinnedWorkspaceOrder: () => string[];
   setPinnedWorkspaceOrder: (keys: string[]) => void;
   getWorkspaceOrder: (projectViewKey: string) => string[];
   setWorkspaceOrder: (projectViewKey: string, keys: string[]) => void;
+  setConversationPinned: (workspaceKey: string, pinnedAt: string | null) => void;
 }
 
 interface SidebarOrderPersistedState {
   projectOrder?: string[];
   pinnedWorkspaceOrder?: string[];
   workspaceOrderByProject?: Record<string, string[]>;
+  pinnedAtByConversationKey?: Record<string, string>;
   projectOrderByServerId?: Record<string, string[]>;
   workspaceOrderByServerAndProject?: Record<string, string[]>;
 }
@@ -29,6 +32,7 @@ const SidebarOrderPersistedStateSchema = z.strictObject({
   projectOrder: z.array(z.string()).optional(),
   pinnedWorkspaceOrder: z.array(z.string()).optional(),
   workspaceOrderByProject: StringArrayRecordSchema.optional(),
+  pinnedAtByConversationKey: z.record(z.string(), z.string()).optional(),
   projectOrderByServerId: StringArrayRecordSchema.optional(),
   workspaceOrderByServerAndProject: StringArrayRecordSchema.optional(),
 });
@@ -82,6 +86,19 @@ function normalizeLegacyWorkspaceKey(serverId: string, rawWorkspaceKey: string):
   return workspaceKey.startsWith(serverPrefix) ? workspaceKey : `${serverPrefix}${workspaceKey}`;
 }
 
+function normalizePinnedAtByConversationKey(
+  pinnedAtByConversationKey: Record<string, string> | undefined,
+): Record<string, string> {
+  const normalized: Record<string, string> = {};
+  for (const [rawKey, rawValue] of Object.entries(pinnedAtByConversationKey ?? {})) {
+    const key = rawKey.trim();
+    const value = rawValue.trim();
+    if (!key || !value) continue;
+    normalized[key] = value;
+  }
+  return normalized;
+}
+
 export function migrateSidebarOrderState(
   persistedState: unknown,
   fromVersion = 0,
@@ -89,10 +106,16 @@ export function migrateSidebarOrderState(
   projectOrder: string[];
   pinnedWorkspaceOrder: string[];
   workspaceOrderByProject: Record<string, string[]>;
+  pinnedAtByConversationKey: Record<string, string>;
 } {
   const result = SidebarOrderPersistedStateSchema.safeParse(persistedState);
   if (!result.success) {
-    return { projectOrder: [], pinnedWorkspaceOrder: [], workspaceOrderByProject: {} };
+    return {
+      projectOrder: [],
+      pinnedWorkspaceOrder: [],
+      workspaceOrderByProject: {},
+      pinnedAtByConversationKey: {},
+    };
   }
   const state: SidebarOrderPersistedState = result.data;
 
@@ -128,6 +151,7 @@ export function migrateSidebarOrderState(
     // v1 auto-wrote first-seen (alphabetical) workspace order. Recency is live,
     // so drop that freeze; drag still writes workspaceOrderByProject after v2.
     workspaceOrderByProject: fromVersion < 2 ? {} : workspaceOrderByProject,
+    pinnedAtByConversationKey: normalizePinnedAtByConversationKey(state.pinnedAtByConversationKey),
   };
 }
 
@@ -137,6 +161,7 @@ export const useSidebarOrderStore = create<SidebarOrderStoreState>()(
       projectOrder: [],
       pinnedWorkspaceOrder: [],
       workspaceOrderByProject: {},
+      pinnedAtByConversationKey: {},
       getProjectOrder: () => get().projectOrder,
       setProjectOrder: (keys) => {
         const normalized = normalizeKeys(keys);
@@ -163,6 +188,30 @@ export const useSidebarOrderStore = create<SidebarOrderStoreState>()(
           },
         }));
       },
+      setConversationPinned: (workspaceKey, pinnedAt) => {
+        const key = workspaceKey.trim();
+        if (!key) return;
+        set((state) => {
+          if (!pinnedAt) {
+            if (!(key in state.pinnedAtByConversationKey)) {
+              return state;
+            }
+            const next = { ...state.pinnedAtByConversationKey };
+            delete next[key];
+            return { pinnedAtByConversationKey: next };
+          }
+          const value = pinnedAt.trim();
+          if (!value || state.pinnedAtByConversationKey[key] === value) {
+            return state;
+          }
+          return {
+            pinnedAtByConversationKey: {
+              ...state.pinnedAtByConversationKey,
+              [key]: value,
+            },
+          };
+        });
+      },
     }),
     {
       name: "sidebar-project-workspace-order",
@@ -171,6 +220,7 @@ export const useSidebarOrderStore = create<SidebarOrderStoreState>()(
         projectOrder: state.projectOrder,
         pinnedWorkspaceOrder: state.pinnedWorkspaceOrder,
         workspaceOrderByProject: state.workspaceOrderByProject,
+        pinnedAtByConversationKey: state.pinnedAtByConversationKey,
       }),
       version: 2,
       migrate: migrateSidebarOrderState,

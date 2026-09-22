@@ -1,11 +1,15 @@
 import { useCallback } from "react";
+import { usePathname } from "expo-router";
 import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
 import { useSidebarWorkspacePinController } from "@/hooks/use-sidebar-workspace-pin";
 import type { KeyboardActionId } from "@/keyboard/keyboard-action-dispatcher";
+import { standaloneConversationKey } from "@/hooks/sidebar-conversations";
 import { useHostFeature } from "@/runtime/host-features";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { useWorkspaceFields } from "@/stores/session-store-hooks";
+import { parseHostAgentRouteFromPathname } from "@/utils/host-routes";
 import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
+import { useSidebarOrderStore } from "@/stores/sidebar-order-store";
 
 const WORKSPACE_PIN_ACTIONS: readonly KeyboardActionId[] = ["workspace.pin"];
 
@@ -18,7 +22,8 @@ const WORKSPACE_PIN_ACTIONS: readonly KeyboardActionId[] = ["workspace.pin"];
 // disables the handler). Revisit this if panes ever span workspaces.
 export function useGlobalWorkspacePinAction() {
   const selection = useActiveWorkspaceSelection();
-  const serverId = selection?.serverId ?? null;
+  const agentSelection = parseHostAgentRouteFromPathname(usePathname());
+  const serverId = selection?.serverId ?? agentSelection?.serverId ?? null;
   const routeWorkspaceId = selection?.workspaceId ?? null;
   // Narrow projection so pin state changes don't re-render on every gitRuntime/diffStat tick.
   // A null result means the workspace is gone, which `pinnedAt: null` alone could not express.
@@ -31,11 +36,32 @@ export function useGlobalWorkspacePinAction() {
     id: workspace.id,
     pinnedAt: workspace.pinnedAt ?? null,
   }));
-  const canPin = useHostFeature(serverId, "workspacePinning");
+  const conversationPinnedAt = useSidebarOrderStore((state) =>
+    agentSelection
+      ? (state.pinnedAtByConversationKey[
+          standaloneConversationKey(agentSelection.serverId, agentSelection.agentId)
+        ] ?? null)
+      : null,
+  );
+  const canPinWorkspace = useHostFeature(serverId, "workspacePinning");
   const togglePin = useSidebarWorkspacePinController();
 
   const handle = useCallback(() => {
-    if (!serverId || !fields || !canPin) {
+    if (agentSelection) {
+      const workspaceKey = standaloneConversationKey(
+        agentSelection.serverId,
+        agentSelection.agentId,
+      );
+      togglePin({
+        serverId: agentSelection.serverId,
+        workspaceId: "",
+        workspaceKey,
+        pinnedAt: conversationPinnedAt,
+        standalone: true,
+      });
+      return true;
+    }
+    if (!serverId || !fields) {
       return false;
     }
     const workspaceKey = buildWorkspaceTabPersistenceKey({
@@ -52,12 +78,12 @@ export function useGlobalWorkspacePinAction() {
       pinnedAt: fields.pinnedAt,
     });
     return true;
-  }, [canPin, fields, serverId, togglePin]);
+  }, [agentSelection, conversationPinnedAt, fields, serverId, togglePin]);
 
   useKeyboardActionHandler({
     handlerId: "workspace-pin-global",
     actions: WORKSPACE_PIN_ACTIONS,
-    enabled: serverId !== null && fields !== null && canPin,
+    enabled: agentSelection !== null || (serverId !== null && fields !== null && canPinWorkspace),
     priority: 0,
     handle,
   });

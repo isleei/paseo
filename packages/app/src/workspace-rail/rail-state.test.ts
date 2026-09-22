@@ -8,8 +8,11 @@ import {
   formatDiffStat,
   formatUpstreamDelta,
   isSectionOpen,
+  migratePersistedWorkspaceRail,
+  RAIL_DEFAULT_CLOSED_SECTIONS,
   selectRailSections,
   toggleSectionId,
+  withDefaultClosedSections,
 } from "@/workspace-rail/rail-state";
 import type { StreamItem, TodoEntry } from "@/types/stream";
 
@@ -168,6 +171,23 @@ describe("section folding", () => {
     expect(isSectionOpen(["environment"], "environment")).toBe(false);
   });
 
+  it("starts the reference section folded and the rest open", () => {
+    expect(RAIL_DEFAULT_CLOSED_SECTIONS).toEqual(["sources"]);
+    expect(isSectionOpen(RAIL_DEFAULT_CLOSED_SECTIONS, "sources")).toBe(false);
+    expect(isSectionOpen(RAIL_DEFAULT_CLOSED_SECTIONS, "tasks")).toBe(true);
+  });
+
+  it("adds the defaults without disturbing a fold the user made", () => {
+    expect(withDefaultClosedSections(["tasks"])).toEqual(["tasks", "sources"]);
+    expect(withDefaultClosedSections(["sources"])).toEqual(["sources"]);
+  });
+
+  it("unfolds a default section like any other, so the state stays one list", () => {
+    const unfolded = toggleSectionId(withDefaultClosedSections([]), "sources");
+    expect(unfolded).toEqual([]);
+    expect(isSectionOpen(unfolded, "sources")).toBe(true);
+  });
+
   it("toggles one id without disturbing the others", () => {
     const closed = toggleSectionId(["tasks"], "environment");
     expect(closed).toEqual(["tasks", "environment"]);
@@ -176,6 +196,35 @@ describe("section folding", () => {
 
   it("is a no-op when the same id is toggled twice", () => {
     expect(toggleSectionId(toggleSectionId([], "subagents"), "subagents")).toEqual([]);
+  });
+});
+
+describe("migratePersistedWorkspaceRail", () => {
+  it("folds the default sections onto a v0 state, which folded nothing", () => {
+    expect(migratePersistedWorkspaceRail({ collapsed: false, closedSections: [] })).toEqual({
+      collapsed: false,
+      closedSections: ["sources"],
+    });
+  });
+
+  it("keeps the folds and the collapsed rail a v0 state already carried", () => {
+    expect(migratePersistedWorkspaceRail({ collapsed: true, closedSections: ["tasks"] })).toEqual({
+      collapsed: true,
+      closedSections: ["tasks", "sources"],
+    });
+  });
+
+  it("falls back to the defaults when the stored shape is unreadable", () => {
+    expect(migratePersistedWorkspaceRail({ closedSections: ["nonsense"] })).toEqual({
+      collapsed: false,
+      closedSections: ["sources"],
+    });
+  });
+
+  it("does not fold the same section twice", () => {
+    expect(migratePersistedWorkspaceRail({ closedSections: ["sources"] }).closedSections).toEqual([
+      "sources",
+    ]);
   });
 });
 

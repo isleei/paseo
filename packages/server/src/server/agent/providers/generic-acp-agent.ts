@@ -2,6 +2,7 @@ import type { Logger } from "pino";
 import { z } from "zod";
 
 import type { AgentCapabilityFlags } from "../agent-sdk-types.js";
+import type { ProviderLaunchSpec } from "../agent-sdk-types.js";
 import { checkProviderLaunchAvailable, resolveProviderLaunch } from "../provider-launch-config.js";
 import {
   ACPAgentClient,
@@ -97,6 +98,13 @@ export class GenericACPAgentClient extends ACPAgentClient {
     const launch = await this.resolveConfiguredLaunch();
     const availability = await checkProviderLaunchAvailable(launch);
     return availability.available;
+  }
+
+  async getLaunchSpec(): Promise<ProviderLaunchSpec> {
+    return {
+      command: [...this.command],
+      env: this.runtimeSettings?.env,
+    };
   }
 
   async getDiagnostic(): Promise<{ diagnostic: string }> {

@@ -4,6 +4,7 @@ import { gotoAppShell } from "../support/helpers/app";
 import { daemonWsRoutePattern } from "../support/helpers/daemon-port";
 import { seedWorkspace, type SeededWorkspace } from "../support/helpers/seed-client";
 import { getServerId } from "../support/helpers/server-id";
+import { expectWorkspacePinAction } from "../support/helpers/sidebar";
 
 // These actions used to be reachable only from the sidebar workspace ⋯ menu, the workspace header
 // menu, or an unlisted keybind. Rename was the worst of them: its dialog lived inside the sidebar
@@ -168,7 +169,7 @@ test.describe("Command center workspace management", () => {
       await openWorkspace(page, workspace.workspaceId);
 
       await runCommand(page, "pin", "Pin to top");
-      await expect(page.getByTestId("sidebar-pinned-section")).toBeVisible({ timeout: 15_000 });
+      await expectWorkspacePinAction(page, workspace.workspaceId, "Unpin");
 
       const panel = await openCommandCenter(page);
       await panel.getByTestId("command-center-input").fill("pin");

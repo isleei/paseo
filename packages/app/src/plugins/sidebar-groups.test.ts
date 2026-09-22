@@ -1,7 +1,25 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
-import type { InstalledPlugin } from "./types";
-import { groupPluginSidebarContributions } from "./sidebar-groups";
+import type { EvaluatedPluginWorkspacePanelContribution, InstalledPlugin } from "./types";
+import {
+  groupPluginSidebarContributions,
+  groupPluginSidebarPanelContributions,
+} from "./sidebar-groups";
+
+type WorkspacePanel = Extract<EvaluatedPluginWorkspacePanelContribution, { context: "workspace" }>;
+
+function panel(overrides: Partial<WorkspacePanel> = {}): WorkspacePanel {
+  return {
+    id: "details",
+    title: "Details",
+    icon: "Scan",
+    context: "workspace",
+    locations: ["workspace"],
+    sidebar: false,
+    Component: () => null,
+    ...overrides,
+  };
+}
 
 function installed(serverId: string, contributionId = "main"): InstalledPlugin {
   return {
@@ -51,6 +69,52 @@ describe("groupPluginSidebarContributions", () => {
     expect(groups.map((group) => group.key)).toEqual([
       "example/sidebar/main",
       "example/sidebar/settings",
+    ]);
+  });
+});
+
+describe("groupPluginSidebarPanelContributions", () => {
+  function installedWithPanels(
+    serverId: string,
+    panels: EvaluatedPluginWorkspacePanelContribution[],
+  ): InstalledPlugin {
+    return { ...installed(serverId), sidebarItems: [], workspacePanels: panels };
+  }
+
+  it("only groups workspace panels that opted into the sidebar", () => {
+    const groups = groupPluginSidebarPanelContributions([
+      installedWithPanels("host-a", [
+        panel({ id: "details", sidebar: true }),
+        panel({ id: "hidden" }),
+      ]),
+    ]);
+
+    expect(groups.map((group) => group.key)).toEqual(["example/panel/details"]);
+  });
+
+  it("skips agent panels even when they opt into the sidebar", () => {
+    const agentPanel: EvaluatedPluginWorkspacePanelContribution = {
+      ...panel(),
+      context: "agent",
+      Component: () => null,
+    };
+    const groups = groupPluginSidebarPanelContributions([
+      installedWithPanels("host-a", [agentPanel]),
+    ]);
+
+    expect(groups).toEqual([]);
+  });
+
+  it("coalesces the same panel across hosts", () => {
+    const groups = groupPluginSidebarPanelContributions([
+      installedWithPanels("host-a", [panel({ sidebar: true })]),
+      installedWithPanels("host-b", [panel({ sidebar: true })]),
+    ]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.targets.map((target) => target.plugin.serverId)).toEqual([
+      "host-a",
+      "host-b",
     ]);
   });
 });

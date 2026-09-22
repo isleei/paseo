@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import { useSidebarOrderStore } from "@/stores/sidebar-order-store";
 import {
@@ -19,9 +19,14 @@ import {
   selectWorkspaceStatusesForBadges,
   workspaceEqualityFns,
   type WorkspaceStructure,
+  type WorkspaceStructureProject,
 } from "./selectors";
 import { useSessionStore, type WorkspaceDescriptor } from "../session-store";
 import type { DesktopBadgeWorkspaceStatus } from "@/utils/desktop-badge-state";
+import {
+  stabilizeWorkspaceKeyOrder,
+  type StabilizedWorkspaceKeyOrder,
+} from "@/projects/workspace-structure";
 
 // These are the ONLY supported ways to read workspaces from the session store.
 // Do not write raw `useSessionStore` selectors that return the workspaces Map, a session object,
@@ -119,16 +124,39 @@ export function useWorkspaceStructure(serverIds: string[]): WorkspaceStructure {
     (state) => selectWorkspaceOrderByScope(state),
     workspaceEqualityFns.deep,
   );
+  const freezeRef = useRef<{
+    snapshot: StabilizedWorkspaceKeyOrder;
+    projectOrder: readonly string[];
+    workspaceOrderByScope: Record<string, readonly string[]>;
+  } | null>(null);
 
-  return useMemo(
-    () =>
-      composeWorkspaceStructure({
-        projects,
-        projectOrder,
-        workspaceOrderByScope,
-      }),
-    [projectOrder, projects, workspaceOrderByScope],
-  );
+  return useMemo(() => {
+    const composed = composeWorkspaceStructure({
+      projects,
+      projectOrder,
+      workspaceOrderByScope,
+    });
+    const previous = freezeRef.current;
+    // A stored-order write means the user just dragged something: adopt the fresh order
+    // (which already reflects the drag) instead of freezing it out.
+    const storedOrderChanged =
+      previous === null ||
+      previous.projectOrder !== projectOrder ||
+      previous.workspaceOrderByScope !== workspaceOrderByScope;
+    const snapshot = stabilizeWorkspaceKeyOrder({
+      previous: storedOrderChanged ? null : previous.snapshot,
+      freshProjects: composed.projects,
+    });
+    freezeRef.current = { snapshot, projectOrder, workspaceOrderByScope };
+    const stabilizedProjects: WorkspaceStructureProject[] = [];
+    for (const project of composed.projects) {
+      const keys = snapshot.get(project.viewKey) ?? project.workspaceKeys;
+      stabilizedProjects.push(
+        keys === project.workspaceKeys ? project : { ...project, workspaceKeys: keys },
+      );
+    }
+    return { projects: stabilizedProjects };
+  }, [projectOrder, projects, workspaceOrderByScope]);
 }
 
 export function useWorkspaceKeys(serverId: string | null): string[] {

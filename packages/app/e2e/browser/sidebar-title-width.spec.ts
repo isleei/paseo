@@ -93,13 +93,14 @@ async function openTouchWorkspaceList(page: Page, testInfo: TestInfo) {
 }
 
 async function pinWorkspaceForLayout(page: Page) {
+  await selectSidebarStatusGrouping(page);
   await workspace.client.setWorkspacePinned(workspace.workspaceId, true);
   await expect(page.getByTestId("sidebar-pinned-section")).toBeVisible();
 }
 
 async function moveWorkspaceToStatusGrouping(page: Page) {
   await workspace.client.setWorkspacePinned(workspace.workspaceId, false);
-  await selectSidebarStatusGrouping(page);
+  await expect(page.getByTestId("sidebar-pinned-section")).toHaveCount(0);
 }
 
 async function openDesktopWorkspaceList(page: Page) {

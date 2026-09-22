@@ -247,12 +247,13 @@ describe("evaluatePluginClientBundle", () => {
     );
 
     expect(
-      plugin.workspacePanels.map(({ id, title, icon, context, locations }) => ({
+      plugin.workspacePanels.map(({ id, title, icon, context, locations, sidebar }) => ({
         id,
         title,
         icon,
         context,
         locations,
+        sidebar,
       })),
     ).toEqual([
       {
@@ -260,7 +261,8 @@ describe("evaluatePluginClientBundle", () => {
         title: "Review",
         icon: "Scan",
         context: "agent",
-        locations: ["workspace"],
+        locations: [],
+        sidebar: false,
       },
     ]);
     expect(
@@ -290,8 +292,65 @@ describe("evaluatePluginClientBundle", () => {
     );
     expect(plugin.workspacePanels[0]?.locations).toEqual(["workspace", "explorer"]);
 
+    const sidebarPanel = evaluatePluginClientBundle(
+      "review",
+      bundle(`
+        function ReviewPanel() { return null; }
+        plugin.addWorkspacePanel({
+          id: "review",
+          title: "Review",
+          icon: "Scan",
+          context: "workspace",
+          locations: ["workspace"],
+          sidebar: true,
+          Component: ReviewPanel,
+        });
+      `),
+    );
+    expect(sidebarPanel.workspacePanels[0]).toMatchObject({ sidebar: true });
+
+    const dormantPanel = evaluatePluginClientBundle(
+      "review",
+      bundle(`
+        function ReviewPanel() { return null; }
+        plugin.addWorkspacePanel({
+          id: "review",
+          title: "Review",
+          icon: "Scan",
+          context: "workspace",
+          locations: [],
+          Component: ReviewPanel,
+        });
+      `),
+    );
+    expect(dormantPanel.workspacePanels[0]).toMatchObject({ locations: [], sidebar: false });
+
+    for (const [setup, message] of [
+      [
+        `{ id: "review", title: "Review", icon: "Scan", context: "agent", locations: ["workspace"], sidebar: true, Component: ReviewPanel }`,
+        'with context "agent" cannot opt into the sidebar',
+      ],
+      [
+        `{ id: "review", title: "Review", icon: "Scan", context: "workspace", sidebar: true, Component: ReviewPanel }`,
+        "cannot opt into the sidebar without a location",
+      ],
+      [
+        `{ id: "review", title: "Review", icon: "Scan", context: "workspace", locations: [], sidebar: true, Component: ReviewPanel }`,
+        "cannot opt into the sidebar without a location",
+      ],
+    ] as const) {
+      expect(() =>
+        evaluatePluginClientBundle(
+          "review",
+          bundle(`
+            function ReviewPanel() { return null; }
+            plugin.addWorkspacePanel(${setup});
+          `),
+        ),
+      ).toThrow(message);
+    }
+
     for (const [locations, message] of [
-      ["[]", "must support at least one location"],
       ['["sidebar"]', "has invalid location: sidebar"],
       ['["explorer", "explorer"]', "has duplicate locations"],
     ] as const) {

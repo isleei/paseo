@@ -1262,14 +1262,22 @@ export default function contribute(client: PluginClientContext) {
 
 `addWorkspacePanel` fields:
 
-| Field       | Required | Meaning                                                       |
-| ----------- | -------- | ------------------------------------------------------------- |
-| `id`        | Yes      | Plugin-local panel ID.                                        |
-| `title`     | Yes      | Workspace-tab title.                                          |
-| `icon`      | Yes      | Lucide icon name.                                             |
-| `context`   | Yes      | `workspace` or `agent`.                                       |
-| `locations` | No       | `workspace` and/or `explorer`. Defaults to `workspace`.       |
-| `Component` | Yes      | React Native component matching the selected context's props. |
+| Field       | Required | Meaning                                                                                    |
+| ----------- | -------- | ------------------------------------------------------------------------------------------ |
+| `id`        | Yes      | Plugin-local panel ID.                                                                     |
+| `title`     | Yes      | Workspace-tab title.                                                                       |
+| `icon`      | Yes      | Lucide icon name.                                                                          |
+| `context`   | Yes      | `workspace` or `agent`.                                                                    |
+| `locations` | No       | `workspace` and/or `explorer`. Omit to offer the panel nowhere; declare where it may open. |
+| `sidebar`   | No       | List the panel in the left sidebar. Only workspace panels; defaults to `false`.            |
+| `Component` | Yes      | React Native component matching the selected context's props.                              |
+
+A panel with no `locations` is registered but offered nowhere: it stays out of every
+workspace tab menu until the author declares `workspace` and/or `explorer`. `sidebar: true`
+adds a left-sidebar entry on top of the declared locations; the entry only appears while a
+workspace is active and opens the panel in that workspace. Agent panels cannot opt into the
+sidebar because there is no agent to bind. A `sidebar: true` panel still needs at least one
+`locations` entry to open in.
 
 A workspace panel receives `PluginWorkspacePanelProps`: `context: "workspace"`, `theme`, `host`, `layout`, and `workspaceId`. An agent panel receives `PluginAgentPanelProps`: `context: "agent"`, the same common fields and `workspaceId`, plus `agentId`.
 

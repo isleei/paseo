@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { PluginSidebarGroup } from "@/plugins/sidebar-groups";
+import type { PluginSidebarGroup, PluginSidebarPanelGroup } from "@/plugins/sidebar-groups";
 import {
   builtinSidebarNavShortcutAction,
   isSidebarHeaderNavItem,
   moveSidebarNavItem,
   pluginSidebarNavKey,
+  pluginSidebarPanelNavKey,
   resolveSidebarNavItems,
   setSidebarNavItemVisible,
   type SidebarNavItem,
@@ -14,6 +15,17 @@ import {
 function group(pluginId: string, contributionId: string): PluginSidebarGroup {
   return {
     key: `${pluginId}/sidebar/${contributionId}`,
+    pluginId,
+    contributionId,
+    title: contributionId,
+    icon: "puzzle",
+    targets: [],
+  };
+}
+
+function panelGroup(pluginId: string, contributionId: string): PluginSidebarPanelGroup {
+  return {
+    key: `${pluginId}/panel/${contributionId}`,
     pluginId,
     contributionId,
     title: contributionId,
@@ -102,6 +114,55 @@ describe("resolveSidebarNavItems", () => {
     expect(summarize(items)).toEqual([
       { key: "history", visible: false },
       { key: "new-workspace", visible: true },
+      { key: "search", visible: true },
+      { key: "schedules", visible: true },
+    ]);
+  });
+
+  it("appends panel groups after sidebar items with distinct keys", () => {
+    const details = panelGroup("review", "details");
+    const detailsKey = pluginSidebarPanelNavKey(details);
+    expect(detailsKey).toBe("plugin-panel:review:details");
+
+    const items = resolveSidebarNavItems({
+      pluginGroups: [kanban],
+      panelGroups: [details],
+      preferences: [],
+    });
+
+    expect(summarize(items)).toEqual([
+      { key: "new-workspace", visible: true },
+      { key: "history", visible: true },
+      { key: "search", visible: true },
+      { key: "schedules", visible: true },
+      { key: kanbanKey, visible: true },
+      { key: detailsKey, visible: true },
+    ]);
+    expect(items[5]).toEqual({
+      kind: "plugin-panel",
+      key: detailsKey,
+      group: details,
+      visible: true,
+    });
+  });
+
+  it("keeps stored panel visibility and order", () => {
+    const details = panelGroup("review", "details");
+    const detailsKey = pluginSidebarPanelNavKey(details);
+    const items = resolveSidebarNavItems({
+      pluginGroups: [kanban],
+      panelGroups: [details],
+      preferences: [
+        { key: detailsKey, visible: false },
+        { key: kanbanKey, visible: true },
+      ],
+    });
+
+    expect(summarize(items)).toEqual([
+      { key: detailsKey, visible: false },
+      { key: kanbanKey, visible: true },
+      { key: "new-workspace", visible: true },
+      { key: "history", visible: true },
       { key: "search", visible: true },
       { key: "schedules", visible: true },
     ]);

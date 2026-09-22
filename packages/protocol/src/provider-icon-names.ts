@@ -41,6 +41,7 @@ export const ACP_PROVIDER_ICON_NAMES = [
   "nova",
   "poolside",
   "qoder",
+  "qoder-cn",
   "qwen-code",
   "sigit",
   "stakpak",

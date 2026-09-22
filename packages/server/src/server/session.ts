@@ -97,6 +97,7 @@ import {
 import { AgentManager, AgentRunCancellationError } from "./agent/agent-manager.js";
 import { buildTimelinePromptIndex } from "./agent/timeline-prompt-index.js";
 import { ProviderSnapshotManager } from "./agent/provider-snapshot-manager.js";
+import { EnvironmentService } from "./agent/environment/environment-service.js";
 import type {
   AgentManagerEvent,
   AgentTimelineCursor,
@@ -144,6 +145,7 @@ import {
   checkoutFromPersistedWorkspacePlacement,
   deriveWorkspaceDisplayName,
 } from "./workspace-registry-model.js";
+import { deriveProjectGroupingDisplayName, deriveProjectKey } from "./project-key.js";
 import { resolveWorkspaceIdForPath } from "./resolve-workspace-id-for-path.js";
 import {
   resolveProjectDisplayName,
@@ -957,6 +959,10 @@ export class Session {
       scheduleService,
       logger: this.sessionLogger,
     });
+    const environmentService = new EnvironmentService({
+      providerSnapshotManager,
+      logger: this.sessionLogger,
+    });
     this.providerCatalogSession = new ProviderCatalogSession({
       host: {
         emit: (msg) => this.emit(msg),
@@ -990,6 +996,7 @@ export class Session {
       },
       providerSnapshotManager,
       providerUsageService,
+      environmentService,
       logger: this.sessionLogger,
     });
     this.agentConfigSession = new AgentConfigSession({
@@ -1084,6 +1091,8 @@ export class Session {
       isProviderVisibleToClient: (provider) => this.isProviderVisibleToClient(provider),
       buildProjectPlacementForWorkspaceId: (workspaceId) =>
         this.buildProjectPlacementForWorkspaceId(workspaceId),
+      buildProjectPlacementForStandaloneCwd: (cwd) =>
+        this.buildProjectPlacementForStandaloneCwd(cwd),
       emitWorkspaceUpdateForWorkspaceId: (workspaceId) =>
         this.emitWorkspaceUpdateForWorkspaceId(workspaceId),
       sequenceAgentUpdate: (payload, agent, project, agentId, includeSequence) =>
@@ -2086,6 +2095,43 @@ export class Session {
     return this.buildProjectPlacementForWorkspace(workspace, project);
   }
 
+  private async buildProjectPlacementForStandaloneCwd(
+    cwd: string,
+  ): Promise<ProjectPlacementPayload | null> {
+    const checkout = await this.workspaceGitService.getCheckout(cwd);
+    return {
+      projectKey: deriveProjectKey({
+        rootPath: checkout.cwd,
+        remoteUrl: checkout.remoteUrl,
+        worktreeRoot: checkout.worktreeRoot,
+        mainRepoRoot: checkout.mainRepoRoot,
+      }),
+      projectName: deriveProjectGroupingDisplayName({
+        rootPath: checkout.cwd,
+        remoteUrl: checkout.remoteUrl,
+        worktreeRoot: checkout.worktreeRoot,
+      }),
+      workspaceName: null,
+      checkout,
+    };
+  }
+
+  private isStandaloneRootAgent(agent: AgentSnapshotPayload): boolean {
+    return !agent.workspaceId && getParentAgentIdFromLabels(agent.labels) === null;
+  }
+
+  private buildProjectPlacementForAgent(
+    agent: AgentSnapshotPayload,
+  ): Promise<ProjectPlacementPayload | null> {
+    if (agent.workspaceId) {
+      return this.buildProjectPlacementForWorkspaceId(agent.workspaceId);
+    }
+    if (!this.isStandaloneRootAgent(agent)) {
+      return Promise.resolve(null);
+    }
+    return this.buildProjectPlacementForStandaloneCwd(agent.cwd);
+  }
+
   /**
    * Main entry point for processing session messages
    */
@@ -3004,6 +3050,10 @@ export class Session {
         return this.providerCatalogSession.handleProviderDiagnosticRequest(msg);
       case "provider.usage.list.request":
         return this.providerCatalogSession.handleProviderUsageListRequest(msg);
+      case "environment.check.request":
+        return this.providerCatalogSession.handleEnvironmentCheckRequest(msg);
+      case "environment.upgrade.request":
+        return this.providerCatalogSession.handleEnvironmentUpgradeRequest(msg);
       default:
         return undefined;
     }
@@ -5347,7 +5397,7 @@ export class Session {
   private async collectFetchAgentsEntries(params: {
     candidates: AgentSnapshotPayload[];
     limit: number;
-    getPlacement: (workspaceId: string | undefined) => Promise<ProjectPlacementPayload | null>;
+    getPlacement: (agent: AgentSnapshotPayload) => Promise<ProjectPlacementPayload | null>;
     filter: AgentUpdatesFilter | undefined;
     search?: string;
   }): Promise<FetchAgentsResponseEntry[]> {
@@ -5362,7 +5412,7 @@ export class Session {
       const batch = candidates.slice(start, start + batchSize);
       const batchEntries = await Promise.all(
         batch.map(async (agent) => {
-          const project = await getPlacement(agent.workspaceId);
+          const project = await getPlacement(agent);
           return project ? { agent, project } : null;
         }),
       );
@@ -5413,18 +5463,16 @@ export class Session {
       agents = agents.filter(
         (agent) =>
           !agent.archivedAt &&
-          agent.workspaceId != null &&
-          activePlacementsByWorkspaceId.has(agent.workspaceId),
+          (agent.workspaceId != null
+            ? activePlacementsByWorkspaceId.has(agent.workspaceId)
+            : this.isStandaloneRootAgent(agent)),
       );
     }
 
     const placementByWorkspaceId = new Map<string, Promise<ProjectPlacementPayload | null>>();
-    const getPlacement = (
-      workspaceId: string | undefined,
-    ): Promise<ProjectPlacementPayload | null> => {
-      if (!workspaceId) {
-        return Promise.resolve(null);
-      }
+    const getPlacement = (agent: AgentSnapshotPayload): Promise<ProjectPlacementPayload | null> => {
+      const workspaceId = agent.workspaceId;
+      if (!workspaceId) return this.buildProjectPlacementForAgent(agent);
       if (activePlacementsByWorkspaceId) {
         return Promise.resolve(activePlacementsByWorkspaceId.get(workspaceId) ?? null);
       }
@@ -5805,6 +5853,7 @@ export class Session {
       ...(project.projectKey ? { projectKey: project.projectKey } : {}),
       projectDisplayName: resolveProjectDisplayName(project),
       projectCustomName: project.customName ?? null,
+      createdAt: project.createdAt,
       projectCustomIconRevision: project.customIconRevision ?? null,
       projectIconRevision: icon.revision,
       projectRootPath: project.rootPath,
@@ -7658,9 +7707,7 @@ export class Session {
       return;
     }
 
-    const project = agent.workspaceId
-      ? await this.buildProjectPlacementForWorkspaceId(agent.workspaceId)
-      : null;
+    const project = await this.buildProjectPlacementForAgent(agent);
     this.emit({
       type: "fetch_agent_response",
       payload: { requestId, agent, project, error: null },

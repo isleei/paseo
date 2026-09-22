@@ -894,6 +894,58 @@ describe("ACP usage_update", () => {
     ]);
   });
 
+  test("fills grok context window max from the known model table", async () => {
+    const session = createSessionWithConfig({ provider: "grok", model: "grok-4.6" });
+    const events: AgentStreamEvent[] = [];
+    asInternals<ACPSessionInternals>(session).sessionId = "session-1";
+    asInternals<ACPSessionInternals>(session).activeForegroundTurnId = "turn-1";
+    session.subscribe((event) => {
+      events.push(event);
+    });
+
+    await session.sessionUpdate({
+      sessionId: "session-1",
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: "hi" },
+      },
+      _meta: { totalTokens: 27_641 },
+    });
+
+    expect(events.filter((event) => event.type === "usage_updated")).toEqual([
+      {
+        type: "usage_updated",
+        provider: "grok",
+        turnId: "turn-1",
+        usage: { contextWindowUsedTokens: 27_641, contextWindowMaxTokens: 500_000 },
+      },
+    ]);
+  });
+
+  test("prefers upstream usage_update size over the known model table", async () => {
+    const session = createSessionWithConfig({ provider: "grok", model: "grok-4.6" });
+    const internals = asInternals<ACPSessionInternals>(session);
+    internals.activeForegroundTurnId = "turn-1";
+
+    const events = internals.translateSessionUpdate({
+      sessionUpdate: "usage_update",
+      used: 12_400,
+      size: 200_000,
+    });
+
+    expect(events).toEqual([
+      {
+        type: "usage_updated",
+        provider: "grok",
+        turnId: "turn-1",
+        usage: {
+          contextWindowUsedTokens: 12_400,
+          contextWindowMaxTokens: 200_000,
+        },
+      },
+    ]);
+  });
+
   test("ignores Grok extension notifications that do not carry usage", async () => {
     const session = createSession();
     const events: AgentStreamEvent[] = [];

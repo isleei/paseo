@@ -6,7 +6,11 @@ import {
   type SidebarWorkspacesListResult,
 } from "@/hooks/use-sidebar-workspaces-list";
 import { useSidebarWorkspaceEntries } from "@/hooks/use-sidebar-workspace-entries";
-import { usePinnedSidebarKeys, type PinnedSidebarGroups } from "@/hooks/use-sidebar-pins";
+import {
+  overlayConversationPins,
+  usePinnedSidebarKeys,
+  type PinnedSidebarGroups,
+} from "@/hooks/use-sidebar-pins";
 import { useSidebarCollapsedSectionsStore } from "@/stores/sidebar-collapsed-sections-store";
 import {
   hasActiveSidebarLabelFilter,
@@ -139,12 +143,16 @@ export function SidebarModelProvider({
     visibleWorkspaceKeys,
   ]);
   const pinnedKeys = usePinnedSidebarKeys(filteredProjects);
+  const pinnedWorkspaceEntriesByKey = useMemo(
+    () => overlayConversationPins(filteredWorkspaceEntriesByKey, pinnedKeys.pinnedAtByKey),
+    [filteredWorkspaceEntriesByKey, pinnedKeys.pinnedAtByKey],
+  );
   const projectionInput = useMemo(
     () => ({
       projects: filteredProjects,
       pinnedKeys,
       pinnedWorkspaceOrder,
-      workspaceEntriesByKey: filteredWorkspaceEntriesByKey,
+      workspaceEntriesByKey: pinnedWorkspaceEntriesByKey,
       projectNamesByViewKey: list.projectNamesByViewKey,
       groupMode,
       pinnedCollapsed,
@@ -160,7 +168,7 @@ export function SidebarModelProvider({
       pinnedCollapsed,
       pinnedKeys,
       pinnedWorkspaceOrder,
-      filteredWorkspaceEntriesByKey,
+      pinnedWorkspaceEntriesByKey,
     ],
   );
   const projection = useMemo(() => buildSidebarProjection(projectionInput), [projectionInput]);
@@ -171,7 +179,7 @@ export function SidebarModelProvider({
       allProjects: list.projects,
       resolvedProjectFilters,
       hasProjectsBeforeFilter: list.projects.length > 0,
-      workspaceEntriesByKey: filteredWorkspaceEntriesByKey,
+      workspaceEntriesByKey: pinnedWorkspaceEntriesByKey,
       groupMode,
       workspaceGroups: projection.workspaceGroups,
       projectIconTargets: projection.projectIconTargets,
@@ -188,7 +196,7 @@ export function SidebarModelProvider({
       filteredProjects,
       projection,
       toggleProjectCollapsed,
-      filteredWorkspaceEntriesByKey,
+      pinnedWorkspaceEntriesByKey,
     ],
   );
 

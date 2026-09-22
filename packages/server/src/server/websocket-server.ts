@@ -1770,6 +1770,8 @@ export class VoiceAssistantWebSocketServer {
         workspaceFileEditing: true,
         // COMPAT(providerUsageList): added in v0.1.98, drop the gate when daemon floor >= v0.1.98.
         providerUsageList: true,
+        // COMPAT(environmentCheck): added in v0.9.0, remove gate after 2027-03-20 once daemon floor >= v0.9.0.
+        environmentCheck: true,
         // COMPAT(agentDetach): added in v0.1.98, remove gate after 2026-12-19 once daemon floor >= v0.1.98.
         agentDetach: true,
         // COMPAT(agentThinkingUpdate): added in v0.2.4, remove gate after 2027-01-28.

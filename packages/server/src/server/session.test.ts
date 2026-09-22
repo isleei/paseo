@@ -1013,6 +1013,7 @@ describe("project command-center RPCs", () => {
               projectId: "prj_created_directory",
               projectDisplayName: "new-project",
               projectCustomName: null,
+              createdAt: expect.any(String),
               projectCustomIconRevision: null,
               projectIconRevision: "automatic:none:v1",
               projectRootPath: directoryPath,
@@ -2592,6 +2593,26 @@ diff --git a/file.txt b/file.txt
         error: null,
         requestId: "request-commit",
       },
+    });
+  });
+
+  test("passes noVerify through to commitChanges when requested", async () => {
+    const session = createSessionForTest({});
+    checkoutGitMocks.commitChanges.mockResolvedValue(undefined);
+
+    await session.handleMessage({
+      type: "checkout_commit_request",
+      cwd: "/tmp/request-worktree",
+      message: "Bypass hooks",
+      addAll: true,
+      noVerify: true,
+      requestId: "request-noverify",
+    });
+
+    expect(checkoutGitMocks.commitChanges).toHaveBeenCalledWith("/tmp/request-worktree", {
+      message: "Bypass hooks",
+      addAll: true,
+      noVerify: true,
     });
   });
 
@@ -5467,6 +5488,7 @@ test("project.list returns every active project descriptor", async () => {
             projectKey: "remote:github.com/acme/app",
             projectDisplayName: "acme/app",
             projectCustomName: null,
+            createdAt: "2026-07-17T00:00:00.000Z",
             projectCustomIconRevision: null,
             projectIconRevision: "automatic:none:v1",
             projectRootPath: "/tmp/project-active",

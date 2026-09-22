@@ -207,6 +207,7 @@ describe("workspace message schemas", () => {
           {
             projectId: "project-1",
             projectDisplayName: "Project",
+            createdAt: "2026-09-21T00:00:00.000Z",
             projectRootPath: "/repo",
             projectKind: "git",
             syncSeq: 12,
@@ -222,7 +223,13 @@ describe("workspace message schemas", () => {
     });
     expect(response).toMatchObject({
       payload: {
-        projects: [{ projectId: "project-1", syncSeq: 12 }],
+        projects: [
+          {
+            projectId: "project-1",
+            createdAt: "2026-09-21T00:00:00.000Z",
+            syncSeq: 12,
+          },
+        ],
         sync: { headSeq: 12, removals: [{ id: "project-removed", seq: 10 }] },
       },
     });

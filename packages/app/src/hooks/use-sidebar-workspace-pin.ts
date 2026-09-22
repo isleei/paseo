@@ -3,13 +3,15 @@ import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/contexts/toast-context";
 import type { SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list";
+import { isWorkspaceBackedOneToOne } from "@/hooks/sidebar-conversations";
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
+import { useSidebarOrderStore } from "@/stores/sidebar-order-store";
 
 // Everything the pin toggle actually needs. Kept narrower than SidebarWorkspaceEntry so the
 // global keyboard handler can build one from the active route selection without a sidebar row.
 export type PinnableWorkspace = Pick<
   SidebarWorkspaceEntry,
-  "serverId" | "workspaceId" | "workspaceKey" | "pinnedAt"
+  "serverId" | "workspaceId" | "workspaceKey" | "pinnedAt" | "standalone"
 >;
 
 export type ToggleSidebarWorkspacePin = (workspace: PinnableWorkspace) => void;
@@ -30,11 +32,16 @@ export function useSidebarWorkspacePinController(): ToggleSidebarWorkspacePin {
       workspace: PinnableWorkspace;
       pinned: boolean;
     }) => {
-      const client = getHostRuntimeStore().getClient(workspace.serverId);
-      if (!client) {
-        throw new Error(t("sidebar.workspace.toasts.hostDisconnected"));
+      if (isWorkspaceBackedOneToOne(workspace)) {
+        const client = getHostRuntimeStore().getClient(workspace.serverId);
+        if (!client) {
+          throw new Error(t("sidebar.workspace.toasts.hostDisconnected"));
+        }
+        await client.setWorkspacePinned(workspace.workspaceId, pinned);
       }
-      await client.setWorkspacePinned(workspace.workspaceId, pinned);
+      useSidebarOrderStore
+        .getState()
+        .setConversationPinned(workspace.workspaceKey, pinned ? new Date().toISOString() : null);
     },
     onError: (error) => {
       toast.error(

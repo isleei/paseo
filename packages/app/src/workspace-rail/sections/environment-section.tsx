@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type ReactElement } from "react";
+import { useCallback, useRef, useState, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -6,11 +6,8 @@ import { ChevronDown, FileDiff, GitBranch, GitCommit, Monitor } from "lucide-rea
 import { DiffStat } from "@/components/diff-stat";
 import { Section } from "@/components/ui/section";
 import { useVisibleWorkspaceDiffStat } from "@/composer/workspace-diff-stat";
-import { getForgeIconComponent } from "@/git/forge-icon";
-import { useWorkspacePrHint } from "@/git/use-pr-status-query";
 import { useHosts } from "@/runtime/host-runtime";
 import { type Theme } from "@/styles/theme";
-import { openExternalUrl } from "@/utils/open-external-url";
 import { type RailGitState } from "@/workspace-rail/rail-state";
 import { BranchSwitcher } from "@/components/branch-switcher";
 import { GitFlyout, type GitFlyoutAnchorRect } from "./git-flyout";
@@ -56,7 +53,6 @@ export function EnvironmentSection({
     : host?.label?.trim() || "本地";
 
   const diffStat = useVisibleWorkspaceDiffStat(serverId, workspaceId);
-  const prHint = useWorkspacePrHint({ serverId, cwd, enabled: true });
 
   const commitTriggerRef = useRef<View>(null);
   const [anchorRect, setAnchorRect] = useState<GitFlyoutAnchorRect | null>(null);
@@ -78,15 +74,6 @@ export function EnvironmentSection({
   const handleCloseFlyout = useCallback(() => {
     setIsFlyoutOpen(false);
   }, []);
-
-  const handleOpenPullRequest = useCallback(() => {
-    if (prHint) void openExternalUrl(prHint.url);
-  }, [prHint]);
-
-  const ForgeIcon = useMemo(
-    () => withUnistyles(getForgeIconComponent(prHint?.forge ?? "github")),
-    [prHint?.forge],
-  );
 
   const actionRowStyle = useCallback(
     ({ pressed, hovered }: { pressed?: boolean; hovered?: boolean }) => [
@@ -187,33 +174,6 @@ export function EnvironmentSection({
               </View>
             </Pressable>
           </View>
-
-          {/* Row 5: PR 状态 */}
-          {prHint ? (
-            <Pressable
-              onPress={handleOpenPullRequest}
-              style={actionRowStyle}
-              accessibilityRole="button"
-              accessibilityLabel={t("workspace.git.rail.openPr", "打开拉取请求")}
-              testID="workspace-rail-pr"
-            >
-              <View style={styles.rowLeft}>
-                <ForgeIcon size={14} uniProps={mutedColorMapping} />
-                <Text style={styles.actionLabel} numberOfLines={1}>
-                  {`#${prHint.number} · ${t(`workspace.pr.states.${prHint.state}`)}`}
-                </Text>
-              </View>
-            </Pressable>
-          ) : (
-            <View style={styles.row}>
-              <View style={styles.rowLeft}>
-                <ForgeIcon size={14} uniProps={mutedColorMapping} />
-                <Text style={styles.cleanLabel} numberOfLines={1}>
-                  {t("workspace.git.rail.prUnavailable", "无法获取拉取请求状态")}
-                </Text>
-              </View>
-            </View>
-          )}
         </View>
       </Section>
 
@@ -281,10 +241,6 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foreground,
     fontSize: theme.fontSize.sm,
     fontWeight: theme.fontWeight.medium,
-  },
-  cleanLabel: {
-    color: theme.colors.foregroundExtraMuted,
-    fontSize: theme.fontSize.sm,
   },
   branchContainer: {
     width: "100%",

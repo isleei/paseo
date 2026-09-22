@@ -8,7 +8,7 @@ import type { PluginWorkspaceTabTarget, WorkspaceTabTarget } from "@/workspace-t
 import { pluginRegistry } from "../registry";
 import { resolvePluginWorkspacePanel } from "./resolution";
 
-const DEFAULT_LOCATIONS: readonly PluginPanelLocation[] = ["workspace"];
+const DEFAULT_LOCATIONS: readonly PluginPanelLocation[] = [];
 
 export function getPluginPanelLocations(
   panel: PluginWorkspacePanelContribution,

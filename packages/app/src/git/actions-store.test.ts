@@ -73,6 +73,29 @@ describe("checkout-git-actions-store", () => {
     expect(store.getStatus({ serverId, cwd, actionId: "commit" })).toBe("idle");
   });
 
+  it("passes noVerify to client.checkoutCommit when specified", async () => {
+    const client = {
+      checkoutCommit: vi.fn(async () => ({})),
+    };
+
+    useSessionStore.setState((state) => ({
+      ...state,
+      sessions: {
+        ...state.sessions,
+        [serverId]: { client } as unknown as (typeof state.sessions)[string],
+      },
+    }));
+
+    const store = useCheckoutGitActionsStore.getState();
+    await store.commit({ serverId, cwd, message: "bypass", noVerify: true });
+
+    expect(client.checkoutCommit).toHaveBeenCalledWith(cwd, {
+      addAll: true,
+      message: "bypass",
+      noVerify: true,
+    });
+  });
+
   it("runs pull then push sequentially for pull-and-push", async () => {
     const order: string[] = [];
     const client = {

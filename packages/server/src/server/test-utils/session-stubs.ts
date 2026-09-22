@@ -172,6 +172,7 @@ export interface ProviderSnapshotManagerSpies {
   resolveCreateConfig: ReturnType<typeof vi.fn<ProviderSnapshotManager["resolveCreateConfig"]>>;
   resolveDefaultModel: ReturnType<typeof vi.fn<ProviderSnapshotManager["resolveDefaultModel"]>>;
   getProviderDiagnostic: ReturnType<typeof vi.fn<ProviderSnapshotManager["getProviderDiagnostic"]>>;
+  getProviderClient: ReturnType<typeof vi.fn<ProviderSnapshotManager["getProviderClient"]>>;
   applyMutableProviderConfig: ReturnType<
     typeof vi.fn<ProviderSnapshotManager["applyMutableProviderConfig"]>
   >;
@@ -229,6 +230,7 @@ export function createProviderSnapshotManagerStub(): {
   const getProviderDiagnostic = vi.fn<ProviderSnapshotManager["getProviderDiagnostic"]>(
     async (provider) => ({ provider, diagnostic: "No diagnostic available for this provider." }),
   );
+  const getProviderClient = vi.fn<ProviderSnapshotManager["getProviderClient"]>(() => null);
   const applyMutableProviderConfig = vi.fn<ProviderSnapshotManager["applyMutableProviderConfig"]>(
     () => ({
       providerDefinitions: {},
@@ -255,6 +257,7 @@ export function createProviderSnapshotManagerStub(): {
     resolveCreateConfig,
     resolveDefaultModel,
     getProviderDiagnostic,
+    getProviderClient,
     applyMutableProviderConfig,
     on,
     off,
@@ -281,6 +284,7 @@ export function createProviderSnapshotManagerStub(): {
     resolveCreateConfig,
     resolveDefaultModel,
     getProviderDiagnostic,
+    getProviderClient,
     applyMutableProviderConfig,
     destroy,
   };

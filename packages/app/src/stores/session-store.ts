@@ -181,6 +181,7 @@ export interface ProjectDescriptor {
   projectKey?: string | null;
   projectDisplayName: string;
   projectCustomName: string | null;
+  createdAt?: string;
   projectCustomIconRevision?: string | null;
   projectIconRevision?: string;
   projectRootPath: string;
@@ -195,6 +196,7 @@ export function normalizeProjectDescriptor(
     projectKey: payload.projectKey ?? null,
     projectDisplayName: payload.projectDisplayName,
     projectCustomName: payload.projectCustomName ?? null,
+    createdAt: payload.createdAt,
     projectCustomIconRevision: payload.projectCustomIconRevision ?? null,
     projectIconRevision: payload.projectIconRevision,
     projectRootPath: payload.projectRootPath,

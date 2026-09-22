@@ -95,6 +95,8 @@ import type {
   RefreshProvidersSnapshotResponseMessage,
   ProviderDiagnosticResponseMessage,
   ProviderUsageListResponseMessage,
+  EnvironmentCheckResponseMessage,
+  EnvironmentUpgradeResponseMessage,
   DaemonGetStatusResponse,
   DaemonGetPairingOfferResponse,
   DaemonConfigReloadResponse,
@@ -498,6 +500,8 @@ type GetProvidersSnapshotPayload = GetProvidersSnapshotResponseMessage["payload"
 type RefreshProvidersSnapshotPayload = RefreshProvidersSnapshotResponseMessage["payload"];
 type ProviderDiagnosticPayload = ProviderDiagnosticResponseMessage["payload"];
 type ProviderUsageListPayload = ProviderUsageListResponseMessage["payload"];
+type EnvironmentCheckPayload = EnvironmentCheckResponseMessage["payload"];
+type EnvironmentUpgradePayload = EnvironmentUpgradeResponseMessage["payload"];
 type DaemonStatusPayload = DaemonGetStatusResponse["payload"];
 type DaemonPairingOfferPayload = DaemonGetPairingOfferResponse["payload"];
 type DiagnosticsPayload = DiagnosticsResponse["payload"];
@@ -4054,7 +4058,7 @@ export class DaemonClient {
 
   async checkoutCommit(
     cwd: string,
-    input: { message?: string; addAll?: boolean },
+    input: { message?: string; addAll?: boolean; noVerify?: boolean },
     requestId?: string,
   ): Promise<CheckoutCommitPayload> {
     return this.sendCorrelatedSessionRequest({
@@ -4064,6 +4068,7 @@ export class DaemonClient {
         cwd,
         message: input.message,
         addAll: input.addAll,
+        noVerify: input.noVerify,
       },
       responseType: "checkout_commit_response",
     });
@@ -5187,6 +5192,30 @@ export class DaemonClient {
       message: {
         type: "provider.usage.list.request",
       },
+    });
+  }
+
+  async checkEnvironment(options?: { requestId?: string }): Promise<EnvironmentCheckPayload> {
+    return this.sendNamespacedCorrelatedSessionRequest({
+      requestId: options?.requestId,
+      message: {
+        type: "environment.check.request",
+      },
+      timeout: 120_000,
+    });
+  }
+
+  async upgradeEnvironment(
+    provider?: AgentProvider,
+    options?: { requestId?: string },
+  ): Promise<EnvironmentUpgradePayload> {
+    return this.sendNamespacedCorrelatedSessionRequest({
+      requestId: options?.requestId,
+      message: {
+        type: "environment.upgrade.request",
+        ...(provider ? { provider } : {}),
+      },
+      timeout: 600_000,
     });
   }
 

@@ -48,22 +48,26 @@ export interface SidebarProjectionInput {
 }
 
 export function buildSidebarProjection(input: SidebarProjectionInput): SidebarProjection {
+  const hoistPinned = input.groupMode !== "project";
   const pinnedGroups = splitPinnedSidebarGroups({
     projects: input.projects,
     keys: input.pinnedKeys,
     pinnedWorkspaceOrder: input.pinnedWorkspaceOrder,
+    hoistPinned,
   });
   const pinnedWorkspaceKeys = new Set(input.pinnedKeys.pinnedWorkspaceKeys);
-  const unpinnedWorkspaces = Array.from(input.workspaceEntriesByKey.values()).filter(
-    (workspace) => !pinnedWorkspaceKeys.has(workspace.workspaceKey),
-  );
+  const unpinnedWorkspaces = hoistPinned
+    ? Array.from(input.workspaceEntriesByKey.values()).filter(
+        (workspace) => !pinnedWorkspaceKeys.has(workspace.workspaceKey),
+      )
+    : Array.from(input.workspaceEntriesByKey.values());
   // One switch decides both what the list groups by and what the keyboard shortcuts walk, so the
   // two cannot disagree and a new grouping mode is a compile error here rather than a silent
   // fall-through to the project rows.
   const workspaceGroups = buildWorkspaceGroups(input, unpinnedWorkspaces);
 
   const sections: SidebarShortcutSection[] = [];
-  if (!input.pinnedCollapsed) {
+  if (!input.pinnedCollapsed && pinnedGroups.pinnedChats.length > 0) {
     sections.push({ workspaces: pinnedGroups.pinnedChats });
   }
   if (input.groupMode === "project") {

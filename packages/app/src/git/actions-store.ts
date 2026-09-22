@@ -102,7 +102,12 @@ interface CheckoutGitActionsStoreState {
     actionId: CheckoutGitAsyncActionId;
   }) => CheckoutGitActionStatus;
 
-  commit: (params: { serverId: string; cwd: string; message?: string }) => Promise<void>;
+  commit: (params: {
+    serverId: string;
+    cwd: string;
+    message?: string;
+    noVerify?: boolean;
+  }) => Promise<void>;
   generateCommitMessage: (params: { serverId: string; cwd: string }) => Promise<string>;
   pull: (params: { serverId: string; cwd: string }) => Promise<void>;
   push: (params: { serverId: string; cwd: string }) => Promise<void>;
@@ -183,14 +188,14 @@ export const useCheckoutGitActionsStore = create<CheckoutGitActionsStoreState>()
     return get().statusByCheckout[key]?.[actionId] ?? "idle";
   },
 
-  commit: async ({ serverId, cwd, message }) => {
+  commit: async ({ serverId, cwd, message, noVerify }) => {
     await runCheckoutAction({
       serverId,
       cwd,
       actionId: "commit",
       run: async () => {
         const client = resolveClient(serverId);
-        const payload = await client.checkoutCommit(cwd, { addAll: true, message });
+        const payload = await client.checkoutCommit(cwd, { addAll: true, message, noVerify });
         if (payload.error) {
           throw new Error(payload.error.message);
         }

@@ -35,6 +35,7 @@ import {
   type ImportProviderSessionInput,
   type ListImportableSessionsOptions,
   type ProviderCatalog,
+  type ProviderLaunchSpec,
   type ProviderRefreshContext,
   type ResolveAgentDefaultModeInput,
 } from "../agent-sdk-types.js";
@@ -7311,6 +7312,14 @@ export class CodexAppServerAgentClient implements AgentClient {
     const launch = await resolveCodexLaunch(this.runtimeSettings);
     const availability = await checkCodexLaunchAvailable(launch);
     return availability.available;
+  }
+
+  async getLaunchSpec(): Promise<ProviderLaunchSpec> {
+    const prefix = await resolveCodexLaunchPrefix(this.runtimeSettings);
+    return {
+      command: [prefix.command, ...prefix.args],
+      env: this.runtimeSettings?.env,
+    };
   }
 
   async getDiagnostic(): Promise<{ diagnostic: string }> {

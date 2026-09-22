@@ -355,6 +355,13 @@ export class ProviderSnapshotManager {
     return this.generation.definitions[provider]?.label ?? provider;
   }
 
+  /** The configured client for a provider, materializing it if needed. Environment checks use this to reach provider-owned launch specs. */
+  getProviderClient(provider: AgentProvider): AgentClient | null {
+    const definition = this.generation.definitions[provider];
+    if (!definition) return null;
+    return this.ensureClient(provider, definition);
+  }
+
   getAgentManagerProviderState(): AgentManagerProviderState {
     return this.createAgentManagerState(this.generation.definitions, this.providerClients);
   }

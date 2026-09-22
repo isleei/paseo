@@ -123,6 +123,16 @@ describe("buildSidebarProjectRowModel", () => {
     expect(result.trailingAction).toEqual({ kind: "none" });
   });
 
+  it("does not offer workspace creation for a synthetic standalone project", () => {
+    const result = buildSidebarProjectRowModel({
+      project: project({ isSynthetic: true, projectKind: "directory", workspaces: [] }),
+      collapsed: false,
+      supportsMultiplicityByServerId: new Map([["srv", true]]),
+    });
+
+    expect(result.trailingAction).toEqual({ kind: "none" });
+  });
+
   it("still shows the new workspace action for a git project regardless of multiplicity", () => {
     const result = buildSidebarProjectRowModel({
       project: project({ projectKind: "git" }),

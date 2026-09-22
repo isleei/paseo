@@ -137,14 +137,15 @@ describe("buildSidebarProjection", () => {
     });
   }
 
-  it("uses one pin-aware projection for project rows and shortcut order", () => {
+  it("keeps pinned chats in the project for project rows and shortcut order", () => {
     const projection = buildSidebarProjection(projectionInput());
 
-    expect(projection.pinnedGroups.pinnedChats.map((entry) => entry.workspaceId)).toEqual([
-      "pinned",
-    ]);
+    expect(projection.pinnedGroups.pinnedChats).toEqual([]);
     const remainingProject = projection.pinnedGroups.unpinnedProjects[0];
-    expect(remainingProject?.workspaces.map((entry) => entry.workspaceId)).toEqual(["unpinned"]);
+    expect(remainingProject?.workspaces.map((entry) => entry.workspaceId)).toEqual([
+      "pinned",
+      "unpinned",
+    ]);
     expect(projection.shortcutModel.shortcutTargets).toEqual([
       { serverId: "srv", workspaceId: "pinned" },
       { serverId: "srv", workspaceId: "unpinned" },

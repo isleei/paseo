@@ -655,6 +655,7 @@ describe("WorkspaceDirectory empty projects", () => {
         projectId: "empty",
         projectDisplayName: "Renamed",
         projectCustomName: "Renamed",
+        createdAt: NOW,
         projectCustomIconRevision: null,
         projectRootPath: "/workspace/empty",
         projectKind: "non_git",

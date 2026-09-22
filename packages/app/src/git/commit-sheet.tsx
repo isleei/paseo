@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Text, View } from "react-native";
-import { StyleSheet } from "react-native-unistyles";
+import { ScrollView, Text, View } from "react-native";
+import { StyleSheet, withUnistyles } from "react-native-unistyles";
+import { AlertTriangle } from "lucide-react-native";
 import {
   AdaptiveModalSheet,
   AdaptiveTextInput,
@@ -12,6 +13,12 @@ import { useHostFeature } from "@/runtime/host-features";
 import { useToast } from "@/contexts/toast-context";
 import { useCheckoutGitActionsStore } from "@/git/actions-store";
 import { useCommitSheetStore } from "@/git/commit-sheet-store";
+import { copyToClipboard } from "@/utils/copy-to-clipboard";
+import { isPreCommitHookError } from "./commit-hook-error";
+import type { Theme } from "@/styles/theme";
+
+const ThemedAlertTriangle = withUnistyles(AlertTriangle);
+const warningIconMapping = (theme: Theme) => ({ color: theme.colors.palette.amber[500] });
 
 const styles = StyleSheet.create((theme) => ({
   field: {
@@ -40,6 +47,40 @@ const styles = StyleSheet.create((theme) => ({
   error: {
     color: theme.colors.destructive,
     fontSize: theme.fontSize.base,
+  },
+  hookFailureCard: {
+    backgroundColor: theme.colors.surface2,
+    borderWidth: 1,
+    borderColor: theme.colors.palette.amber[500],
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing[3],
+    gap: theme.spacing[2],
+  },
+  hookFailureHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+  },
+  hookFailureTitle: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.semibold,
+  },
+  hookErrorScroll: {
+    maxHeight: 110,
+    backgroundColor: theme.colors.surface1,
+    borderRadius: theme.borderRadius.sm,
+    padding: theme.spacing[2],
+  },
+  hookErrorText: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.code,
+    fontFamily: theme.fontFamily.mono,
+  },
+  hookActions: {
+    flexDirection: "row",
+    gap: theme.spacing[2],
+    marginTop: theme.spacing[1],
   },
   actions: {
     flexDirection: "row",
@@ -114,27 +155,92 @@ function CommitSheet({
     }
   }, [cwd, isBusy, serverId, t]);
 
-  const handleCommit = useCallback(async () => {
-    if (isBusy) return;
-    setIsCommitting(true);
-    setErrorMessage("");
-    try {
-      const trimmed = message.trim();
-      await useCheckoutGitActionsStore.getState().commit({
-        serverId,
-        cwd,
-        message: trimmed.length > 0 ? trimmed : undefined,
-      });
-      toast.show(t("workspace.git.actions.commit.success"), { variant: "success" });
-      onClose();
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : t("workspace.git.actions.toasts.failedCommit"),
+  const handleCommit = useCallback(
+    async (options?: { noVerify?: boolean }) => {
+      if (isBusy) return;
+      setIsCommitting(true);
+      setErrorMessage("");
+      try {
+        const trimmed = message.trim();
+        await useCheckoutGitActionsStore.getState().commit({
+          serverId,
+          cwd,
+          message: trimmed.length > 0 ? trimmed : undefined,
+          noVerify: options?.noVerify,
+        });
+        toast.show(t("workspace.git.actions.commit.success"), { variant: "success" });
+        onClose();
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : t("workspace.git.actions.toasts.failedCommit"),
+        );
+      } finally {
+        setIsCommitting(false);
+      }
+    },
+    [cwd, isBusy, message, onClose, serverId, t, toast],
+  );
+
+  const handleBypassHook = useCallback(async () => {
+    await handleCommit({ noVerify: true });
+  }, [handleCommit]);
+
+  const handleAskAgentToFix = useCallback(async () => {
+    const prompt = t("workspace.git.actions.commit.sheet.askAgentToFixPrompt", {
+      error: errorMessage,
+    });
+    await copyToClipboard(prompt);
+    toast.show(t("workspace.git.actions.commit.sheet.askAgentToFixCopied"), { variant: "success" });
+    onClose();
+  }, [errorMessage, onClose, t, toast]);
+
+  const isHookError = isPreCommitHookError(errorMessage);
+
+  const handleNormalCommit = useCallback(() => {
+    void handleCommit();
+  }, [handleCommit]);
+
+  const errorView = useMemo(() => {
+    if (!errorMessage) return null;
+    if (isHookError) {
+      return (
+        <View style={styles.hookFailureCard} testID="commit-sheet-hook-failure">
+          <View style={styles.hookFailureHeader}>
+            <ThemedAlertTriangle size={16} uniProps={warningIconMapping} />
+            <Text style={styles.hookFailureTitle}>
+              {t("workspace.git.actions.commit.sheet.hookFailedBanner")}
+            </Text>
+          </View>
+          <ScrollView style={styles.hookErrorScroll} nestedScrollEnabled>
+            <Text style={styles.hookErrorText}>{errorMessage}</Text>
+          </ScrollView>
+          <View style={styles.hookActions}>
+            <Button
+              style={styles.actionFlex}
+              variant="secondary"
+              size="sm"
+              onPress={handleAskAgentToFix}
+              disabled={isBusy}
+              testID="commit-sheet-ask-agent"
+            >
+              {t("workspace.git.actions.commit.sheet.askAgentToFix")}
+            </Button>
+            <Button
+              style={styles.actionFlex}
+              variant="destructive"
+              size="sm"
+              onPress={handleBypassHook}
+              disabled={isBusy}
+              testID="commit-sheet-bypass-hook"
+            >
+              {t("workspace.git.actions.commit.sheet.bypassHook")}
+            </Button>
+          </View>
+        </View>
       );
-    } finally {
-      setIsCommitting(false);
     }
-  }, [cwd, isBusy, message, onClose, serverId, t, toast]);
+    return <Text style={styles.error}>{errorMessage}</Text>;
+  }, [errorMessage, handleAskAgentToFix, handleBypassHook, isBusy, isHookError, t]);
 
   useEffect(() => {
     setMessage("");
@@ -159,7 +265,7 @@ function CommitSheet({
           autoFocus
         />
         <Text style={styles.hint}>{t("workspace.git.actions.commit.sheet.hint")}</Text>
-        {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
+        {errorView}
       </View>
 
       <View style={styles.actions}>
@@ -179,7 +285,7 @@ function CommitSheet({
         <Button
           style={styles.actionFlex}
           variant="default"
-          onPress={handleCommit}
+          onPress={handleNormalCommit}
           disabled={isBusy}
           testID="commit-sheet-submit"
         >

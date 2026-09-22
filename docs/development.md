@@ -506,6 +506,8 @@ npm run build:app-deps     # highlight -> protocol -> client -> expo-two-way-aud
 
 Use `npm run build:server` whenever you have changed any daemon/server-facing package and need clean cross-package types or runtime behavior.
 
+Ship the desktop app with `npm run build:desktop` from the repo root, never with the package-local `npm run build --workspace=@getpaseo/desktop` on its own. The desktop renderer is a prebuilt Expo web export (`packages/app/dist`, packaged as `app-dist`); the package-local build has no export step and silently ships whatever export happens to be on disk, producing a new daemon with a stale UI. The package `prebuild` hook (`packages/desktop/scripts/ensure-electron-web-dist.mjs`) re-exports when app sources are newer than the export and skips otherwise — if it ever reports stale content you did not expect, the export on disk predates your change and must not ship.
+
 The app Metro config disables Watchman and uses Metro's node crawler for exports. Keep that invariant unless you have verified production app exports on machines with and without Watchman installed; distro Watchman builds can differ in capabilities and change Metro's crawl behavior.
 
 For tighter loops, you can rebuild a single workspace:

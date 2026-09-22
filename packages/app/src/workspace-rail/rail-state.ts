@@ -147,6 +147,43 @@ export function countCompletedTasks(tasks: readonly TodoEntry[]): RailTaskProgre
   };
 }
 
+/**
+ * Sections that start folded: reference material, not status.
+ *
+ * 参考 is a lookup table — the pages a session fetched, the files it read — and it is the one
+ * section long enough to push the rest of the rail out of view. Folded, its header still carries
+ * the count, so nothing is hidden that a click cannot reach.
+ *
+ * Seeded into `closedSections` rather than special-cased in the section: a default fold and a fold
+ * the user made are the same state, and one click unfolds it either way.
+ */
+export const RAIL_DEFAULT_CLOSED_SECTIONS: readonly RailSectionId[] = ["sources"];
+
+/** Folds the defaults in without dropping or reordering what the user already folded. */
+export function withDefaultClosedSections(
+  closedSections: readonly RailSectionId[],
+): RailSectionId[] {
+  return [
+    ...closedSections,
+    ...RAIL_DEFAULT_CLOSED_SECTIONS.filter((id) => !closedSections.includes(id)),
+  ];
+}
+
+/**
+ * v0 folded nothing, so a persisted `closedSections` only ever records a fold the user made.
+ * Unioning the defaults onto it can therefore close only a section nobody had touched.
+ */
+export function migratePersistedWorkspaceRail(persistedState: unknown): PersistedWorkspaceRail {
+  const result = PersistedWorkspaceRailSchema.safeParse(persistedState);
+  if (!result.success) {
+    return { collapsed: false, closedSections: withDefaultClosedSections([]) };
+  }
+  return {
+    collapsed: result.data.collapsed ?? false,
+    closedSections: withDefaultClosedSections(result.data.closedSections ?? []),
+  };
+}
+
 export function isSectionOpen(
   closedSections: readonly RailSectionId[],
   id: RailSectionId,

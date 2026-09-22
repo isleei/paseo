@@ -28,6 +28,15 @@ export interface SidebarWorkspacePlacement {
   projectKind: WorkspaceStructureProject["projectKind"];
   workspaceKind: WorkspaceDescriptor["workspaceKind"];
   name: string;
+  /** Root agent this row represents. Null when the workspace has no conversation yet. */
+  agentId?: string | null;
+  /** Agent title when this row is a conversation; workspace name is the fallback. */
+  conversationTitle?: string | null;
+  /** True when this row is a standalone agent session with no workspace checkout. */
+  standalone?: boolean;
+  /** Agent-derived status for conversation rows; structural workspace rows leave this unset. */
+  statusBucket?: SidebarStateBucket;
+  statusEnteredAt?: Date | null;
 }
 
 export interface SidebarStatusWorkspacePlacement extends SidebarWorkspacePlacement {
@@ -41,6 +50,8 @@ export interface SidebarWorkspaceEntry extends SidebarStatusWorkspacePlacement {
   // Raw user-set title (null when the name is derived from branch/directory).
   // Prefills the rename input and signals whether a reset is available.
   title: string | null;
+  agentId?: string | null;
+  standalone?: boolean;
   pinnedAt?: string | null;
   labels?: string[];
   // Checkout branch (null when not a git checkout or detached HEAD).
@@ -56,6 +67,9 @@ export interface SidebarWorkspaceEntry extends SidebarStatusWorkspacePlacement {
 
 export interface SidebarProjectEntry {
   viewKey: string;
+  projectKey?: string | null;
+  /** Project group synthesized for a standalone agent that has no host project record. */
+  isSynthetic?: boolean;
   projectName: string;
   projectKind: WorkspaceStructureProject["projectKind"];
   iconWorkingDir: string;
@@ -147,13 +161,25 @@ export function createSidebarWorkspaceEntry(input: {
   serverId: string;
   workspace: WorkspaceDescriptor;
   projectViewKey?: string;
+  workspaceKey?: string;
+  agentId?: string | null;
+  conversationTitle?: string | null;
+  conversationStatusBucket?: SidebarStateBucket;
+  conversationStatusEnteredAt?: Date | null;
+  standalone?: boolean;
   pendingCreateAttempts?: Record<string, PendingCreateAttempt>;
   workspaceAgentActivity?: ReadonlyMap<string, WorkspaceAgentActivity>;
 }): SidebarWorkspaceEntry {
   const projectViewKey = input.projectViewKey ?? input.workspace.projectId;
-  const effectiveStatus = deriveEffectiveWorkspaceStatus(input);
+  const effectiveStatus =
+    input.workspace.status === "done" && input.conversationStatusBucket
+      ? {
+          status: input.conversationStatusBucket,
+          enteredAt: input.conversationStatusEnteredAt ?? null,
+        }
+      : deriveEffectiveWorkspaceStatus(input);
   return {
-    workspaceKey: `${input.serverId}:${input.workspace.id}`,
+    workspaceKey: input.workspaceKey ?? `${input.serverId}:${input.workspace.id}`,
     serverId: input.serverId,
     workspaceId: input.workspace.id,
     projectViewKey,
@@ -164,13 +190,15 @@ export function createSidebarWorkspaceEntry(input: {
       input.workspace.worktreeSlug ?? shortenPath(input.workspace.workspaceDirectory),
     projectKind: input.workspace.projectKind,
     workspaceKind: input.workspace.workspaceKind,
-    name: input.workspace.name,
+    name: input.conversationTitle ?? input.workspace.name,
     title: input.workspace.title ?? null,
+    agentId: input.agentId ?? null,
+    standalone: input.standalone === true,
+    statusBucket: effectiveStatus.status,
+    statusEnteredAt: effectiveStatus.enteredAt,
     pinnedAt: input.workspace.pinnedAt,
     labels: input.workspace.labels ?? EMPTY_WORKSPACE_LABELS,
     currentBranch: normalizeCurrentBranch(input.workspace.gitRuntime?.currentBranch),
-    statusBucket: effectiveStatus.status,
-    statusEnteredAt: effectiveStatus.enteredAt,
     archivingAt: input.workspace.archivingAt,
     diffStat: input.workspace.diffStat,
     prHint: selectPrHintFromStatus(
@@ -251,7 +279,12 @@ export function deriveProjectStatusBucket(input: {
   pendingCreateAttempts?: Record<string, PendingCreateAttempt>;
 }): SidebarStateBucket {
   const workspaceIdsByServer = new Map<string, string[]>();
+  const buckets: SidebarStateBucket[] = [];
   for (const placement of input.workspaces) {
+    if (placement.statusBucket) {
+      buckets.push(placement.statusBucket);
+      continue;
+    }
     const existing = workspaceIdsByServer.get(placement.serverId);
     if (existing) {
       existing.push(placement.workspaceId);
@@ -260,7 +293,6 @@ export function deriveProjectStatusBucket(input: {
     }
   }
 
-  const buckets: SidebarStateBucket[] = [];
   for (const [serverId, workspaceIds] of workspaceIdsByServer) {
     const session = input.sessions[serverId];
     if (!session) continue;
@@ -362,6 +394,39 @@ function resolveStructuralWorkspaceIdentity(input: {
   };
 }
 
+export function createStandaloneSidebarEntry(
+  placement: SidebarWorkspacePlacement,
+): SidebarWorkspaceEntry {
+  return {
+    workspaceKey: placement.workspaceKey,
+    serverId: placement.serverId,
+    workspaceId: placement.workspaceId,
+    projectViewKey: placement.projectViewKey,
+    projectName: placement.projectName,
+    projectRootPath: placement.projectRootPath,
+    workspaceDirectory: placement.workspaceDirectory ?? "",
+    workspaceDirectoryLabel: "",
+    projectKind: placement.projectKind,
+    workspaceKind: placement.workspaceKind,
+    name: placement.conversationTitle ?? placement.name,
+    title: placement.conversationTitle ?? null,
+    agentId: placement.agentId ?? null,
+    standalone: true,
+    statusBucket: placement.statusBucket ?? "done",
+    statusEnteredAt: placement.statusEnteredAt ?? null,
+    pinnedAt: null,
+    labels: EMPTY_WORKSPACE_LABELS,
+    currentBranch: null,
+    archivingAt: null,
+    diffStat: null,
+    prHint: null,
+    archiveHasUncommittedChanges: null,
+    archiveUnpushedCommitCount: null,
+    scripts: [],
+    hasRunningScripts: false,
+  };
+}
+
 export function buildSidebarWorkspaceEntries(input: {
   placements: readonly SidebarWorkspacePlacement[];
   sessions: SidebarWorkspaceSession[];
@@ -378,6 +443,17 @@ export function buildSidebarWorkspaceEntries(input: {
   for (const placement of input.placements) {
     const session = sessionByServerId.get(placement.serverId);
     if (!session) continue;
+    if (placement.standalone) {
+      const entry = createStandaloneSidebarEntry(placement);
+      const previousEntry = input.previousEntries?.get(placement.workspaceKey);
+      entries.set(
+        placement.workspaceKey,
+        previousEntry && areSidebarWorkspaceEntriesEqual(previousEntry, entry)
+          ? previousEntry
+          : entry,
+      );
+      continue;
+    }
     const workspaceKey = resolveWorkspaceMapKeyByIdentity({
       workspaces: session.workspaces,
       workspaceId: placement.workspaceId,
@@ -389,6 +465,12 @@ export function buildSidebarWorkspaceEntries(input: {
       serverId: placement.serverId,
       workspace,
       projectViewKey: placement.projectViewKey,
+      workspaceKey: placement.workspaceKey,
+      agentId: placement.agentId,
+      conversationTitle: placement.conversationTitle,
+      conversationStatusBucket: placement.statusBucket,
+      conversationStatusEnteredAt: placement.statusEnteredAt,
+      standalone: placement.standalone,
       pendingCreateAttempts: input.pendingCreateAttempts,
       workspaceAgentActivity: session.workspaceAgentActivity,
     });
@@ -453,6 +535,7 @@ export function buildSidebarProjectsFromHostProjects(input: {
 
   return input.projects.map((project) => ({
     viewKey: project.viewKey,
+    projectKey: project.projectKey,
     projectName: project.projectName,
     projectKind: project.projectKind,
     iconWorkingDir: project.iconWorkingDir,

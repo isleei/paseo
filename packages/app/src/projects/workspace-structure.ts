@@ -14,6 +14,7 @@ export interface WorkspaceStructureProject {
   viewKey: string;
   projectKey: string | null;
   projectName: string;
+  createdAt?: string;
   projectKind: WorkspaceDescriptor["projectKind"] | "unknown";
   iconWorkingDir: string;
   hosts: WorkspaceStructureHostPlacement[];
@@ -34,6 +35,7 @@ interface ProjectDraft {
   viewKey: string;
   projectKey: string | null;
   projectName: string;
+  createdAt?: string;
   hasCustomName: boolean;
   projectKind: WorkspaceDescriptor["projectKind"];
   iconWorkingDir: string;
@@ -102,6 +104,7 @@ export function buildWorkspaceStructureProjects(input: {
       viewKey: draft.viewKey,
       projectKey: draft.projectKey,
       projectName: draft.projectName,
+      createdAt: draft.createdAt,
       projectKind: draft.projectKind,
       iconWorkingDir: draft.iconWorkingDir,
       hosts: Array.from(draft.hosts.values()),
@@ -109,13 +112,16 @@ export function buildWorkspaceStructureProjects(input: {
         .sort(compareWorkspaceStructureItems)
         .map((workspace) => workspace.workspaceKey),
     }))
-    .sort(
-      (left, right) =>
+    .sort((left, right) => {
+      const createdAt = compareCreatedAtDesc(left.createdAt, right.createdAt);
+      if (createdAt !== 0) return createdAt;
+      return (
         left.projectName.localeCompare(right.projectName, undefined, {
           numeric: true,
           sensitivity: "base",
-        }) || left.viewKey.localeCompare(right.viewKey),
-    );
+        }) || left.viewKey.localeCompare(right.viewKey)
+      );
+    });
 }
 
 export function createProjectViewKey(
@@ -178,6 +184,7 @@ function addProjectToView(input: {
         project.projectCustomName ??
         project.projectDisplayName ??
         projectDisplayNameFromProjectId(project.projectId),
+      createdAt: project.createdAt,
       hasCustomName: Boolean(project.projectCustomName),
       projectKind: project.projectKind,
       iconWorkingDir: project.projectRootPath,
@@ -185,6 +192,7 @@ function addProjectToView(input: {
       workspaces: [],
     });
   } else {
+    draft.createdAt = selectLaterCreatedAt(draft.createdAt, project.createdAt);
     if (project.projectCustomName && !draft.hasCustomName) {
       draft.projectName = project.projectCustomName;
       draft.hasCustomName = true;
@@ -192,6 +200,23 @@ function addProjectToView(input: {
     draft.hosts.set(serverId, placement);
   }
   return viewKey;
+}
+
+function compareCreatedAtDesc(left: string | undefined, right: string | undefined): number {
+  const leftMs = left ? Date.parse(left) : Number.NaN;
+  const rightMs = right ? Date.parse(right) : Number.NaN;
+  const hasLeft = !Number.isNaN(leftMs);
+  const hasRight = !Number.isNaN(rightMs);
+  if (hasLeft && hasRight && leftMs !== rightMs) return rightMs - leftMs;
+  if (hasLeft !== hasRight) return hasLeft ? -1 : 1;
+  return 0;
+}
+
+function selectLaterCreatedAt(
+  current: string | undefined,
+  candidate: string | undefined,
+): string | undefined {
+  return compareCreatedAtDesc(current, candidate) <= 0 ? current : candidate;
 }
 
 function getOrCreate<K, V>(map: Map<K, V>, key: K, create: () => V): V {
@@ -221,4 +246,51 @@ function compareWorkspaceStructureItems(
       sensitivity: "base",
     }) || left.workspaceId.localeCompare(right.workspaceId, undefined, { sensitivity: "base" })
   );
+}
+
+export type StabilizedWorkspaceKeyOrder = ReadonlyMap<string, string[]>;
+
+/**
+ * Keeps sidebar rows from jumping while agents stream activity updates.
+ *
+ * The fresh order is recency-first, so adopting it on every recompute would move rows
+ * under the user's eyes (and renumber the 1-9 keyboard shortcuts). Instead:
+ * - same membership → keep the previous order (and array reference);
+ * - removals only → drop the gone keys, keep the survivors' relative order;
+ * - arrivals (or no previous snapshot) → adopt the fresh order, so a just-active
+ *   workspace still lands on top.
+ *
+ * Manual drag-reorder and pin changes bypass this by resetting the snapshot at the
+ * call site, so user intent always wins immediately.
+ */
+export function stabilizeWorkspaceKeyOrder(input: {
+  previous: StabilizedWorkspaceKeyOrder | null;
+  freshProjects: ReadonlyArray<Pick<WorkspaceStructureProject, "viewKey" | "workspaceKeys">>;
+}): Map<string, string[]> {
+  const stabilized = new Map<string, string[]>();
+  for (const project of input.freshProjects) {
+    const previousKeys = input.previous?.get(project.viewKey);
+    if (!previousKeys) {
+      stabilized.set(project.viewKey, project.workspaceKeys);
+      continue;
+    }
+    const previousKeySet = new Set(previousKeys);
+    const added = project.workspaceKeys.filter((key) => !previousKeySet.has(key));
+    if (added.length > 0) {
+      stabilized.set(project.viewKey, project.workspaceKeys);
+      continue;
+    }
+    const freshKeySet = new Set(project.workspaceKeys);
+    if (freshKeySet.size === previousKeys.length) {
+      // Same membership (fresh ⊆ previous with equal size): keep the previous order.
+      stabilized.set(project.viewKey, previousKeys);
+      continue;
+    }
+    // Removals only: drop the gone keys, keep the survivors' relative order.
+    stabilized.set(
+      project.viewKey,
+      previousKeys.filter((key) => freshKeySet.has(key)),
+    );
+  }
+  return stabilized;
 }

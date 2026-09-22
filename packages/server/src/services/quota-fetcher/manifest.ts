@@ -4,6 +4,7 @@ import type {
   ProviderUsageFetcherManifestEntry,
 } from "./provider.js";
 import { ClaudeQuotaProvider } from "./providers/claude.js";
+import { ClineQuotaProvider } from "./providers/cline.js";
 import { CodexQuotaProvider } from "./providers/codex.js";
 import { CopilotQuotaProvider } from "./providers/copilot.js";
 import { CursorQuotaProvider } from "./providers/cursor.js";
@@ -53,8 +54,11 @@ export const PROVIDER_USAGE_FETCHERS: readonly ProviderUsageFetcherManifestEntry
     providerId: "minimax",
     create: (options) => new MiniMaxQuotaProvider({ logger: options.logger, fetch: options.fetch }),
   },
+  {
+    providerId: "cline",
+    create: (options) => new ClineQuotaProvider({ logger: options.logger, fetch: options.fetch }),
+  },
 ];
-
 export function createProviderUsageFetchers(
   options: ProviderUsageFetcherFactoryOptions,
 ): ProviderUsageFetcher[] {

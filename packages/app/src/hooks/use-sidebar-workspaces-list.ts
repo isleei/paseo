@@ -9,6 +9,10 @@ import { getHostRuntimeStore, useHostRegistryLoaded, useHosts } from "@/runtime/
 import { useSidebarOrderStore } from "@/stores/sidebar-order-store";
 import { useSidebarViewStore } from "@/stores/sidebar-view-store";
 import {
+  expandProjectsIntoConversations,
+  selectConversationAgentRefs,
+} from "./sidebar-conversations";
+import {
   buildSidebarWorkspacePlacementModel,
   computeSidebarOrderUpdates,
   createSidebarWorkspaceEntry,
@@ -139,14 +143,31 @@ export function useSidebarWorkspacesList(options?: {
   const directoryServerIds = useWorkspaceDirectoryServerIds(serverIds);
 
   const hostProjects = useHostProjects(directoryServerIds);
-
-  const sidebarModel = useMemo(
-    () =>
-      buildSidebarWorkspacePlacementModel({
-        projects: hostProjects,
-      }),
-    [hostProjects],
+  const conversationAgents = useStoreWithEqualityFn(
+    useSessionStore,
+    (state) => selectConversationAgentRefs(state.sessions, directoryServerIds),
+    workspaceEqualityFns.deep,
   );
+
+  const sidebarModel = useMemo(() => {
+    const base = buildSidebarWorkspacePlacementModel({
+      projects: hostProjects,
+    });
+    const projects = expandProjectsIntoConversations({
+      projects: base.projects,
+      agents: conversationAgents,
+    });
+    if (projects === base.projects) {
+      return base;
+    }
+    return {
+      projects,
+      workspaces: projects.flatMap((project) => project.workspaces),
+      projectNamesByViewKey: new Map(
+        projects.map((project) => [project.viewKey, project.projectName]),
+      ),
+    };
+  }, [conversationAgents, hostProjects]);
 
   const projects = sidebarModel.projects.length > 0 ? sidebarModel.projects : EMPTY_PROJECTS;
   const workspacePlacements =

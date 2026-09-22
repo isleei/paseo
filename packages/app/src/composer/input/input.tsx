@@ -65,7 +65,7 @@ import {
 } from "@/components/ui/text-input";
 
 const ComposerTextInput = withUnistyles(EditingTextInput, (theme) => ({
-  placeholderTextColor: theme.colors.surface4,
+  placeholderTextColor: theme.colors.foregroundMuted,
 }));
 import {
   resolveSendTooltipLabel,
@@ -1737,11 +1737,12 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const inputWrapperCombinedStyle = useMemo(
       () => [
         styles.inputWrapper,
+        isInputFocused && styles.inputWrapperFocused,
         readOnly && styles.inputWrapperReadOnly,
         inputWrapperStyle,
         { opacity: surfacePresentation.input.opacity },
       ],
-      [inputWrapperStyle, readOnly, surfacePresentation.input.opacity],
+      [inputWrapperStyle, isInputFocused, readOnly, surfacePresentation.input.opacity],
     );
     // `withUnistyles` maps this component's `style` into a `.hash > *` child
     // rule, which ties on specificity with react-native-web's own
@@ -1923,6 +1924,20 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
   },
 );
 
+function resolveComposerBorderColor(theme: Theme): string {
+  if (theme.colorScheme === "dark") {
+    return isWeb ? "rgba(255, 255, 255, 0.20)" : theme.colors.foregroundExtraMuted;
+  }
+  return isWeb ? "rgba(0, 0, 0, 0.08)" : theme.colors.borderAccent;
+}
+
+function resolveComposerFocusedBorderColor(theme: Theme): string {
+  if (theme.colorScheme === "dark") {
+    return isWeb ? "rgba(255, 255, 255, 0.40)" : theme.colors.foregroundMuted;
+  }
+  return isWeb ? "rgba(0, 0, 0, 0.20)" : theme.colors.primary;
+}
+
 const styles = StyleSheet.create((theme: Theme) => ({
   container: {
     flexShrink: 1,
@@ -1932,10 +1947,9 @@ const styles = StyleSheet.create((theme: Theme) => ({
     flexShrink: 1,
     flexDirection: "column",
     gap: theme.spacing[3],
-    backgroundColor: theme.colors.surface0,
+    backgroundColor: theme.colorScheme === "dark" ? theme.colors.surface2 : theme.colors.surface0,
     borderWidth: theme.borderWidth[1],
-    borderColor:
-      theme.colorScheme !== "dark" && isWeb ? "rgba(0, 0, 0, 0.06)" : theme.colors.borderAccent,
+    borderColor: resolveComposerBorderColor(theme),
     borderRadius: 20,
     paddingVertical: {
       xs: theme.spacing[2],
@@ -1947,18 +1961,29 @@ const styles = StyleSheet.create((theme: Theme) => ({
     },
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: theme.colorScheme === "dark" ? 0.25 : 0.08,
+    shadowOpacity: theme.colorScheme === "dark" ? 0.4 : 0.08,
     shadowRadius: 20,
     elevation: 6,
     ...(isWeb
       ? {
           boxShadow:
             theme.colorScheme === "dark"
-              ? "0 8px 28px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08)"
+              ? "0 8px 28px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.16)"
               : "0 8px 28px rgba(0, 0, 0, 0.07), 0 2px 6px rgba(0, 0, 0, 0.03)",
           transitionProperty: "border-color, box-shadow",
           transitionDuration: "200ms",
           transitionTimingFunction: "ease-in-out",
+        }
+      : {}),
+  },
+  inputWrapperFocused: {
+    borderColor: resolveComposerFocusedBorderColor(theme),
+    ...(isWeb
+      ? {
+          boxShadow:
+            theme.colorScheme === "dark"
+              ? "0 0 0 1px rgba(255, 255, 255, 0.15), 0 8px 32px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.25)"
+              : "0 0 0 1px rgba(0, 0, 0, 0.06), 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05)",
         }
       : {}),
   },
@@ -2060,7 +2085,7 @@ const styles = StyleSheet.create((theme: Theme) => ({
     marginLeft: theme.spacing[1],
   },
   sendButtonDisabled: {
-    backgroundColor: isWeb ? "rgba(0, 0, 0, 0.06)" : theme.colors.surface2,
+    backgroundColor: theme.colors.interactionHighlight,
   },
   sendButtonLabeled: {
     width: "auto",

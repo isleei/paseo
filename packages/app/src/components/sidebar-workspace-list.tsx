@@ -16,6 +16,8 @@ import {
   useState,
   useEffect,
   useRef,
+  createContext,
+  useContext,
   type ReactElement,
   type MutableRefObject,
   type Ref,
@@ -29,6 +31,8 @@ import {
   useActiveWorkspaceSelection,
   type ActiveWorkspaceSelection,
 } from "@/stores/navigation-active-workspace-store";
+import { navigateToAgent } from "@/utils/navigate-to-agent";
+import { parseHostAgentRouteFromPathname } from "@/utils/host-routes";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import type { Theme } from "@/styles/theme";
 import type { SidebarSurfaceBackdrop } from "@/styles/surface-backdrop";
@@ -135,6 +139,13 @@ import {
 import { redirectIfArchivingActiveWorkspace } from "@/utils/sidebar-workspace-archive-redirect";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { useWorkspaceArchive } from "@/workspace/use-workspace-archive";
+import { useArchiveAgent } from "@/hooks/use-archive-agent";
+import { useSessionStore } from "@/stores/session-store";
+import {
+  resolveArchiveForSidebarRow,
+  isWorkspaceBackedOneToOne,
+  selectConversationAgentRefs,
+} from "@/hooks/sidebar-conversations";
 import {
   getCurrentProjectRemoveReadiness,
   removeProjectFromHosts,
@@ -151,6 +162,11 @@ import type { HostBadgeModel } from "@/hosts/appearance";
 import { useHostBadges } from "@/hosts/use-host-badges";
 import { useSidebarRowItems } from "@/components/sidebar/display-preferences/model";
 import { PullRequestStateIcon } from "@/git/pull-request-state-icon";
+
+const SidebarAgentSelectionContext = createContext<{
+  serverId: string;
+  agentId: string;
+} | null>(null);
 
 const workspaceKeyExtractor = (workspace: SidebarWorkspacePlacement) => workspace.workspaceKey;
 
@@ -173,12 +189,31 @@ const foregroundMutedColorMapping = (theme: Theme) => ({
 
 function isWorkspaceSelected(input: {
   selection: ActiveWorkspaceSelection | null;
+  agentSelection: { serverId: string; agentId: string } | null;
   serverId: string | null;
   workspaceId: string;
+  agentId?: string | null;
+  standalone?: boolean;
+  focusedAgentId?: string | null;
   enabled: boolean;
 }): boolean {
+  if (!input.enabled || input.serverId == null) {
+    return false;
+  }
+  if (input.standalone && input.agentId) {
+    return (
+      input.agentSelection?.serverId === input.serverId &&
+      input.agentSelection.agentId === input.agentId
+    );
+  }
+  if (input.agentId) {
+    return (
+      input.selection?.serverId === input.serverId &&
+      input.selection.workspaceId === input.workspaceId &&
+      input.focusedAgentId === input.agentId
+    );
+  }
   return (
-    input.enabled &&
     input.selection?.serverId === input.serverId &&
     input.selection.workspaceId === input.workspaceId
   );
@@ -230,10 +265,11 @@ interface SidebarWorkspaceListProps {
   onAddProject?: () => void;
   onImportSession?: () => void;
   listFooterComponent?: ReactElement | null;
-  // Rendered inside the scroll area at the very top, above the Pinned section and above the workspace list.
+  // Rendered inside the scroll area at the very top, above the Pinned section (status
+  // grouping) and the project list.
   listTopComponent?: ReactElement | null;
-  // Rendered inside the scroll area, below the Pinned section and above the workspace
-  // list. Holds the "Workspaces" section header so pinned items sit above it.
+  // Rendered inside the scroll area, below a hoisted Pinned section when status grouping
+  // is on, and above the workspace list. Holds the "Workspaces" section header.
   listHeaderComponent?: ReactElement | null;
   /** Gesture ref for coordinating with parent gestures (e.g., sidebar close) */
   parentGestureRef?: MutableRefObject<GestureType | undefined>;
@@ -1249,7 +1285,12 @@ function WorkspaceRowWithMenu({
   const toast = useToast();
   const [isHidingWorkspace, setIsHidingWorkspace] = useState(false);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
-  const isArchiving = workspace.archivingAt !== null || isHidingWorkspace;
+  const { archiveAgent, isArchivingAgent } = useArchiveAgent();
+  const agentArchivePending = Boolean(
+    workspace.agentId &&
+    isArchivingAgent({ serverId: workspace.serverId, agentId: workspace.agentId }),
+  );
+  const isArchiving = workspace.archivingAt !== null || isHidingWorkspace || agentArchivePending;
   const redirectAfterArchive = useCallback(() => {
     redirectIfArchivingActiveWorkspace({
       serverId: workspace.serverId,
@@ -1272,8 +1313,41 @@ function WorkspaceRowWithMenu({
     if (isArchiving) {
       return;
     }
+    const target = resolveArchiveForSidebarRow({
+      agentId: workspace.agentId,
+      workspaceId: workspace.workspaceId,
+      standalone: workspace.standalone,
+      agents: selectConversationAgentRefs(
+        {
+          [workspace.serverId]: {
+            agents: useSessionStore.getState().sessions[workspace.serverId]?.agents,
+          },
+        },
+        [workspace.serverId],
+      ),
+    });
+    if (target.kind === "agent") {
+      void archiveAgent({ serverId: workspace.serverId, agentId: target.agentId }).catch(
+        (error) => {
+          toast.error(
+            error instanceof Error ? error.message : t("sidebar.workspace.toasts.archiveFailed"),
+          );
+        },
+      );
+      return;
+    }
     archiveController.archive();
-  }, [archiveController, isArchiving]);
+  }, [
+    archiveAgent,
+    archiveController,
+    isArchiving,
+    t,
+    toast,
+    workspace.agentId,
+    workspace.serverId,
+    workspace.standalone,
+    workspace.workspaceId,
+  ]);
 
   const clipboard = useWorkspaceClipboardActions();
   const handleCopyPath = useCallback(() => {
@@ -1349,7 +1423,7 @@ function WorkspaceRowWithMenu({
         onArchive={handleArchive}
         onCopyBranchName={canCopyBranchName ? handleCopyBranchName : undefined}
         onCopyPath={handleCopyPath}
-        onRename={handleOpenRename}
+        onRename={workspace.standalone ? undefined : handleOpenRename}
         onMarkAsRead={hasClearableAttention ? handleMarkAsRead : undefined}
         onMarkAsUnread={canMarkUnread ? handleMarkAsUnread : undefined}
         archiveShortcutKeys={selected ? archiveShortcutKeys : null}
@@ -1382,6 +1456,7 @@ interface WorkspaceRowItemProps {
   isCreating?: boolean;
   selectionEnabled: boolean;
   activeWorkspaceSelection: ActiveWorkspaceSelection | null;
+  focusedAgentId: string | null;
   onWorkspacePress?: () => void;
   drag?: () => void;
   isDragging?: boolean;
@@ -1403,18 +1478,34 @@ function WorkspaceRowItem({
   isCreating = false,
   selectionEnabled,
   activeWorkspaceSelection,
+  focusedAgentId,
   onWorkspacePress,
   drag,
   isDragging = false,
   dragHandleProps,
 }: WorkspaceRowItemProps) {
+  const agentSelection = useContext(SidebarAgentSelectionContext);
   const handlePress = useCallback(() => {
     if (!workspace.serverId) {
       return;
     }
     onWorkspacePress?.();
-    navigateToWorkspace({ serverId: workspace.serverId, workspaceId: workspace.workspaceId });
-  }, [onWorkspacePress, workspace.serverId, workspace.workspaceId]);
+    if (workspace.standalone && workspace.agentId) {
+      navigateToAgent({ serverId: workspace.serverId, agentId: workspace.agentId });
+      return;
+    }
+    navigateToWorkspace({
+      serverId: workspace.serverId,
+      workspaceId: workspace.workspaceId,
+      target: workspace.agentId ? { kind: "agent", agentId: workspace.agentId } : undefined,
+    });
+  }, [
+    onWorkspacePress,
+    workspace.agentId,
+    workspace.serverId,
+    workspace.standalone,
+    workspace.workspaceId,
+  ]);
 
   return (
     <WorkspaceRow
@@ -1431,8 +1522,12 @@ function WorkspaceRowItem({
       isCreating={isCreating}
       selected={isWorkspaceSelected({
         selection: activeWorkspaceSelection,
+        agentSelection,
         serverId: workspace.serverId,
         workspaceId: workspace.workspaceId,
+        agentId: workspace.agentId,
+        standalone: workspace.standalone,
+        focusedAgentId,
         enabled: selectionEnabled,
       })}
       onPress={handlePress}
@@ -1449,14 +1544,22 @@ function areWorkspaceRowItemPropsEqual(
 ): boolean {
   const previousSelected = isWorkspaceSelected({
     selection: previous.activeWorkspaceSelection,
+    agentSelection: null,
     serverId: previous.workspace.serverId,
     workspaceId: previous.workspace.workspaceId,
+    agentId: previous.workspace.agentId,
+    standalone: previous.workspace.standalone,
+    focusedAgentId: previous.focusedAgentId,
     enabled: previous.selectionEnabled,
   });
   const nextSelected = isWorkspaceSelected({
     selection: next.activeWorkspaceSelection,
+    agentSelection: null,
     serverId: next.workspace.serverId,
     workspaceId: next.workspace.workspaceId,
+    agentId: next.workspace.agentId,
+    standalone: next.workspace.standalone,
+    focusedAgentId: next.focusedAgentId,
     enabled: next.selectionEnabled,
   });
   return (
@@ -1470,6 +1573,7 @@ function areWorkspaceRowItemPropsEqual(
     previous.canCopyBranchName === next.canCopyBranchName &&
     previous.canPin === next.canPin &&
     previous.onToggleWorkspacePin === next.onToggleWorkspacePin &&
+    previous.focusedAgentId === next.focusedAgentId &&
     previous.reserveIdleStatusIndicatorSpace === next.reserveIdleStatusIndicatorSpace &&
     previous.isCreating === next.isCreating &&
     previous.onWorkspacePress === next.onWorkspacePress &&
@@ -1564,6 +1668,7 @@ function ProjectBlock({
   dragGestureHostActive,
   creatingWorkspaceIds,
   activeWorkspaceSelection,
+  focusedAgentId,
   hostBadgeByServerId,
   supportsMultiplicityByServerId,
   supportsPinningByServerId,
@@ -1589,6 +1694,7 @@ function ProjectBlock({
   dragGestureHostActive?: boolean;
   creatingWorkspaceIds: ReadonlySet<string>;
   activeWorkspaceSelection: ActiveWorkspaceSelection | null;
+  focusedAgentId: string | null;
   hostBadgeByServerId: ReadonlyMap<string, HostBadgeModel>;
   supportsMultiplicityByServerId: ReadonlyMap<string, boolean>;
   supportsPinningByServerId: ReadonlyMap<string, boolean>;
@@ -1640,11 +1746,15 @@ function ProjectBlock({
           shortcutNumber={shortcutIndexByWorkspaceKey.get(item.workspaceKey) ?? null}
           showShortcutBadge={showShortcutBadges}
           canCopyBranchName={project.projectKind === "git"}
-          canPin={supportsPinningByServerId.get(item.serverId) === true}
+          canPin={
+            !isWorkspaceBackedOneToOne(item) ||
+            supportsPinningByServerId.get(item.serverId) === true
+          }
           onToggleWorkspacePin={onToggleWorkspacePin}
           isCreating={creatingWorkspaceIds.has(item.workspaceId)}
           selectionEnabled={selectionEnabled}
           activeWorkspaceSelection={activeWorkspaceSelection}
+          focusedAgentId={focusedAgentId}
           onWorkspacePress={onWorkspacePress}
           drag={input?.drag}
           isDragging={input?.isDragging}
@@ -1657,6 +1767,7 @@ function ProjectBlock({
       onToggleWorkspacePin,
       supportsPinningByServerId,
       activeWorkspaceSelection,
+      focusedAgentId,
       creatingWorkspaceIds,
       hostBadgeByServerId,
       onWorkspacePress,
@@ -1761,7 +1872,7 @@ function ProjectBlock({
             keyExtractor={workspaceKeyExtractor}
             renderItem={renderWorkspace}
             onDragEnd={handleWorkspaceDragEnd}
-            extraData={activeWorkspaceSelectionKey(activeWorkspaceSelection)}
+            extraData={`${activeWorkspaceSelectionKey(activeWorkspaceSelection)}:${focusedAgentId ?? ""}`}
             scrollEnabled={false}
             useDragHandle
             nestable={useNestable}
@@ -1814,7 +1925,7 @@ function ProjectBlock({
         isDragging={isDragging}
         isArchiving={isRemovingProject}
         menuController={null}
-        onRemoveProject={handleRemoveProject}
+        onRemoveProject={project.isSynthetic ? undefined : handleRemoveProject}
         removeProjectStatus={isRemovingProject ? "pending" : "idle"}
         dragHandleProps={dragHandleProps}
       />
@@ -1840,6 +1951,7 @@ function areProjectBlockPropsEqual(previous: ProjectBlockProps, next: ProjectBlo
     previous.hostBadgeByServerId === next.hostBadgeByServerId &&
     previous.supportsMultiplicityByServerId === next.supportsMultiplicityByServerId &&
     previous.supportsPinningByServerId === next.supportsPinningByServerId &&
+    previous.focusedAgentId === next.focusedAgentId &&
     previous.onToggleWorkspacePin === next.onToggleWorkspacePin &&
     previous.parentGestureRef === next.parentGestureRef &&
     previous.onToggleCollapsed === next.onToggleCollapsed &&
@@ -1908,6 +2020,7 @@ export function SidebarWorkspaceList({
   dragGestureHostActive,
 }: SidebarWorkspaceListProps) {
   const pathname = usePathname();
+  const agentSelection = parseHostAgentRouteFromPathname(pathname);
   const hosts = useHosts();
   const rowItems = useSidebarRowItems();
   // Host badge visibility is a lattice, not three competing switches: this gate is the global
@@ -2013,7 +2126,11 @@ export function SidebarWorkspaceList({
       />
     );
 
-  return content;
+  return (
+    <SidebarAgentSelectionContext.Provider value={agentSelection}>
+      {content}
+    </SidebarAgentSelectionContext.Provider>
+  );
 }
 
 /**
@@ -2151,6 +2268,11 @@ function ProjectModeList({
   );
   const selectionEnabled = isWorkspaceRoute;
   const activeWorkspaceSelection = useActiveWorkspaceSelection();
+  const focusedAgentId = useSessionStore((state) =>
+    activeWorkspaceSelection
+      ? (state.sessions[activeWorkspaceSelection.serverId]?.focusedAgentId ?? null)
+      : null,
+  );
   const { pinnedChats, unpinnedProjects } = pinnedGroups;
   const {
     visibleItems: visiblePinnedChats,
@@ -2246,23 +2368,28 @@ function ProjectModeList({
       const reorderedWorkspaceKeys = reorderedWorkspaces.map((workspace) => workspace.workspaceKey);
       const currentWorkspaceOrder = getWorkspaceOrder(projectViewKey);
       if (
-        !hasVisibleOrderChanged({
+        hasVisibleOrderChanged({
           currentOrder: currentWorkspaceOrder,
           reorderedVisibleKeys: reorderedWorkspaceKeys,
         })
       ) {
-        return;
+        setWorkspaceOrder(
+          projectViewKey,
+          mergeWithRemainder({
+            currentOrder: currentWorkspaceOrder,
+            reorderedVisibleKeys: reorderedWorkspaceKeys,
+          }),
+        );
       }
 
-      setWorkspaceOrder(
-        projectViewKey,
-        mergeWithRemainder({
-          currentOrder: currentWorkspaceOrder,
-          reorderedVisibleKeys: reorderedWorkspaceKeys,
-        }),
+      const pinnedWorkspaces = reorderedWorkspaces.filter(
+        (workspace) => workspaceEntriesByKey.get(workspace.workspaceKey)?.pinnedAt != null,
       );
+      if (pinnedWorkspaces.length > 0) {
+        onPinnedWorkspaceReorder(pinnedWorkspaces);
+      }
     },
-    [getWorkspaceOrder, setWorkspaceOrder],
+    [getWorkspaceOrder, onPinnedWorkspaceReorder, setWorkspaceOrder, workspaceEntriesByKey],
   );
 
   const handleWorktreeCreated = useCallback((workspaceId: string) => {
@@ -2323,6 +2450,7 @@ function ProjectModeList({
           dragGestureHostActive={dragGestureHostActive}
           creatingWorkspaceIds={creatingWorkspaceIds}
           activeWorkspaceSelection={activeWorkspaceSelection}
+          focusedAgentId={focusedAgentId}
           hostBadgeByServerId={hostBadgeByServerId}
           supportsMultiplicityByServerId={supportsMultiplicityByServerId}
           supportsPinningByServerId={supportsPinningByServerId}
@@ -2333,6 +2461,7 @@ function ProjectModeList({
     [
       collapsedProjectKeys,
       activeWorkspaceSelection,
+      focusedAgentId,
       handleWorktreeCreated,
       handleWorkspaceReorder,
       hostBadgeByServerId,
@@ -2377,11 +2506,15 @@ function ProjectModeList({
           shortcutNumber={shortcutIndexByWorkspaceKey.get(workspace.workspaceKey) ?? null}
           showShortcutBadge={showShortcutBadges}
           canCopyBranchName={workspace.projectKind === "git"}
-          canPin={supportsPinningByServerId.get(workspace.serverId) === true}
+          canPin={
+            !isWorkspaceBackedOneToOne(workspace) ||
+            supportsPinningByServerId.get(workspace.serverId) === true
+          }
           onToggleWorkspacePin={onToggleWorkspacePin}
           isCreating={creatingWorkspaceIds.has(workspace.workspaceId)}
           selectionEnabled={selectionEnabled}
           activeWorkspaceSelection={activeWorkspaceSelection}
+          focusedAgentId={focusedAgentId}
           onWorkspacePress={onWorkspacePress}
           drag={drag}
           isDragging={isActive}
@@ -2391,6 +2524,7 @@ function ProjectModeList({
     },
     [
       activeWorkspaceSelection,
+      focusedAgentId,
       creatingWorkspaceIds,
       hostBadgeByServerId,
       onWorkspacePress,
@@ -2414,7 +2548,7 @@ function ProjectModeList({
         keyExtractor={projectViewKeyExtractor}
         renderItem={renderProject}
         onDragEnd={handleProjectDragEnd}
-        extraData={activeWorkspaceSelectionKey(activeWorkspaceSelection)}
+        extraData={`${activeWorkspaceSelectionKey(activeWorkspaceSelection)}:${focusedAgentId ?? ""}`}
         scrollEnabled={false}
         useDragHandle
         nestable={platformIsNative}
@@ -2459,10 +2593,7 @@ function ProjectModeList({
       ) : null}
       {/* The header carries the display menu, which is the only way back out of a filter, so it
         stays for as long as a filter is what emptied the list. It is absent only when the
-        sidebar is genuinely empty, where a section heading would sit over nothing.
-        Every filter that can empty this branch needs a term here: a project filter pinned to a
-        project whose chats are all pinned leaves `unpinnedProjects` empty, and without its term
-        the header would go with it, taking the only route back to the filter page. */}
+        sidebar is genuinely empty, where a section heading would sit over nothing. */}
       {unpinnedProjects.length > 0 ||
       hasActiveHostFilter ||
       hasActiveProjectFilter ||

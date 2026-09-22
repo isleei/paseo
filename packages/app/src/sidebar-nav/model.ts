@@ -1,4 +1,4 @@
-import type { PluginSidebarGroup } from "@/plugins/sidebar-groups";
+import type { PluginSidebarGroup, PluginSidebarPanelGroup } from "@/plugins/sidebar-groups";
 
 export const BUILTIN_SIDEBAR_NAV_IDS = ["new-workspace", "history", "search", "schedules"] as const;
 export type BuiltinSidebarNavId = (typeof BUILTIN_SIDEBAR_NAV_IDS)[number];
@@ -23,7 +23,17 @@ export interface PluginSidebarNavItem {
   visible: boolean;
 }
 
-export type SidebarNavItem = BuiltinSidebarNavItem | PluginSidebarNavItem;
+export interface PluginSidebarPanelNavItem {
+  kind: "plugin-panel";
+  key: string;
+  group: PluginSidebarPanelGroup;
+  visible: boolean;
+}
+
+export type SidebarNavItem =
+  | BuiltinSidebarNavItem
+  | PluginSidebarNavItem
+  | PluginSidebarPanelNavItem;
 
 export function isSidebarHeaderNavItem(item: SidebarNavItem): boolean {
   return item.kind === "builtin" && item.id === "search";
@@ -62,16 +72,26 @@ export function pluginSidebarNavKey(
   return `plugin:${group.pluginId}:${group.contributionId}`;
 }
 
+export function pluginSidebarPanelNavKey(
+  group: Pick<PluginSidebarPanelGroup, "pluginId" | "contributionId">,
+): string {
+  return `plugin-panel:${group.pluginId}:${group.contributionId}`;
+}
+
 function isBuiltinSidebarNavId(key: string): key is BuiltinSidebarNavId {
   return (BUILTIN_SIDEBAR_NAV_IDS as readonly string[]).includes(key);
 }
 
 export function resolveSidebarNavItems(input: {
   pluginGroups: readonly PluginSidebarGroup[];
+  panelGroups?: readonly PluginSidebarPanelGroup[];
   preferences: readonly SidebarNavPreference[];
 }): SidebarNavItem[] {
   const groupsByKey = new Map(
     input.pluginGroups.map((group) => [pluginSidebarNavKey(group), group] as const),
+  );
+  const panelsByKey = new Map(
+    (input.panelGroups ?? []).map((group) => [pluginSidebarPanelNavKey(group), group] as const),
   );
   const items: SidebarNavItem[] = [];
   const placed = new Set<string>();
@@ -82,6 +102,17 @@ export function resolveSidebarNavItems(input: {
     if (group) {
       placed.add(preference.key);
       items.push({ kind: "plugin", key: preference.key, group, visible: preference.visible });
+      continue;
+    }
+    const panel = panelsByKey.get(preference.key);
+    if (panel) {
+      placed.add(preference.key);
+      items.push({
+        kind: "plugin-panel",
+        key: preference.key,
+        group: panel,
+        visible: preference.visible,
+      });
     } else if (isBuiltinSidebarNavId(preference.key)) {
       placed.add(preference.key);
       items.push({
@@ -100,6 +131,10 @@ export function resolveSidebarNavItems(input: {
   for (const [key, group] of groupsByKey) {
     if (placed.has(key)) continue;
     items.push({ kind: "plugin", key, group, visible: true });
+  }
+  for (const [key, group] of panelsByKey) {
+    if (placed.has(key)) continue;
+    items.push({ kind: "plugin-panel", key, group, visible: true });
   }
   return items;
 }

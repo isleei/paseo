@@ -123,6 +123,7 @@ import {
   type ListImportableSessionsOptions,
   type McpServerConfig,
   type ProviderCatalog,
+  type ProviderLaunchSpec,
   type ProviderRefreshContext,
   type ResolveAgentDefaultModeInput,
 } from "../../agent-sdk-types.js";
@@ -1649,6 +1650,21 @@ export class ClaudeAgentClient implements AgentClient {
     });
     const availability = await checkProviderLaunchAvailable(launch);
     return availability.available;
+  }
+
+  async getLaunchSpec(): Promise<ProviderLaunchSpec> {
+    const launch = await resolveProviderLaunch({
+      commandConfig: this.runtimeSettings?.command,
+      defaultBinary: "claude",
+    });
+    const availability = await checkProviderLaunchAvailable(launch);
+    if (!availability.available) {
+      throw new Error("Claude binary not found while resolving launch spec");
+    }
+    return {
+      command: [availability.resolvedPath ?? launch.command, ...launch.args],
+      env: this.runtimeSettings?.env,
+    };
   }
 
   async getDiagnostic(): Promise<{ diagnostic: string }> {

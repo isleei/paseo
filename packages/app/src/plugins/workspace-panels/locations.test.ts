@@ -18,7 +18,7 @@ vi.mock("../client-runtime", () => ({
   }),
 }));
 
-function install(locations: readonly ("workspace" | "explorer")[]) {
+function install(locations?: readonly ("workspace" | "explorer")[]) {
   const bundle = `(function() {
     return { default: function(plugin) {
       plugin.addWorkspacePanel({
@@ -26,7 +26,7 @@ function install(locations: readonly ("workspace" | "explorer")[]) {
         title: "Details",
         icon: "Scan",
         context: "agent",
-        locations: ${JSON.stringify(locations)},
+        ${locations === undefined ? "" : `locations: ${JSON.stringify(locations)},`}
         Component: function Details() { return null; },
       });
       return function() {};
@@ -67,6 +67,22 @@ describe("plugin workspace panel locations", () => {
     expect(() => resolvePluginPanelOpenLocation(workspaceOnly, "explorer")).toThrow(
       "does not support explorer location",
     );
+    pluginRegistry.removeHost("host-1");
+  });
+
+  it("hides panels without declared locations from every host", () => {
+    const panel = install().workspacePanels[0]!;
+    expect(panel.locations).toEqual([]);
+    const target = {
+      kind: "plugin" as const,
+      pluginId: "review",
+      panelId: "details",
+      context: "agent" as const,
+      agentId: "agent-1",
+    };
+    expect(panelTargetSupportsHost("host-1", target, "main")).toBe(false);
+    expect(panelTargetSupportsHost("host-1", target, "explorer")).toBe(false);
+    expect(() => resolvePluginPanelOpenLocation(panel)).toThrow("does not support any location");
     pluginRegistry.removeHost("host-1");
   });
 });

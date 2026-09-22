@@ -6,7 +6,7 @@ import {
   type ProjectHostRuntimeState,
 } from "@/hooks/use-projects";
 
-function project(id: string, name: string, root: string): ProjectDescriptor {
+function project(id: string, name: string, root: string, createdAt?: string): ProjectDescriptor {
   return {
     projectId: id,
     projectKey: `remote:github.com/${name}`,
@@ -14,6 +14,7 @@ function project(id: string, name: string, root: string): ProjectDescriptor {
     projectCustomName: null,
     projectRootPath: root,
     projectKind: "git",
+    ...(createdAt ? { createdAt } : {}),
   };
 }
 
@@ -59,6 +60,25 @@ describe("deriveProjectsFromReplica", () => {
       repoRoot: "/repo/alpha",
       workspaceCount: 0,
     });
+  });
+
+  it("orders newly added projects first", () => {
+    const result = deriveProjectsFromReplica({
+      replicas: [
+        {
+          serverId: "local",
+          serverName: "Local",
+          workspaces: [],
+          projects: [
+            project("prj_alpha", "acme/alpha", "/repo/alpha", "2026-09-20T00:00:00.000Z"),
+            project("prj_zeta", "acme/zeta", "/repo/zeta", "2026-09-21T00:00:00.000Z"),
+          ],
+        },
+      ],
+      runtimeStates: [runtimeState({ serverId: "local" })],
+    });
+
+    expect(result.projects.map((item) => item.projectName)).toEqual(["acme/zeta", "acme/alpha"]);
   });
 
   it("preserves runtime loading and error state", () => {

@@ -264,7 +264,7 @@ test.describe("Mobile sidebar panelState transition", () => {
       const row = page.getByTestId(getWorkspaceRowTestId(workspace.workspaceId));
       await expect(row).toBeVisible({ timeout: 30_000 });
       await pinWorkspaceFromSidebar(page, workspace.workspaceId);
-      await expect(page.getByTestId("sidebar-pinned-section")).toBeVisible();
+      await expect(row).toBeVisible();
 
       await closeMobileAgentSidebar(page);
       await expectMobileAgentSidebarHidden(page);

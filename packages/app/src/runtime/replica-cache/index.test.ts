@@ -187,6 +187,7 @@ function directory(
   const project = normalizeProjectDescriptor({
     projectId: "project-1",
     projectDisplayName: "Paseo",
+    createdAt: "2026-07-17T08:00:00.000Z",
     projectRootPath: "/repo/paseo",
     projectKind: "git",
   });
@@ -271,6 +272,7 @@ describe("ReplicaCache", () => {
     expect(restoredDirectory.agents.get("agent-1")?.title).toBe("Cached agent");
     expect(restoredDirectory.workspaces.get("workspace-1")?.name).toBe("main");
     expect(restoredDirectory.projects.get("project-1")?.projectDisplayName).toBe("Paseo");
+    expect(restoredDirectory.projects.get("project-1")?.createdAt).toBe("2026-07-17T08:00:00.000Z");
     expect(restoredDirectory.checkpoint).toEqual({ agents: { generation: "g", afterSeq: 12 } });
     expect(restoredTimeline).toEqual(timeline());
   });

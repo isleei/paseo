@@ -3501,13 +3501,18 @@ export async function getCheckoutDiff(
 
 export async function commitChanges(
   cwd: string,
-  options: { message: string; addAll?: boolean },
+  options: { message: string; addAll?: boolean; noVerify?: boolean },
 ): Promise<void> {
   await requireGitRepo(cwd);
   if (options.addAll ?? true) {
     await runGitCommand(["add", "-A"], { cwd, timeout: 120_000 });
   }
-  await runGitCommand(["commit", "-m", options.message], {
+  const commitArgs = ["commit"];
+  if (options.noVerify) {
+    commitArgs.push("--no-verify");
+  }
+  commitArgs.push("-m", options.message);
+  await runGitCommand(commitArgs, {
     cwd,
     timeout: 120_000,
   });

@@ -728,6 +728,15 @@ export interface ProviderCatalog {
   defaultModeId?: string | null;
 }
 
+/** How the daemon launches the provider CLI, so environment checks can probe
+ * the same binary the agent actually runs — including package-runner launchers
+ * like `npx -y @google/gemini-cli@0.52.0`. */
+export interface ProviderLaunchSpec {
+  /** Launch argv; the first entry is the launcher command. */
+  command: [string, ...string[]];
+  env?: Record<string, string>;
+}
+
 export interface ResolveAgentDefaultModeInput {
   config: AgentSessionConfig;
   env?: Record<string, string>;
@@ -783,6 +792,8 @@ export interface AgentClient {
    * Returns true if available, false otherwise.
    */
   isAvailable(signal?: AbortSignal, options?: FetchCatalogOptions): Promise<boolean>;
+  /** Effective launch argv for this provider (resolved binary + runner args). */
+  getLaunchSpec?(): Promise<ProviderLaunchSpec>;
   getDiagnostic?(): Promise<{ diagnostic: string }>;
   /**
    * Archive a durable native session (best-effort). Runtime release belongs to AgentSession.close().

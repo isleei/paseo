@@ -753,6 +753,7 @@ export class CheckoutSession {
       await commitChanges(cwd, {
         message,
         addAll: msg.addAll ?? true,
+        noVerify: msg.noVerify,
       });
       await this.gitMutation.notifyGitMutation(cwd, "commit-changes");
       this.scheduleDiffRefresh(cwd);

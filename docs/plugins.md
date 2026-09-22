@@ -303,8 +303,11 @@ never fetch active context through plugin RPC. Snapshot DTOs are deeply readonly
 runtime so plugin code cannot mutate normalized app state or a memoized selection. Panels use one persisted
 `plugin` workspace-tab target, so reload, disable, removal, and restoration resolve through the
 current installed-plugin catalog. A missing contribution renders unavailable inside the tab.
-Panels declare `locations: ["workspace", "explorer"]` to opt into Explorer hosting; omission means
-workspace only. Location controls hosting, not context. An agent panel target keeps its `agentId`
+Panels declare `locations: ["workspace", "explorer"]` to say where they may open; omission
+means nowhere, so a panel stays out of every workspace tab menu until its author places it.
+`sidebar: true` (workspace panels only, default `false`) adds a left-sidebar entry that opens
+the panel in the active workspace; the entry hides when no workspace is active. A sidebar panel
+still needs at least one `locations` entry to open in. Location controls hosting, not context. An agent panel target keeps its `agentId`
 when moved between hosts. Explorer configuration can create workspace-context panels and remove
 existing agent-context instances, but it cannot create an agent panel without an agent-aware command.
 

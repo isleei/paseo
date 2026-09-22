@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import {
   Alert,
@@ -6,6 +6,8 @@ import {
   ScrollView,
   Text,
   View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   type PressableStateCallbackType,
 } from "react-native";
 import { EditingTextInput as TextInput } from "@/components/ui/text-input";
@@ -1065,6 +1067,16 @@ interface SettingsSidebarProps {
   layout: "desktop" | "mobile";
 }
 
+/**
+ * Switching sections on desktop goes through `router.replace`, which mints a new
+ * route key — React Navigation answers that by unmounting and remounting the
+ * settings screen. The sidebar list is rebuilt in the same breath, so its
+ * ScrollView restarts at offset 0 and the row you just clicked jumps to the top.
+ * Remembering the offset in module scope lets the remounted list resume where
+ * it was.
+ */
+let rememberedSidebarScrollOffset = 0;
+
 function SettingsSidebar({
   view,
   onSelectSection,
@@ -1088,6 +1100,20 @@ function SettingsSidebar({
   );
   const insets = useSafeAreaInsets();
   const isDesktop = layout === "desktop";
+  const scrollRef = useRef<ScrollView>(null);
+  const hasRestoredScrollRef = useRef(false);
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    rememberedSidebarScrollOffset = event.nativeEvent.contentOffset.y;
+  }, []);
+  const restoreScrollOffset = useCallback(() => {
+    if (hasRestoredScrollRef.current) return;
+    hasRestoredScrollRef.current = true;
+    if (rememberedSidebarScrollOffset <= 0) return;
+    scrollRef.current?.scrollTo({ y: rememberedSidebarScrollOffset, animated: false });
+  }, []);
+  useLayoutEffect(() => {
+    restoreScrollOffset();
+  }, [restoreScrollOffset]);
   const outerContainerStyle = useMemo(
     () => [isDesktop ? sidebarStyles.desktopContainer : sidebarStyles.mobileContainer],
     [isDesktop],
@@ -1192,8 +1218,11 @@ function SettingsSidebar({
             />
           </View>
           <ScrollView
+            ref={scrollRef}
             style={sidebarStyles.scrollBody}
             showsVerticalScrollIndicator={false}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
             testID="settings-sidebar-scroll-body"
           >
             {sidebarBody}

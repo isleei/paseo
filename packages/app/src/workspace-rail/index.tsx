@@ -249,6 +249,8 @@ function WorkspaceInfoRailInner({
               divided={false}
               open={isSectionOpen(closedSections, "subagents")}
               onToggle={handleToggleSubagents}
+              workspaceKey={workspaceKey}
+              preferences={preferences}
             />
           ) : null}
         </ScrollView>

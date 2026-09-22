@@ -2,6 +2,7 @@ import { memo, useCallback, useMemo, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
+import type { OpenInSidePanePreferences } from "@/hooks/use-settings";
 import { getProviderIcon } from "@/components/provider-icons";
 import { CountChip, Section } from "@/components/ui/section";
 import {
@@ -11,6 +12,7 @@ import {
 import { useSubagentsForParent, type SubagentRow } from "@/subagents";
 import { buildSubagentRowPresentationData } from "@/subagents/track-presentation";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
+import { openPreferredWorkspaceTarget } from "@/workspace-tabs/open-beside";
 
 /**
  * Read-only fan-out list. Rows carry no archive or detach actions: the composer's subagents pill
@@ -28,26 +30,40 @@ export function SubagentsSection({
   divided,
   open,
   onToggle,
+  workspaceKey,
+  preferences,
 }: {
   serverId: string;
   parentAgentId: string;
   divided: boolean;
   open: boolean;
   onToggle: () => void;
+  workspaceKey?: string | null;
+  preferences?: OpenInSidePanePreferences;
 }): ReactElement | null {
   const { t } = useTranslation();
   const rows = useSubagentsForParent({ serverId, parentAgentId });
 
   const handleOpen = useCallback(
     (row: SubagentRow) => {
-      // A provider-native subagent has no route of its own; opening the parent would be a lie
-      // dressed up as navigation, so those rows stay inert until the rail can host tab targets.
-      if (row.kind !== "paseo") {
+      if (workspaceKey && preferences) {
+        openPreferredWorkspaceTarget({
+          isCompact: false,
+          workspaceKey,
+          target:
+            row.kind === "paseo"
+              ? { kind: "agent", agentId: row.id }
+              : { kind: "provider_subagent", parentAgentId, subagentId: row.id },
+          source: "subagents",
+          preferences,
+        });
         return;
       }
-      navigateToAgent({ serverId, agentId: row.id });
+      if (row.kind === "paseo") {
+        navigateToAgent({ serverId, agentId: row.id });
+      }
     },
-    [serverId],
+    [parentAgentId, preferences, serverId, workspaceKey],
   );
 
   const summary = useMemo(() => <CountChip label={String(rows.length)} />, [rows.length]);
@@ -67,7 +83,13 @@ export function SubagentsSection({
     >
       <View style={styles.list}>
         {rows.map((row) => (
-          <SubagentRowView key={row.id} row={row} serverId={serverId} onOpen={handleOpen} />
+          <SubagentRowView
+            key={row.id}
+            row={row}
+            serverId={serverId}
+            onOpen={handleOpen}
+            canOpen={row.kind === "paseo" || Boolean(workspaceKey && preferences)}
+          />
         ))}
       </View>
     </Section>
@@ -78,10 +100,12 @@ const SubagentRowView = memo(function SubagentRowView({
   row,
   serverId,
   onOpen,
+  canOpen = true,
 }: {
   row: SubagentRow;
   serverId: string;
   onOpen: (row: SubagentRow) => void;
+  canOpen?: boolean;
 }) {
   const { t } = useTranslation();
   const presentation = useMemo<WorkspaceTabPresentation>(() => {
@@ -100,7 +124,7 @@ const SubagentRowView = memo(function SubagentRowView({
   return (
     <Pressable
       onPress={handlePress}
-      disabled={row.kind !== "paseo"}
+      disabled={!canOpen}
       accessibilityRole="button"
       accessibilityLabel={label}
       testID={`workspace-rail-subagent-${row.id}`}

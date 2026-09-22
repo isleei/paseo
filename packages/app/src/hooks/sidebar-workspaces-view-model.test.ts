@@ -68,6 +68,25 @@ describe("createSidebarWorkspaceEntry forge threading", () => {
   });
 });
 
+describe("createSidebarWorkspaceEntry conversation overlay", () => {
+  it("uses the conversation title and keeps the placement key", () => {
+    const entry = createSidebarWorkspaceEntry({
+      serverId: "srv",
+      workspace: workspaceWithForge("gitlab", "https://gitlab.com/group/proj/-/merge_requests/7"),
+      workspaceKey: "srv:ws-1:a:chat-1",
+      agentId: "chat-1",
+      conversationTitle: "Fix login",
+      conversationStatusBucket: "needs_input",
+    });
+    expect(entry).toMatchObject({
+      workspaceKey: "srv:ws-1:a:chat-1",
+      agentId: "chat-1",
+      name: "Fix login",
+      statusBucket: "needs_input",
+    });
+  });
+});
+
 describe("createSidebarWorkspaceEntry workspace directory label", () => {
   it("uses the daemon-provided slug for a Paseo-owned worktree", () => {
     const descriptor = workspaceWithForge(undefined, "https://github.com/acme/repo/pull/42");
@@ -735,6 +754,25 @@ describe("deriveProjectStatusBucket", () => {
         },
       }),
     ).toBe("done");
+  });
+
+  it("includes conversation status rows without a hydrated workspace", () => {
+    expect(
+      deriveProjectStatusBucket({
+        workspaces: [
+          {
+            ...workspacePlacement({ workspaceId: "" }),
+            workspaceKey: "srv:standalone:chat",
+            workspaceId: "",
+            agentId: "chat",
+            standalone: true,
+            statusBucket: "needs_input",
+            statusEnteredAt: null,
+          },
+        ],
+        sessions: {},
+      }),
+    ).toBe("needs_input");
   });
 
   it("surfaces the most urgent workspace status in the project", () => {

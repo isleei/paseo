@@ -49,9 +49,11 @@ function normalizePanelLocations(
   panelId: string,
   locations: PluginWorkspacePanelContribution["locations"],
 ): readonly (typeof PANEL_LOCATIONS)[number][] {
-  if (locations === undefined) return ["workspace"];
-  if (!Array.isArray(locations) || locations.length === 0) {
-    throw new Error(`Workspace panel ${panelId} must support at least one location`);
+  // Omission is convergent: the panel is registered but offered nowhere until the
+  // author declares a location. An explicit empty array means the same thing.
+  if (locations === undefined) return [];
+  if (!Array.isArray(locations)) {
+    throw new Error(`Workspace panel ${panelId} has invalid locations`);
   }
   const normalized = locations.map((location) => {
     if (!PANEL_LOCATIONS.includes(location as never)) {
@@ -205,8 +207,18 @@ export function runPluginClientBundle(
       if (typeof contribution.Component !== "function") {
         throw new Error(`Workspace panel ${normalizedId} is not a component`);
       }
+      if (contribution.sidebar === true && contribution.context !== "workspace") {
+        throw new Error(
+          `Workspace panel ${normalizedId} with context "${contribution.context}" cannot opt into the sidebar`,
+        );
+      }
       resolvePluginIcon(icon);
       const locations = normalizePanelLocations(normalizedId, contribution.locations);
+      if (contribution.sidebar === true && locations.length === 0) {
+        throw new Error(
+          `Workspace panel ${normalizedId} cannot opt into the sidebar without a location to open in`,
+        );
+      }
       workspacePanelIds.add(normalizedId);
       return register(
         collector.workspacePanels,
@@ -216,6 +228,7 @@ export function runPluginClientBundle(
           title,
           icon,
           locations,
+          sidebar: contribution.sidebar ?? false,
         },
         () => workspacePanelIds.delete(normalizedId),
       );

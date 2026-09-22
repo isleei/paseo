@@ -1779,6 +1779,17 @@ export const ProviderUsageListRequestMessageSchema = z.object({
   requestId: z.string(),
 });
 
+export const EnvironmentCheckRequestMessageSchema = z.object({
+  type: z.literal("environment.check.request"),
+  requestId: z.string(),
+});
+
+export const EnvironmentUpgradeRequestMessageSchema = z.object({
+  type: z.literal("environment.upgrade.request"),
+  provider: AgentProviderSchema.optional(),
+  requestId: z.string(),
+});
+
 export const ResumeAgentRequestMessageSchema = z.object({
   type: z.literal("resume_agent_request"),
   handle: AgentPersistenceHandleSchema,
@@ -2180,6 +2191,7 @@ export const CheckoutCommitRequestSchema = z.object({
   cwd: z.string(),
   message: z.string().optional(),
   addAll: z.boolean().optional(),
+  noVerify: z.boolean().optional(),
   requestId: z.string(),
 });
 
@@ -3256,6 +3268,8 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   RefreshProvidersSnapshotRequestMessageSchema,
   ProviderDiagnosticRequestMessageSchema,
   ProviderUsageListRequestMessageSchema,
+  EnvironmentCheckRequestMessageSchema,
+  EnvironmentUpgradeRequestMessageSchema,
   ResumeAgentRequestMessageSchema,
   ImportAgentRequestMessageSchema,
   RefreshAgentRequestMessageSchema,
@@ -3653,6 +3667,8 @@ export const ServerInfoStatusPayloadSchema = z
         workspaceFileEditing: z.boolean().optional(),
         // COMPAT(providerUsageList): added in v0.1.98, drop the gate when daemon floor >= v0.1.98.
         providerUsageList: z.boolean().optional(),
+        // COMPAT(environmentCheck): added in v0.9.0, remove gate after 2027-03-20 once daemon floor >= v0.9.0.
+        environmentCheck: z.boolean().optional(),
         // COMPAT(agentDetach): added in v0.1.98, remove gate after 2026-12-19 once daemon floor >= v0.1.98.
         agentDetach: z.boolean().optional(),
         // COMPAT(agentThinkingUpdate): added in v0.2.4, remove gate after 2027-01-28.
@@ -4199,6 +4215,8 @@ export const WorkspaceProjectDescriptorPayloadSchema = z.object({
   projectKey: z.string().optional(),
   projectDisplayName: z.string(),
   projectCustomName: z.string().nullable().optional(),
+  // COMPAT(projectCreatedAt): added in v0.9.0, remove optional after 2027-03-22.
+  createdAt: z.string().optional(),
   // COMPAT(projectCustomIcon): added in v0.2.0, remove after 2027-01-20.
   projectCustomIconRevision: z.string().nullable().optional(),
   // Fingerprints the effective icon, including automatic discovery and the
@@ -6269,6 +6287,45 @@ export const ProviderUsageListResponseMessageSchema = z.object({
   }),
 });
 
+export const EnvironmentCheckEntrySchema = z.object({
+  provider: AgentProviderSchema,
+  label: z.string().nullable(),
+  iconSvg: z.string().nullable().optional(),
+  status: z.enum(["ok", "update-available", "check-failed", "unavailable", "unknown-channel"]),
+  installedVersion: z.string().nullable(),
+  latestVersion: z.string().nullable(),
+  channel: z.enum(["npm", "binary"]).nullable(),
+  packageName: z.string().nullable().optional(),
+  upgradeHint: z.string().nullable().optional(),
+  error: z.string().nullable().optional(),
+  checkedAt: z.string(),
+});
+
+export const EnvironmentCheckResponseMessageSchema = z.object({
+  type: z.literal("environment.check.response"),
+  payload: z.object({
+    requestId: z.string(),
+    fetchedAt: z.string(),
+    providers: z.array(EnvironmentCheckEntrySchema),
+  }),
+});
+
+export const EnvironmentUpgradeEntrySchema = z.object({
+  provider: AgentProviderSchema,
+  status: z.enum(["upgraded", "up-to-date", "failed", "unsupported"]),
+  previousVersion: z.string().nullable(),
+  newVersion: z.string().nullable(),
+  error: z.string().nullable().optional(),
+});
+
+export const EnvironmentUpgradeResponseMessageSchema = z.object({
+  type: z.literal("environment.upgrade.response"),
+  payload: z.object({
+    requestId: z.string(),
+    results: z.array(EnvironmentUpgradeEntrySchema),
+  }),
+});
+
 const AgentSlashCommandSchema = z.object({
   name: z.string(),
   description: z.string(),
@@ -6955,6 +7012,8 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   RefreshProvidersSnapshotResponseMessageSchema,
   ProviderDiagnosticResponseMessageSchema,
   ProviderUsageListResponseMessageSchema,
+  EnvironmentCheckResponseMessageSchema,
+  EnvironmentUpgradeResponseMessageSchema,
   ListCommandsResponseSchema,
   ListTerminalsResponseSchema,
   TerminalsChangedSchema,
@@ -7141,6 +7200,12 @@ export type ProviderUsageDetail = z.infer<typeof ProviderUsageDetailSchema>;
 export type ProviderUsageListResponseMessage = z.infer<
   typeof ProviderUsageListResponseMessageSchema
 >;
+export type EnvironmentCheckEntry = z.infer<typeof EnvironmentCheckEntrySchema>;
+export type EnvironmentCheckResponseMessage = z.infer<typeof EnvironmentCheckResponseMessageSchema>;
+export type EnvironmentUpgradeEntry = z.infer<typeof EnvironmentUpgradeEntrySchema>;
+export type EnvironmentUpgradeResponseMessage = z.infer<
+  typeof EnvironmentUpgradeResponseMessageSchema
+>;
 export type ChatCreateResponse = z.infer<typeof ChatCreateResponseSchema>;
 export type ChatListResponse = z.infer<typeof ChatListResponseSchema>;
 export type ChatInspectResponse = z.infer<typeof ChatInspectResponseSchema>;
@@ -7208,6 +7273,10 @@ export type RefreshProvidersSnapshotRequestMessage = z.infer<
 >;
 export type ProviderDiagnosticRequestMessage = z.infer<
   typeof ProviderDiagnosticRequestMessageSchema
+>;
+export type EnvironmentCheckRequestMessage = z.infer<typeof EnvironmentCheckRequestMessageSchema>;
+export type EnvironmentUpgradeRequestMessage = z.infer<
+  typeof EnvironmentUpgradeRequestMessageSchema
 >;
 export type ChatCreateRequest = z.infer<typeof ChatCreateRequestSchema>;
 export type ChatListRequest = z.infer<typeof ChatListRequestSchema>;

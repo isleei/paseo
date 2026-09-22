@@ -15,6 +15,7 @@ import {
 } from "../../agent/provider-snapshot-manager.js";
 import type { ProviderSnapshotEntry } from "../../agent/agent-sdk-types.js";
 import { ProviderUsageService } from "../../../services/quota-fetcher/service.js";
+import type { EnvironmentService } from "../../agent/environment/environment-service.js";
 import { expandProviderSnapshot } from "@getpaseo/protocol/provider-snapshot-codec";
 
 type SnapshotChangeHandler = (transition: ProviderSnapshotTransition) => void;
@@ -25,6 +26,7 @@ interface MakeOptions {
   supportsCompactProviderSnapshots?: boolean;
   snapshot?: Partial<ProviderSnapshotManager>;
   usage?: { [K in keyof ProviderUsageService]?: unknown };
+  environment?: { [K in keyof EnvironmentService]?: unknown };
   host?: Partial<ProviderCatalogSessionHost>;
 }
 
@@ -74,6 +76,7 @@ function makeSubsystem(options: MakeOptions = {}) {
     host,
     providerSnapshotManager,
     providerUsageService: createStub<ProviderUsageService>(options.usage ?? {}),
+    environmentService: createStub<EnvironmentService>(options.environment ?? {}),
     logger: pino({ level: "silent" }),
   });
   function pushSnapshotChange(
@@ -392,6 +395,7 @@ it("announces shared content without retransmitting models or hashing discovery 
         logger: pino({ level: "silent" }),
         fetchers: [],
       }),
+      environmentService: createStub<EnvironmentService>({}),
       host: {
         emit(message) {
           emitted.push(message);
