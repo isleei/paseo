@@ -2733,6 +2733,121 @@ describe("Codex app-server provider", () => {
     }
   });
 
+  test("settles the original provider subagents when Codex closes them", () => {
+    const session = createSession();
+    const events: AgentStreamEvent[] = [];
+    session.subscribe((event) => events.push(event));
+
+    for (const [callId, threadId] of [
+      ["spawn-review-a", "review-thread-a"],
+      ["spawn-review-b", "review-thread-b"],
+    ]) {
+      asInternals(session).handleNotification("item/completed", {
+        threadId: "test-thread",
+        item: {
+          type: "collabAgentToolCall",
+          id: callId,
+          tool: "spawnAgent",
+          status: "completed",
+          prompt: "Review the source.",
+          receiverThreadIds: [threadId],
+          agentsStates: { [threadId]: { status: "pendingInit" } },
+        },
+      });
+    }
+
+    for (const [callId, threadId, childState] of [
+      ["close-review-a", "review-thread-a", { completed: true }],
+      ["close-review-b", "review-thread-b", "running"],
+    ] as const) {
+      asInternals(session).handleNotification("item/completed", {
+        threadId: "test-thread",
+        item: {
+          type: "collabAgentToolCall",
+          id: callId,
+          tool: "closeAgent",
+          status: "completed",
+          receiverThreadIds: [threadId],
+          agentsStates: { [threadId]: childState },
+        },
+      });
+    }
+
+    const latestStatuses = new Map<string, string>();
+    for (const event of events) {
+      if (event.type === "provider_subagent" && event.event.type === "upsert") {
+        latestStatuses.set(event.event.id, event.event.status);
+      }
+    }
+    expect(latestStatuses).toEqual(
+      new Map([
+        ["review-thread-a", "completed"],
+        ["review-thread-b", "canceled"],
+      ]),
+    );
+  });
+
+  test("restores closed Codex subagents as terminal from persisted history", async () => {
+    const session = createSession();
+    const spawnItems = ["review-thread-a", "review-thread-b"].map((threadId) => ({
+      type: "collabAgentToolCall",
+      id: `spawn-${threadId}`,
+      tool: "spawnAgent",
+      status: "completed",
+      receiverThreadIds: [threadId],
+      agentsStates: { [threadId]: { status: "pendingInit" } },
+    }));
+    session.client = {
+      request: vi.fn(async (method: string, params: unknown) => {
+        if (method !== "thread/read") return {};
+        if ((params as { threadId: string }).threadId !== "test-thread") {
+          return { thread: { turns: [] } };
+        }
+        return {
+          thread: {
+            turns: [
+              {
+                items: [
+                  ...spawnItems,
+                  {
+                    type: "collabAgentToolCall",
+                    id: "close-review-a",
+                    tool: "closeAgent",
+                    status: "completed",
+                    receiverThreadIds: ["review-thread-a"],
+                    agentsStates: { "review-thread-a": { completed: true } },
+                  },
+                  {
+                    type: "collabAgentToolCall",
+                    id: "close-review-b",
+                    tool: "closeAgent",
+                    status: "completed",
+                    receiverThreadIds: ["review-thread-b"],
+                    agentsStates: { "review-thread-b": "running" },
+                  },
+                ],
+              },
+            ],
+          },
+        };
+      }),
+    };
+
+    await asInternals(session).loadPersistedHistory(session.client);
+    const statuses = new Map<string, string>();
+    for await (const event of session.streamHistory()) {
+      if (event.type === "provider_subagent" && event.event.type === "upsert") {
+        statuses.set(event.event.id, event.event.status);
+      }
+    }
+    expect(statuses).toEqual(
+      new Map([
+        ["review-thread-a", "completed"],
+        ["review-thread-b", "canceled"],
+      ]),
+    );
+  });
+
   test("updates a registered child with its later native activity name", () => {
     const session = createSession();
     const events: AgentStreamEvent[] = [];

@@ -1740,6 +1740,42 @@ function readCodexSubAgentActivity(item: unknown): CodexSubAgentActivity | null 
   };
 }
 
+function readCodexClosedSubAgents(
+  item: unknown,
+): Array<{ threadId: string; status: "completed" | "failed" | "canceled" }> {
+  const record = toObjectRecord(item);
+  if (
+    normalizeCodexThreadItemType(typeof record?.type === "string" ? record.type : undefined) !==
+      "collabAgentToolCall" ||
+    (record?.tool !== "closeAgent" && record?.tool !== "close_agent") ||
+    record.status !== "completed" ||
+    record.error != null
+  ) {
+    return [];
+  }
+  const threadIds = record.receiverThreadIds ?? record.receiver_thread_ids;
+  const states = toObjectRecord(record.agentsStates ?? record.agents_states);
+  if (!Array.isArray(threadIds)) return [];
+  return threadIds.flatMap((threadId) => {
+    if (typeof threadId !== "string" || !threadId) return [];
+    const state = states?.[threadId];
+    const stateRecord = toObjectRecord(state);
+    const nativeStatus = typeof state === "string" ? state : stateRecord?.status;
+    // closeAgent can return the child's last "running" snapshot even though the close succeeded.
+    let status: "completed" | "failed" | "canceled" = "canceled";
+    if (stateRecord?.completed === true || nativeStatus === "completed") {
+      status = "completed";
+    } else if (
+      nativeStatus === "failed" ||
+      nativeStatus === "notFound" ||
+      nativeStatus === "not_found"
+    ) {
+      status = "failed";
+    }
+    return [{ threadId, status }];
+  });
+}
+
 function shouldIgnoreMirroredLifecycleItem(source: "item" | "codex_event", item: unknown): boolean {
   return source === "codex_event" && !readCodexSubAgentActivity(item);
 }
@@ -1777,6 +1813,29 @@ function updateHistoricalSubAgentActivity(
             detail: { ...settledItem.detail, subAgentType },
           }
         : settledItem,
+  };
+}
+
+function updateHistoricalClosedSubAgent(
+  timeline: PersistedTimelineEntry[],
+  index: number,
+  status: "completed" | "failed" | "canceled",
+): void {
+  const existing = timeline[index];
+  if (existing?.item.type !== "tool_call" || isTerminalSubAgentStatus(existing.item.status)) {
+    return;
+  }
+  const settledItem: ToolCallTimelineItem =
+    status === "failed"
+      ? {
+          ...existing.item,
+          status: "failed",
+          error: { message: "Sub-agent failed" },
+        }
+      : { ...existing.item, status, error: null };
+  timeline[index] = {
+    ...existing,
+    item: settledItem,
   };
 }
 
@@ -1973,6 +2032,12 @@ async function loadCodexThreadHistoryTimeline(params: {
   const subAgentTimelineIndexByThreadId = new Map<string, number>();
   for (const turn of response.thread.turns) {
     for (const item of turn.items) {
+      for (const closed of readCodexClosedSubAgents(item)) {
+        const existingIndex = subAgentTimelineIndexByThreadId.get(closed.threadId);
+        if (existingIndex !== undefined) {
+          updateHistoricalClosedSubAgent(timeline, existingIndex, closed.status);
+        }
+      }
       const historicalSubAgentActivity = readCodexSubAgentActivity(item);
       if (historicalSubAgentActivity) {
         const existingIndex = subAgentTimelineIndexByThreadId.get(
@@ -5544,6 +5609,16 @@ export class CodexAppServerAgentSession implements AgentSession {
     return true;
   }
 
+  private settleClosedSubAgents(rawItem: { [key: string]: unknown }): void {
+    for (const closed of readCodexClosedSubAgents(rawItem)) {
+      const callId = this.subAgentCallIdByChildThreadId.get(closed.threadId);
+      const state = callId ? this.subAgentCallsByCallId.get(callId) : null;
+      if (state && !isTerminalSubAgentStatus(state.toolCall.status)) {
+        this.emitSubAgentActivityUpdate(state.callId, closed.status);
+      }
+    }
+  }
+
   private handleCompletedContextCompactionItem(item: {
     id?: string;
     type?: string;
@@ -6359,6 +6434,7 @@ export class CodexAppServerAgentSession implements AgentSession {
   private handleItemCompletedNotification(
     parsed: Extract<ParsedCodexNotification, { kind: "item_completed" }>,
   ): void {
+    this.settleClosedSubAgents(parsed.item);
     // Codex emits mirrored lifecycle notifications via both `codex/event/item_*`
     // and canonical `item/*`. Render ordinary items only from the canonical
     // channel, but accept a legacy-only child announcement so it can establish
