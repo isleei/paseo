@@ -666,7 +666,7 @@ function RestartDaemonCard({ host }: { host: HostProfile }) {
           {
             restartServer: (reason) => daemonClient.restartServer(reason),
             getStatus: async () => ({
-              ...(await daemonClient.getDaemonStatus({ timeout: 1500 })),
+              ...(await daemonClient.getDaemonStatus()),
               serverId: daemonClient.getLastServerInfoMessage()?.serverId ?? "",
               version: daemonClient.getLastServerInfoMessage()?.version ?? null,
             }),
@@ -810,7 +810,7 @@ function UpdateDaemonCard({ host }: { host: HostProfile }) {
         void updateDaemonFromSettings(host.serverId, {
           updateDaemon: () => daemonClient.updateDaemon(requestId),
           getStatus: async () => ({
-            ...(await daemonClient.getDaemonStatus({ timeout: 1500 })),
+            ...(await daemonClient.getDaemonStatus()),
             serverId: daemonClient.getLastServerInfoMessage()?.serverId ?? "",
             version: daemonClient.getLastServerInfoMessage()?.version ?? null,
           }),
