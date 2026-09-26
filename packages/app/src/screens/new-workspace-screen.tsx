@@ -131,6 +131,10 @@ import {
 } from "./workspace/terminals/state";
 import { captureWorkspaceDraftCleanup } from "./new-workspace/background-handoff";
 import { useNewWorkspaceScreenPresence } from "./new-workspace/screen-presence";
+import {
+  createWorkspaceAgentCreation,
+  WorkspaceCreationFailure,
+} from "./new-workspace/creation-retry";
 
 const ThemedFolderPlus = withUnistyles(FolderPlus);
 const foregroundMutedColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
@@ -851,7 +855,10 @@ async function createMultiplicityWorkspace(input: {
     ...(firstAgentContext ? { firstAgentContext } : {}),
   });
   if (payload.error || !payload.workspace) {
-    throw new Error(payload.error ?? input.createFailedMessage);
+    throw new WorkspaceCreationFailure(
+      payload.error ?? input.createFailedMessage,
+      payload.creation,
+    );
   }
   const normalizedWorkspace = normalizeWorkspaceDescriptor(payload.workspace);
   const workspaceForInitialMerge = input.withInitialAgent
@@ -1149,18 +1156,11 @@ async function createWorkspaceChatAgent(input: CreateChatAgentInput): Promise<Su
     if (!agent) throw new Error("Workspace creation returned no agent");
     return agent;
   };
-  const agentCreation = {
+  const agentCreation = createWorkspaceAgentCreation({
     result: Promise.resolve().then(() => execute()),
-    retry: (request: CreateAgentRequestOptions) =>
-      execute({
-        ...initialAgent,
-        config: { ...request.config!, cwd },
-        initialPrompt: request.initialPrompt ?? "",
-        clientMessageId: initialAgent.clientMessageId,
-        images: request.images,
-        attachments: request.attachments,
-      }),
-  };
+    createAgent: (agentRequest) => input.resolveClient().createAgent(agentRequest),
+    nextIdempotencyKey: generateDraftId,
+  });
   await agentCreation.result;
   if (outcome === "background") clearConsumedDraft();
   return outcome;

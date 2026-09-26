@@ -344,6 +344,9 @@ key. Reconnect subscribes to that key; retries
 join active work or reuse committed stages. A persisted resource alone cannot prove
 that a provider accepted its initial prompt. Interrupted side effects with no conclusive
 receipt return an unknown outcome instead of being repeated.
+After workspace readiness, a changed draft cannot reuse the workspace creation key. If
+initial agent startup failed conclusively before an agent exists, submit a new agent
+creation in the ready workspace with a new key. An unknown prompt outcome stays blocked.
 
 `packages/client/src/creation/` owns capability selection and legacy orchestration.
 Callers always pass the initial prompt to agent creation. On an older host, the client
