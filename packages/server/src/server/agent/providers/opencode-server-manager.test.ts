@@ -49,6 +49,20 @@ describe("OpenCodeServerManager generations", () => {
       ]),
     );
   });
+
+  test("passes an inherited OpenCode server password to the event source and acquisitions", async () => {
+    const { manager, runtime } = createTestManager([4083], {
+      baseEnv: { OPENCODE_SERVER_PASSWORD: "local-secret" },
+    });
+
+    const acquisition = await manager.acquireCurrent();
+    expect(acquisition.password).toBe("local-secret");
+    expect(acquisition.server.password).toBe("local-secret");
+    expect(runtime.spawnCalls[0]?.options.env?.OPENCODE_SERVER_PASSWORD).toBe("local-secret");
+    await acquisition.release();
+    await manager.shutdown();
+  });
+
   test("shares one real SDK event stream across acquisitions until generation shutdown", async () => {
     const responses: ServerResponse[] = [];
     let requestCount = 0;

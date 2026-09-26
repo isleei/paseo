@@ -16,7 +16,7 @@ export class TestOpenCodeHarness implements OpenCodeServerManagerLike {
     url?: string;
     releaseCount: number;
   }> = [];
-  readonly clientCreations: Array<{ baseUrl: string; directory: string }> = [];
+  readonly clientCreations: Array<{ baseUrl: string; directory: string; password?: string }> = [];
   private readonly clients: TestOpenCodeClient[] = [];
   private readonly eventListeners = new Set<(input: OpenCodeEventSourceInput) => void>();
   readonly events = {
@@ -25,6 +25,7 @@ export class TestOpenCodeHarness implements OpenCodeServerManagerLike {
       this.eventListeners.add(listener);
       return () => this.eventListeners.delete(listener);
     },
+    close: async () => undefined,
   };
 
   server = { port: 1234, url: "http://127.0.0.1:1234" };
@@ -80,7 +81,11 @@ export class TestOpenCodeHarness implements OpenCodeServerManagerLike {
     };
   }
 
-  readonly createClient = (options: { baseUrl: string; directory: string }): OpencodeClient => {
+  readonly createClient = (options: {
+    baseUrl: string;
+    directory: string;
+    password?: string;
+  }): OpencodeClient => {
     this.clientCreations.push(options);
     const client = this.clients.shift() ?? new TestOpenCodeClient();
     return client.asSdkClient();

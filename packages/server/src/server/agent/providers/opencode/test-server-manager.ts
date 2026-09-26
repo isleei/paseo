@@ -3,6 +3,7 @@ import type { OpenCodeServerAcquisition, OpenCodeServerManagerLike } from "./ser
 const events = {
   ready: async () => undefined,
   subscribe: () => () => undefined,
+  close: async () => undefined,
 };
 
 export interface TestOpenCodeServerAcquisition {

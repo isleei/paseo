@@ -29,7 +29,8 @@ const OPENCODE_SERVER_GRACEFUL_SHUTDOWN_TIMEOUT_MS = 5_000;
 const OPENCODE_SERVER_FORCE_SHUTDOWN_TIMEOUT_MS = 1_000;
 
 export interface OpenCodeServerAcquisition {
-  server: { port: number; url: string };
+  server: { port: number; url: string; password?: string };
+  password?: string;
   events: OpenCodeEventSource;
   release: () => Promise<void>;
 }
@@ -46,10 +47,11 @@ export interface OpenCodeServerGeneration {
   process: ChildProcess;
   port: number;
   url: string;
+  password?: string;
   refCount: number;
   retired: boolean;
   ready: Promise<void>;
-  events: OpenCodeEventConsumer;
+  events: OpenCodeEventSource;
   managedProcessId?: string;
   managedProcessRecord?: Promise<{ id: string } | null>;
 }
@@ -72,7 +74,9 @@ export interface OpenCodeServerManagerOptions {
   resolveCommandPrefix?: OpenCodeCommandPrefixResolver;
   resolveHomeDir?: () => string;
   spawnServerProcess?: OpenCodeServerProcessSpawner;
-  createEventSource?: OpenCodeEventConsumerFactory;
+  createEventSource?: (
+    options: Parameters<OpenCodeEventConsumerFactory>[0],
+  ) => OpenCodeEventConsumer;
   decorateServerEnv?: (env: Record<string, string>) => Record<string, string>;
 }
 
@@ -93,7 +97,9 @@ export class OpenCodeServerManager implements OpenCodeServerManagerLike {
   private readonly resolveCommandPrefix: OpenCodeCommandPrefixResolver;
   private readonly resolveHomeDir: () => string;
   private readonly spawnServerProcess: OpenCodeServerProcessSpawner;
-  private readonly createEventSource: OpenCodeEventConsumerFactory;
+  private readonly createEventSource: (
+    options: Parameters<OpenCodeEventConsumerFactory>[0],
+  ) => OpenCodeEventConsumer;
   private readonly decorateServerEnv?: (env: Record<string, string>) => Record<string, string>;
 
   constructor(options: OpenCodeServerManagerOptions) {
@@ -208,7 +214,12 @@ export class OpenCodeServerManager implements OpenCodeServerManagerLike {
     server.refCount += 1;
     let releasePromise: Promise<void> | null = null;
     return {
-      server: { port: server.port, url: server.url },
+      server: {
+        port: server.port,
+        url: server.url,
+        ...(server.password ? { password: server.password } : {}),
+      },
+      password: server.password,
       events: server.events,
       release: async () => {
         if (releasePromise) {
@@ -322,6 +333,12 @@ export class OpenCodeServerManager implements OpenCodeServerManagerLike {
     const serverCwd = this.resolveHomeDir();
     mkdirSync(serverCwd, { recursive: true });
 
+    const baseEnv = this.baseEnv ?? process.env;
+    const password =
+      launchEnv?.OPENCODE_SERVER_PASSWORD ??
+      this.runtimeSettings?.env?.OPENCODE_SERVER_PASSWORD ??
+      baseEnv.OPENCODE_SERVER_PASSWORD;
+
     const existingConfigContent =
       launchEnv?.OPENCODE_CONFIG_CONTENT ??
       this.runtimeSettings?.env?.OPENCODE_CONFIG_CONTENT ??
@@ -355,10 +372,16 @@ export class OpenCodeServerManager implements OpenCodeServerManagerLike {
       process: serverProcess,
       port,
       url,
+      ...(password ? { password } : {}),
       refCount: 0,
       retired: false,
       ready: Promise.resolve(),
-      events: this.createEventSource({ serverUrl: url, processExit, logger: this.logger }),
+      events: this.createEventSource({
+        serverUrl: url,
+        processExit,
+        logger: this.logger,
+        ...(password ? { password } : {}),
+      }),
       managedProcessRecord,
     };
     this.logger.info(

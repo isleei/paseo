@@ -147,6 +147,7 @@ const OPENCODE_DEFAULT_VARIANT_ID = "default";
 const EMPTY_OPENCODE_EVENT_SOURCE: OpenCodeEventSource = {
   ready: async () => undefined,
   subscribe: () => () => undefined,
+  close: async () => undefined,
 };
 const OPENCODE_ID_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 let lastOpenCodeMessageTimestamp = -1;
@@ -1492,10 +1493,28 @@ interface OpenCodeAgentClientDeps {
   bridge?: OpenCodeBridge;
 }
 
-type OpenCodeClientFactory = (options: { baseUrl: string; directory: string }) => OpencodeClient;
+type OpenCodeClientFactory = (options: {
+  baseUrl: string;
+  directory: string;
+  password?: string;
+}) => OpencodeClient;
 
-function createSdkOpenCodeClient(options: { baseUrl: string; directory: string }): OpencodeClient {
-  return createOpencodeClient(options satisfies OpencodeClientConfig & { directory: string });
+function createSdkOpenCodeClient(options: {
+  baseUrl: string;
+  directory: string;
+  password?: string;
+}): OpencodeClient {
+  const { password, ...clientOptions } = options;
+  return createOpencodeClient({
+    ...clientOptions,
+    ...(password
+      ? {
+          headers: {
+            Authorization: `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}`,
+          },
+        }
+      : {}),
+  } satisfies OpencodeClientConfig & { directory: string });
 }
 
 export class OpenCodeAgentClient implements AgentClient {
@@ -1530,12 +1549,17 @@ export class OpenCodeAgentClient implements AgentClient {
       OpenCodeServerManager.getInstance(this.logger, runtimeSettings, {
         managedProcesses: deps.managedProcesses,
         resolveHomeDir: deps.resolveHomeDir,
-        createEventSource: ({ serverUrl, processExit, logger: eventLogger }) =>
+        createEventSource: ({ serverUrl, processExit, logger: eventLogger, password }) =>
           new OpenCodeEventConsumer({
             serverUrl,
             processExit,
             logger: eventLogger,
-            createClient: (baseUrl) => this.createOpenCodeClient({ baseUrl, directory: "" }),
+            createClient: (baseUrl) =>
+              this.createOpenCodeClient({
+                baseUrl,
+                directory: "",
+                password,
+              }),
           }),
         decorateServerEnv: this.bridge
           ? (env) => this.bridge?.decorateServerEnv(env) ?? env
@@ -1555,6 +1579,7 @@ export class OpenCodeAgentClient implements AgentClient {
     const client = this.createOpenCodeClient({
       baseUrl: url,
       directory: openCodeConfig.cwd,
+      password: acquisition.password,
     });
 
     try {
@@ -1629,6 +1654,7 @@ export class OpenCodeAgentClient implements AgentClient {
     const client = this.createOpenCodeClient({
       baseUrl: url,
       directory: openCodeConfig.cwd,
+      password: acquisition.password,
     });
 
     try {
@@ -1704,7 +1730,11 @@ export class OpenCodeAgentClient implements AgentClient {
         );
       }
 
-      const client = this.createOpenCodeClient({ baseUrl: url, directory });
+      const client = this.createOpenCodeClient({
+        baseUrl: url,
+        directory,
+        password: acquisition.password,
+      });
       const [models, modes] = await Promise.all([
         this.fetchModelsFromClient(client, directory, context),
         this.fetchModesFromClient(client, directory, context),
@@ -1722,6 +1752,7 @@ export class OpenCodeAgentClient implements AgentClient {
     const client = this.createOpenCodeClient({
       baseUrl: url,
       directory: openCodeConfig.cwd,
+      password: acquisition.password,
     });
 
     try {
@@ -1743,6 +1774,7 @@ export class OpenCodeAgentClient implements AgentClient {
     const client = this.createOpenCodeClient({
       baseUrl: url,
       directory: options?.cwd ?? "",
+      password: acquisition.password,
     });
 
     try {
@@ -1758,6 +1790,7 @@ export class OpenCodeAgentClient implements AgentClient {
     const client = this.createOpenCodeClient({
       baseUrl: url,
       directory: input.cwd,
+      password: acquisition.password,
     });
 
     try {
@@ -1813,6 +1846,7 @@ export class OpenCodeAgentClient implements AgentClient {
     const client = this.createOpenCodeClient({
       baseUrl: acquisition.server.url,
       directory: metadata.cwd,
+      password: acquisition.password,
     });
     try {
       const response = readOpenCodeRecord(

@@ -1,5 +1,5 @@
 import { createServer, type ServerResponse } from "node:http";
-import { createOpencodeClient, type OpencodeClient } from "@opencode-ai/sdk/v2/client";
+import type { OpencodeClient } from "@opencode-ai/sdk/v2/client";
 import type { Logger } from "pino";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
@@ -15,6 +15,45 @@ describe("OpenCodeEventConsumer", () => {
   const cleanups: Array<() => Promise<void>> = [];
   afterEach(async () => {
     await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
+  });
+
+  test("sends Basic authorization for a password protected server", async () => {
+    const authorizationHeaders: string[] = [];
+    const upstream = createServer((request, response) => {
+      authorizationHeaders.push(String(request.headers.authorization ?? ""));
+      if (request.url?.startsWith("/global/event")) {
+        response.writeHead(200, { "content-type": "text/event-stream" });
+        response.flushHeaders();
+        response.write(
+          `data: ${JSON.stringify({ directory: "/workspace", payload: { type: "server.connected", properties: {} } })}\n\n`,
+        );
+        return;
+      }
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ data: [] }));
+    });
+    await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+    const address = upstream.address();
+    if (!address || typeof address === "string") throw new Error("Missing upstream address");
+    const url = `http://127.0.0.1:${address.port}`;
+    const consumer = new OpenCodeEventConsumer({
+      serverUrl: url,
+      password: "local-secret",
+      processExit: new Promise<Error>(() => undefined),
+      logger: createRecordingLogger(),
+    });
+    cleanups.push(async () => {
+      await consumer.close();
+      await closeHttpServer(upstream);
+    });
+
+    await consumer.ready();
+    expect(authorizationHeaders.length).toBeGreaterThan(0);
+    expect(
+      authorizationHeaders.every(
+        (header) => header === `Basic ${Buffer.from("opencode:local-secret").toString("base64")}`,
+      ),
+    ).toBe(true);
   });
 
   test("settles when close wins immediately before an injected backoff wait", async () => {
@@ -424,6 +463,15 @@ describe("OpenCodeEventConsumer", () => {
     expect(inputs).toEqual([]);
   });
 });
+
+function closeHttpServer(server: ReturnType<typeof createServer>): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+}
 
 class ControlledTiming implements OpenCodeEventConsumerTiming {
   private waits: Array<() => void> = [];

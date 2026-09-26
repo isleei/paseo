@@ -10,6 +10,7 @@ export type OpenCodeEventSourceInput = GlobalEvent | { type: "server-exited"; er
 export interface OpenCodeEventSource {
   ready(): Promise<void>;
   subscribe(listener: (input: OpenCodeEventSourceInput) => void): () => void;
+  close(): Promise<void>;
   diagnostics?(): OpenCodeEventStreamDiagnostics;
 }
 
@@ -28,6 +29,7 @@ export interface OpenCodeEventConsumerTiming {
 
 export interface OpenCodeEventConsumerOptions {
   serverUrl: string;
+  password?: string;
   processExit: Promise<Error>;
   logger: Pick<Logger, "debug" | "warn">;
   createClient?: (baseUrl: string) => OpencodeClient;
@@ -90,7 +92,16 @@ export class OpenCodeEventConsumer implements OpenCodeEventSource {
   constructor(options: OpenCodeEventConsumerOptions) {
     this.client =
       options.createClient?.(options.serverUrl) ??
-      createOpencodeClient({ baseUrl: options.serverUrl });
+      createOpencodeClient({
+        baseUrl: options.serverUrl,
+        ...(options.password
+          ? {
+              headers: {
+                Authorization: `Basic ${Buffer.from(`opencode:${options.password}`).toString("base64")}`,
+              },
+            }
+          : {}),
+      });
     this.logger = options.logger;
     this.timing = options.timing ?? systemTiming;
     this.readyPromise = new Promise<void>((resolve, reject) => {
@@ -285,5 +296,5 @@ function containsPluginError(error: unknown): boolean {
 }
 
 export type OpenCodeEventConsumerFactory = (
-  options: Pick<OpenCodeEventConsumerOptions, "serverUrl" | "processExit" | "logger">,
+  options: Pick<OpenCodeEventConsumerOptions, "serverUrl" | "processExit" | "logger" | "password">,
 ) => OpenCodeEventConsumer;

@@ -648,6 +648,7 @@ describe("OpenCodeAgentClient adapter smoke tests", () => {
         resolveHomeDir: () => cwd,
       });
       const catalog = await client.fetchCatalog({ scope: "global", force: false });
+      expect(runtime.clientCreations.at(-1)).toMatchObject({ password: undefined });
       const options = catalog.models[0].thinkingOptions ?? [];
       expect(options).toEqual([
         { id: "default", label: "Default", isDefault: true },
