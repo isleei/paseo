@@ -182,6 +182,34 @@ describe("GenericACPAgentClient diagnostics", () => {
     });
   });
 
+  test("authenticates with the configured ACP method before catalog and session creation", async () => {
+    await withFakeACPAgent("auth-required", async (scriptPath, mode, testDir) => {
+      const authTracePath = path.join(testDir, "authenticate.jsonl");
+      const client = new GenericACPAgentClient({
+        logger: createTestLogger(),
+        command: [process.execPath, scriptPath, mode, "", "", "", testDir, "", authTracePath],
+        providerParams: { authMethodId: "cline-pass" },
+      });
+
+      await expect(
+        client.fetchCatalog({ scope: "workspace", cwd: testDir, force: true }),
+      ).resolves.toMatchObject({
+        models: [{ id: "cline-pass/test-model", label: "ClinePass Test Model" }],
+      });
+
+      const session = await client.createSession({ provider: "acp", cwd: testDir });
+      await session.close();
+
+      const { diagnostic } = await client.getDiagnostic();
+      expect(diagnostic).toContain("ACP authenticate: ok");
+      expect(diagnostic).toContain("method=cline-pass");
+
+      await expect(readFile(authTracePath, "utf8")).resolves.toBe(
+        `${JSON.stringify({ methodId: "cline-pass" })}\n${JSON.stringify({ methodId: "cline-pass" })}\n${JSON.stringify({ methodId: "cline-pass" })}\n`,
+      );
+    });
+  });
+
   test("closes the native diagnostic probe session", async () => {
     await withFakeACPAgent("success", async (scriptPath, mode, testDir) => {
       const closeTracePath = path.join(testDir, "session-close.jsonl");
@@ -361,6 +389,7 @@ async function withFakeACPAgent(
     | "success"
     | "hang-session"
     | "crash-initialize"
+    | "auth-required"
     | "history-list"
     | "history-load-failure"
     | "history-load-failures",
@@ -415,6 +444,8 @@ const initializeTracePath = process.argv[4];
 const closeTracePath = process.argv[5];
 const sessionCwd = process.argv[6];
 const loadTracePath = process.argv[7];
+const authTracePath = process.argv[8];
+let authenticatedMethodId = null;
 if (pidPath) {
   fs.writeFileSync(pidPath, String(process.pid));
 }
@@ -454,11 +485,28 @@ rl.on("line", (line) => {
     return;
   }
 
+  if (message.method === "authenticate") {
+    authenticatedMethodId = message.params?.methodId ?? null;
+    if (authTracePath) {
+      fs.appendFileSync(authTracePath, JSON.stringify({ methodId: authenticatedMethodId }) + "\\n");
+    }
+    send(message.id, {});
+    return;
+  }
+
   if (message.method === "session/new") {
     if (mode === "hang-session") {
       return;
     }
 
+    if (mode === "auth-required" && authenticatedMethodId !== "cline-pass") {
+      sendError(message.id, -32000, "authenticate with cline-pass before session/new");
+      return;
+    }
+
+    const model = mode === "auth-required"
+      ? { modelId: "cline-pass/test-model", name: "ClinePass Test Model", description: null }
+      : { modelId: "fake-model", name: "Fake Model", description: null };
     send(message.id, {
       sessionId: "session-1",
       modes: {
@@ -466,8 +514,8 @@ rl.on("line", (line) => {
         currentModeId: "default",
       },
       models: {
-        availableModels: [{ modelId: "fake-model", name: "Fake Model", description: null }],
-        currentModelId: "fake-model",
+        availableModels: [model],
+        currentModelId: model.modelId,
       },
       configOptions: [],
     });

@@ -484,6 +484,19 @@ Required fields for ACP providers:
 - `label`
 - `command` — the command to spawn the agent process (must support ACP over stdio)
 
+Set `params.authMethodId` when the agent exposes multiple ACP authentication methods and one
+provider entry must select a specific account or plan. Paseo calls ACP `authenticate` once after
+`initialize`, before that process performs session, catalog, history, or diagnostic work. Omit it
+for agents that restore their own authentication.
+
+```json
+{
+  "params": {
+    "authMethodId": "account-id"
+  }
+}
+```
+
 Paseo tools such as subagent creation come from the shared internal tool catalog. ACP providers receive those tools through the MCP fallback by default because ACP exposes `mcpServers`, not Paseo's native tool catalog. Some ACP adapters cannot create sessions when `mcpServers` is non-empty. Disable injected MCP for those providers with `params.supportsMcpServers: false`:
 
 ```json
@@ -677,19 +690,19 @@ When an `additionalModels` entry has the same `id` as a discovered model, it upd
 
 Every entry under `agents.providers` accepts these fields:
 
-| Field              | Type                      | Required          | Description                                                        |
-| ------------------ | ------------------------- | ----------------- | ------------------------------------------------------------------ |
-| `extends`          | `string`                  | Yes (custom only) | Built-in provider ID to inherit from, or `"acp"`                   |
-| `label`            | `string`                  | Yes (custom only) | Display name in the UI                                             |
-| `description`      | `string`                  | No                | Short description shown in the UI                                  |
-| `command`          | `string[]`                | Yes (ACP only)    | Command to spawn the agent process                                 |
-| `env`              | `Record<string, string>`  | No                | Environment variables to set for the agent process                 |
-| `params`           | `Record<string, unknown>` | No                | Provider-specific options such as `supportsMcpServers: false`      |
-| `models`           | `ProviderProfileModel[]`  | No                | Static model list (overrides runtime discovery)                    |
-| `additionalModels` | `ProviderProfileModel[]`  | No                | Static model additions (merged with runtime discovery or `models`) |
-| `disallowedTools`  | `string[]`                | No                | Tool names to disable for this provider (e.g. `["WebSearch"]`)     |
-| `enabled`          | `boolean`                 | No                | Set to `false` to hide the provider (default: `true`)              |
-| `order`            | `number`                  | No                | Sort order in the provider list                                    |
+| Field              | Type                      | Required          | Description                                                              |
+| ------------------ | ------------------------- | ----------------- | ------------------------------------------------------------------------ |
+| `extends`          | `string`                  | Yes (custom only) | Built-in provider ID to inherit from, or `"acp"`                         |
+| `label`            | `string`                  | Yes (custom only) | Display name in the UI                                                   |
+| `description`      | `string`                  | No                | Short description shown in the UI                                        |
+| `command`          | `string[]`                | Yes (ACP only)    | Command to spawn the agent process                                       |
+| `env`              | `Record<string, string>`  | No                | Environment variables to set for the agent process                       |
+| `params`           | `Record<string, unknown>` | No                | Provider-specific options such as `authMethodId` or `supportsMcpServers` |
+| `models`           | `ProviderProfileModel[]`  | No                | Static model list (overrides runtime discovery)                          |
+| `additionalModels` | `ProviderProfileModel[]`  | No                | Static model additions (merged with runtime discovery or `models`)       |
+| `disallowedTools`  | `string[]`                | No                | Tool names to disable for this provider (e.g. `["WebSearch"]`)           |
+| `enabled`          | `boolean`                 | No                | Set to `false` to hide the provider (default: `true`)                    |
+| `order`            | `number`                  | No                | Sort order in the provider list                                          |
 
 ### Model definition
 

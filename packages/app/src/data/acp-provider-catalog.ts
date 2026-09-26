@@ -73,6 +73,22 @@ const CATALOG_DATA = [
     iconId: "cline",
     installLink: "https://cline.bot/cli",
     command: ["npx", "-y", "cline@3.0.62", "--acp"],
+    params: {
+      authMethodId: "cline",
+    },
+  },
+  {
+    id: "cline-pass",
+    title: "ClinePass",
+    description:
+      "Cline's subscription provider with curated open coding models and higher usage limits",
+    version: "3.0.62",
+    iconId: "cline",
+    installLink: "https://cline.bot/clinepass",
+    command: ["npx", "-y", "cline@3.0.62", "--acp"],
+    params: {
+      authMethodId: "cline-pass",
+    },
   },
   {
     id: "codebuddy-code",

@@ -59,6 +59,19 @@ describe("ACP provider catalog", () => {
     expect(findProvider("minimax-code").iconSvg).toContain("<svg");
   });
 
+  it("offers Cline and ClinePass as separately authenticated ACP providers", () => {
+    expect(findProvider("cline")).toMatchObject({
+      title: "Cline",
+      command: ["npx", "-y", "cline@3.0.62", "--acp"],
+      params: { authMethodId: "cline" },
+    });
+    expect(findProvider("cline-pass")).toMatchObject({
+      title: "ClinePass",
+      command: ["npx", "-y", "cline@3.0.62", "--acp"],
+      params: { authMethodId: "cline-pass" },
+    });
+  });
+
   it("maps a catalog entry to the daemon provider config patch", () => {
     expect(buildAcpProviderConfigPatch(findProvider("amp-acp"))).toEqual({
       providers: {

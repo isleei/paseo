@@ -428,6 +428,7 @@ interface ACPAgentClientOptions {
   logger: Logger;
   runtimeSettings?: ProviderRuntimeSettings;
   defaultCommand: [string, ...string[]];
+  authMethodId?: string;
   defaultModes?: AgentMode[];
   catalogModelResolver?: ACPCatalogModelResolver;
   modelTransformer?: (models: AgentModelDefinition[]) => AgentModelDefinition[];
@@ -460,6 +461,7 @@ interface ACPAgentSessionOptions {
   logger: Logger;
   runtimeSettings?: ProviderRuntimeSettings;
   defaultCommand: [string, ...string[]];
+  authMethodId?: string;
   defaultModes: AgentMode[];
   modelTransformer?: (models: AgentModelDefinition[]) => AgentModelDefinition[];
   sessionResponseTransformer?: (response: SessionStateResponse) => SessionStateResponse;
@@ -997,6 +999,7 @@ export class ACPAgentClient implements AgentClient {
   protected readonly logger: Logger;
   protected readonly runtimeSettings?: ProviderRuntimeSettings;
   protected readonly defaultCommand: [string, ...string[]];
+  private readonly authMethodId?: string;
   protected readonly defaultModes: AgentMode[];
   private readonly catalogModelResolver?: ACPCatalogModelResolver;
   private readonly modelTransformer?: (models: AgentModelDefinition[]) => AgentModelDefinition[];
@@ -1039,6 +1042,7 @@ export class ACPAgentClient implements AgentClient {
     });
     this.runtimeSettings = options.runtimeSettings;
     this.defaultCommand = options.defaultCommand;
+    this.authMethodId = options.authMethodId;
     this.defaultModes = options.defaultModes ?? [];
     this.catalogModelResolver = options.catalogModelResolver;
     this.modelTransformer = options.modelTransformer;
@@ -1070,6 +1074,7 @@ export class ACPAgentClient implements AgentClient {
         logger: this.logger,
         runtimeSettings: this.runtimeSettings,
         defaultCommand: this.defaultCommand,
+        authMethodId: this.authMethodId,
         defaultModes: this.defaultModes,
         modelTransformer: this.modelTransformer,
         sessionResponseTransformer: this.sessionResponseTransformer,
@@ -1120,6 +1125,7 @@ export class ACPAgentClient implements AgentClient {
       logger: this.logger,
       runtimeSettings: this.runtimeSettings,
       defaultCommand: this.defaultCommand,
+      authMethodId: this.authMethodId,
       defaultModes: this.defaultModes,
       modelTransformer: this.modelTransformer,
       sessionResponseTransformer: this.sessionResponseTransformer,
@@ -1442,6 +1448,7 @@ export class ACPAgentClient implements AgentClient {
     options?.onSpawned?.(probe);
     try {
       const initialize = await this.initializeTransport(transport, options?.initializeTimeoutMs);
+      await this.authenticateConnection(transport.connection);
       const initializedProbe: SpawnedACPProcess = {
         ...probe,
         initialize,
@@ -1553,6 +1560,12 @@ export class ACPAgentClient implements AgentClient {
     }
   }
 
+  protected async authenticateConnection(connection: ClientSideConnection): Promise<void> {
+    const authMethodId = this.authMethodId;
+    if (!authMethodId) return;
+    await this.runACPRequest(() => connection.authenticate({ methodId: authMethodId }));
+  }
+
   protected buildProbeClient(
     onSessionUpdate?: (params: SessionNotification) => void | Promise<void>,
   ): ACPClient {
@@ -1654,6 +1667,28 @@ export class ACPAgentClient implements AgentClient {
         });
         pushACPStderrRow(rows, activeTransport.stderrChunks);
         return rows;
+      }
+
+      if (this.authMethodId) {
+        const authenticateStartedAt = Date.now();
+        try {
+          await withTimeout(
+            this.authenticateConnection(activeTransport.connection),
+            phaseTimeoutMs,
+            `ACP authenticate timed out after ${phaseTimeoutMs}ms`,
+          );
+          rows.push({
+            label: "ACP authenticate",
+            value: `ok (${formatDurationMs(authenticateStartedAt)}; method=${this.authMethodId})`,
+          });
+        } catch (error) {
+          rows.push({
+            label: "ACP authenticate",
+            value: `error: ${toDiagnosticErrorMessage(error)}`,
+          });
+          pushACPStderrRow(rows, activeTransport.stderrChunks);
+          return rows;
+        }
       }
 
       const sessionStartedAt = Date.now();
@@ -1766,6 +1801,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
   private readonly logger: Logger;
   private readonly runtimeSettings?: ProviderRuntimeSettings;
   private readonly defaultCommand: [string, ...string[]];
+  private readonly authMethodId?: string;
   private readonly defaultModes: AgentMode[];
   protected readonly modelTransformer?: (models: AgentModelDefinition[]) => AgentModelDefinition[];
   private readonly sessionResponseTransformer?: (
@@ -1836,6 +1872,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     this.logger = options.logger.child({ module: "agent", provider: options.provider });
     this.runtimeSettings = options.runtimeSettings;
     this.defaultCommand = options.defaultCommand;
+    this.authMethodId = options.authMethodId;
     this.defaultModes = options.defaultModes;
     this.modelTransformer = options.modelTransformer;
     this.sessionResponseTransformer = options.sessionResponseTransformer;
@@ -2908,6 +2945,10 @@ export class ACPAgentSession implements AgentSession, ACPClient {
         clientInfo: { name: "Paimon", version: "dev" },
       }),
     );
+    const authMethodId = this.authMethodId;
+    if (authMethodId) {
+      await this.runACPRequest(() => connection.authenticate({ methodId: authMethodId }));
+    }
 
     return { child, connection, initialize };
   }

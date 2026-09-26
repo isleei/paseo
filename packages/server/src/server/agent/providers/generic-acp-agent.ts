@@ -1,3 +1,5 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import type { Logger } from "pino";
 import { z } from "zod";
 
@@ -21,6 +23,7 @@ import {
 
 export const GenericACPProviderParamsSchema = z
   .object({
+    authMethodId: z.string().min(1).optional(),
     supportsMcpServers: z.boolean().optional(),
     clientCapabilities: z
       .object({
@@ -35,6 +38,8 @@ export const GenericACPProviderParamsSchema = z
       .optional(),
   })
   .passthrough();
+
+const execFileAsync = promisify(execFile);
 
 type GenericACPProviderParams = z.infer<typeof GenericACPProviderParamsSchema>;
 
@@ -70,6 +75,7 @@ export class GenericACPAgentClient extends ACPAgentClient {
         env: options.env,
       },
       defaultCommand: options.command,
+      authMethodId: providerParams.authMethodId,
       capabilities: buildGenericACPCapabilities(providerParams),
       waitForInitialCommands: options.waitForInitialCommands,
       initialCommandsWaitTimeoutMs: options.initialCommandsWaitTimeoutMs,
@@ -143,6 +149,22 @@ export class GenericACPAgentClient extends ACPAgentClient {
       ...(await this.getACPProbeRowsForDiagnostic()),
     );
 
+    if (process.platform === "darwin") {
+      const resolvedPath = await this.resolveConfiguredLaunch()
+        .then((launch) => checkProviderLaunchAvailable(launch))
+        .then((availability) => availability.resolvedPath);
+      if (resolvedPath) {
+        const signature = await inspectMacCodeSignature(resolvedPath);
+        if (signature === "invalid") {
+          entries.push({
+            label: "macOS code signature",
+            value:
+              "Invalid. macOS may terminate this binary with SIGKILL; reinstall the provider from its official distribution.",
+          });
+        }
+      }
+    }
+
     return {
       diagnostic: formatProviderDiagnostic(providerName, entries),
     };
@@ -168,6 +190,21 @@ export class GenericACPAgentClient extends ACPAgentClient {
         },
       ];
     }
+  }
+}
+
+async function inspectMacCodeSignature(
+  binaryPath: string,
+): Promise<"valid" | "invalid" | "unknown"> {
+  try {
+    await execFileAsync("/usr/bin/codesign", ["--verify", "--deep", "--strict", binaryPath]);
+    return "valid";
+  } catch (error) {
+    const message = toDiagnosticErrorMessage(error).toLowerCase();
+    return message.includes("invalid signature") ||
+      message.includes("code or signature have been modified")
+      ? "invalid"
+      : "unknown";
   }
 }
 
