@@ -2346,7 +2346,7 @@ function ProjectModeList({
       const currentProjectOrder = getProjectOrder();
       if (
         !hasVisibleOrderChanged({
-          currentOrder: currentProjectOrder,
+          currentOrder: unpinnedProjects.map((project) => project.viewKey),
           reorderedVisibleKeys: reorderedProjectKeys,
         })
       ) {
@@ -2360,7 +2360,7 @@ function ProjectModeList({
         }),
       );
     },
-    [getProjectOrder, setProjectOrder],
+    [getProjectOrder, setProjectOrder, unpinnedProjects],
   );
 
   const handleWorkspaceReorder = useCallback(

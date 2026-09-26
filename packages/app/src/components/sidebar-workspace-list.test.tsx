@@ -39,7 +39,7 @@ import {
 import type { HostProfile } from "@/types/host-connection";
 import { useSessionStore, type WorkspaceDescriptor } from "@/stores/session-store";
 import { seedRuntimeWorkspaces } from "@/test/seed-session";
-import { useSidebarOrderStore } from "@/stores/sidebar-order-store";
+import { migrateSidebarOrderState, useSidebarOrderStore } from "@/stores/sidebar-order-store";
 import { useWorkspaceFields } from "@/stores/session-store-hooks";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { defaultHostAppearance } from "@/hosts/appearance";
@@ -262,7 +262,7 @@ function SidebarFrameProbe({ counts }: { counts: RenderCounts }): ReactElement {
   return (
     <>
       {projects.map((project) => (
-        <div key={project.viewKey}>
+        <div key={project.viewKey} data-project-key={project.viewKey}>
           <ProjectHeaderProbe project={project} counts={counts} />
           <ProjectActiveProbe serverId={SERVER_ID} project={project} counts={counts} />
           {project.workspaces.map((entry) => (
@@ -351,6 +351,58 @@ describe("sidebar workspace render isolation", () => {
         workspaceOrderByProject: {},
       });
     });
+  });
+
+  it("uses addition time after upgrading until projects are manually reordered", async () => {
+    act(() => {
+      const session = useSessionStore.getState().sessions[SERVER_ID];
+      if (!session) throw new Error("Expected sidebar session");
+      for (const project of session.projects.values()) {
+        getHostRuntimeStore().acceptProjectSnapshot(SERVER_ID, {
+          ...project,
+          createdAt:
+            project.projectId === "project-a"
+              ? "2026-09-20T00:00:00.000Z"
+              : "2026-09-21T00:00:00.000Z",
+        });
+      }
+      useSidebarOrderStore.setState(
+        migrateSidebarOrderState({ projectOrder: ["project-a", "project-b"] }, 2),
+      );
+    });
+    const counts: RenderCounts = {
+      frame: 0,
+      headers: {},
+      rows: {},
+      projectSelection: {},
+      rowSelection: {},
+    };
+    const rendered = await renderProbe(counts);
+    ({ root, container } = rendered);
+    function displayedProjects() {
+      return Array.from(rendered.container.querySelectorAll("[data-project-key]"), (element) =>
+        element.getAttribute("data-project-key"),
+      );
+    }
+    expect(displayedProjects()).toEqual(["project-b", "project-a"]);
+
+    act(() => {
+      getHostRuntimeStore().acceptProjectSnapshot(SERVER_ID, {
+        projectId: "project-c",
+        projectKey: "project-c",
+        projectDisplayName: "Project C",
+        projectCustomName: null,
+        projectRootPath: "/repo/project-c",
+        projectKind: "git",
+        createdAt: "2026-09-22T00:00:00.000Z",
+      });
+    });
+    expect(displayedProjects()).toEqual(["project-c", "project-b", "project-a"]);
+
+    act(() => {
+      useSidebarOrderStore.getState().setProjectOrder(["project-a", "project-c", "project-b"]);
+    });
+    expect(displayedProjects()).toEqual(["project-a", "project-c", "project-b"]);
   });
 
   it("re-renders only the changed workspace row for a status update", async () => {

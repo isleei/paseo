@@ -610,44 +610,6 @@ export function applyStoredOrdering<T>(input: {
   return ordered;
 }
 
-export function appendMissingOrderKeys(input: {
-  currentOrder: string[];
-  visibleKeys: string[];
-}): string[] {
-  if (input.visibleKeys.length === 0) {
-    return input.currentOrder;
-  }
-
-  const existingKeys = new Set(input.currentOrder);
-  const missingKeys = input.visibleKeys.filter((key) => !existingKeys.has(key));
-  if (missingKeys.length === 0) {
-    return input.currentOrder;
-  }
-
-  return [...input.currentOrder, ...missingKeys];
-}
-
-export interface SidebarOrderUpdates {
-  projectOrder: string[] | null;
-}
-
-export function computeSidebarOrderUpdates(input: {
-  projects: SidebarProjectEntry[];
-  persistedProjectOrder: string[];
-}): SidebarOrderUpdates {
-  if (input.projects.length === 0) {
-    return { projectOrder: null };
-  }
-
-  const nextProjectOrder = appendMissingOrderKeys({
-    currentOrder: input.persistedProjectOrder,
-    visibleKeys: input.projects.map((project) => project.viewKey),
-  });
-  const projectOrder = nextProjectOrder === input.persistedProjectOrder ? null : nextProjectOrder;
-
-  return { projectOrder };
-}
-
 export interface SidebarLoadingState {
   isLoading: boolean;
   isInitialLoad: boolean;

@@ -146,7 +146,9 @@ export function migrateSidebarOrderState(
   }
 
   return {
-    projectOrder,
+    // Before v3, merely viewing projects persisted their first-seen order. It cannot
+    // be distinguished from a drag, so reset it once to enable addition-time sorting.
+    projectOrder: fromVersion < 3 ? [] : projectOrder,
     pinnedWorkspaceOrder: normalizeKeys(state.pinnedWorkspaceOrder ?? []),
     // v1 auto-wrote first-seen (alphabetical) workspace order. Recency is live,
     // so drop that freeze; drag still writes workspaceOrderByProject after v2.
@@ -222,7 +224,7 @@ export const useSidebarOrderStore = create<SidebarOrderStoreState>()(
         workspaceOrderByProject: state.workspaceOrderByProject,
         pinnedAtByConversationKey: state.pinnedAtByConversationKey,
       }),
-      version: 2,
+      version: 3,
       migrate: migrateSidebarOrderState,
     },
   ),

@@ -3,18 +3,15 @@ import type { Agent, WorkspaceDescriptor } from "@/stores/session-store";
 import type { WorkspaceStructureProject } from "@/projects/workspace-structure";
 import { buildWorkspaceAgentActivityIndex } from "@/utils/workspace-agent-activity";
 import {
-  appendMissingOrderKeys,
   applyStoredOrdering,
   buildSidebarWorkspaceEntries,
   buildSidebarWorkspacePlacementModel,
   buildSidebarProjectsFromStructure,
-  computeSidebarOrderUpdates,
   createSidebarWorkspaceEntry,
   deriveProjectStatusBucket,
   deriveSidebarLoadingState,
   shouldShowSidebarHostLabels,
   type ProjectStatusSession,
-  type SidebarProjectEntry,
   type SidebarWorkspacePlacement,
 } from "./sidebar-workspaces-view-model";
 
@@ -146,20 +143,6 @@ function project(input: {
   };
 }
 
-function sidebarProject(input: {
-  projectKey: string;
-  workspaceKeys: string[];
-}): SidebarProjectEntry {
-  const projects = buildSidebarProjectsFromStructure({
-    projects: [project({ projectKey: input.projectKey, workspaceKeys: input.workspaceKeys })],
-  });
-  const result = projects[0];
-  if (!result) {
-    throw new Error("expected a project entry");
-  }
-  return result;
-}
-
 function workspace(input: {
   id: string;
   name: string;
@@ -215,28 +198,6 @@ describe("applyStoredOrdering", () => {
     });
 
     expect(result).toBe(baseline);
-  });
-});
-
-describe("appendMissingOrderKeys", () => {
-  it("appends unseen keys while preserving existing order", () => {
-    const result = appendMissingOrderKeys({
-      currentOrder: ["project-b", "project-a"],
-      visibleKeys: ["project-a", "project-b", "project-c"],
-    });
-
-    expect(result).toEqual(["project-b", "project-a", "project-c"]);
-  });
-
-  it("returns the same array when there are no unseen keys", () => {
-    const currentOrder = ["project-a", "project-b"];
-
-    const result = appendMissingOrderKeys({
-      currentOrder,
-      visibleKeys: ["project-b", "project-a"],
-    });
-
-    expect(result).toBe(currentOrder);
   });
 });
 
@@ -570,45 +531,6 @@ describe("shouldShowSidebarHostLabels", () => {
     });
 
     expect(shouldShowSidebarHostLabels(projects)).toBe(true);
-  });
-});
-
-describe("computeSidebarOrderUpdates", () => {
-  it("returns no updates when there are no visible projects", () => {
-    const updates = computeSidebarOrderUpdates({
-      projects: [],
-      persistedProjectOrder: ["stale-project"],
-    });
-
-    expect(updates).toEqual({ projectOrder: null });
-  });
-
-  it("appends unseen projects without writing a workspace order", () => {
-    const projects = [
-      sidebarProject({ projectKey: "project-a", workspaceKeys: ["ws-1", "ws-2"] }),
-      sidebarProject({ projectKey: "project-b", workspaceKeys: ["ws-3"] }),
-    ];
-
-    const updates = computeSidebarOrderUpdates({
-      projects,
-      persistedProjectOrder: ["project-a"],
-    });
-
-    expect(updates).toEqual({ projectOrder: ["project-a", "project-b"] });
-  });
-
-  it("returns no project-order update when persisted order already covers visible keys", () => {
-    const projects = [
-      sidebarProject({ projectKey: "project-a", workspaceKeys: ["ws-1"] }),
-      sidebarProject({ projectKey: "project-b", workspaceKeys: ["ws-2"] }),
-    ];
-
-    const updates = computeSidebarOrderUpdates({
-      projects,
-      persistedProjectOrder: ["project-b", "project-a"],
-    });
-
-    expect(updates).toEqual({ projectOrder: null });
   });
 });
 
