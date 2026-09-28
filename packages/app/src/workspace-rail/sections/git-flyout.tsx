@@ -217,14 +217,12 @@ function GitFlyoutCheckboxRow({
 }
 
 function GitFlyoutActions({
-  busyAction,
   commitDisabled,
   pushDisabled,
   onCommit,
   onCommitAndPush,
   onPush,
 }: {
-  busyAction: "commit" | "commit-and-push" | "push" | null;
   commitDisabled: boolean;
   pushDisabled: boolean;
   onCommit: () => void;
@@ -262,15 +260,9 @@ function GitFlyoutActions({
         testID="git-flyout-commit-button"
       >
         <View style={styles.actionRowLeft}>
-          {busyAction === "commit" ? (
-            <LoadingSpinner size={14} color={styles.actionRowLabel.color} />
-          ) : (
-            <ThemedGitCommit size={14} uniProps={accentColorMapping} />
-          )}
+          <ThemedGitCommit size={14} uniProps={accentColorMapping} />
           <Text style={styles.actionRowLabel}>
-            {busyAction === "commit"
-              ? t("workspace.git.actions.commit.pending", "提交中...")
-              : t("workspace.git.actions.commit.label", "提交")}
+            {t("workspace.git.actions.commit.label", "提交")}
           </Text>
         </View>
         <View style={styles.shortcutBadge}>
@@ -285,15 +277,9 @@ function GitFlyoutActions({
         testID="git-flyout-commit-push-button"
       >
         <View style={styles.actionRowLeft}>
-          {busyAction === "commit-and-push" ? (
-            <LoadingSpinner size={14} color={styles.actionRowLabel.color} />
-          ) : (
-            <ThemedUploadCloud size={14} uniProps={mutedColorMapping} />
-          )}
+          <ThemedUploadCloud size={14} uniProps={mutedColorMapping} />
           <Text style={styles.actionRowLabel}>
-            {busyAction === "commit-and-push"
-              ? t("workspace.git.rail.commitPushing", "推送中...")
-              : t("workspace.git.rail.commitAndPush", "提交并推送")}
+            {t("workspace.git.rail.commitAndPush", "提交并推送")}
           </Text>
         </View>
       </Pressable>
@@ -305,16 +291,8 @@ function GitFlyoutActions({
         testID="git-flyout-push-button"
       >
         <View style={styles.actionRowLeft}>
-          {busyAction === "push" ? (
-            <LoadingSpinner size={14} color={styles.actionRowLabel.color} />
-          ) : (
-            <ThemedArrowUpFromLine size={14} uniProps={mutedColorMapping} />
-          )}
-          <Text style={styles.actionRowLabel}>
-            {busyAction === "push"
-              ? t("workspace.git.rail.pushing", "推送中...")
-              : t("workspace.git.actions.push.label", "推送")}
-          </Text>
+          <ThemedArrowUpFromLine size={14} uniProps={mutedColorMapping} />
+          <Text style={styles.actionRowLabel}>{t("workspace.git.actions.push.label", "推送")}</Text>
         </View>
       </Pressable>
     </View>
@@ -340,24 +318,20 @@ export function GitFlyout({
   const [message, setMessage] = useState("");
   const [resetKey, setResetKey] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [busyAction, setBusyAction] = useState<"commit" | "commit-and-push" | "push" | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [includeUnstaged, setIncludeUnstaged] = useState(true);
 
-  const isBusy = isGenerating || busyAction !== null;
-
   const handleClose = useCallback(() => {
-    if (isBusy) return;
     setErrorMessage("");
     onClose();
-  }, [isBusy, onClose]);
+  }, [onClose]);
 
   const handleToggleIncludeUnstaged = useCallback(() => {
     setIncludeUnstaged((prev) => !prev);
   }, []);
 
   const handleGenerate = useCallback(async () => {
-    if (isBusy) return;
+    if (isGenerating) return;
     setIsGenerating(true);
     setErrorMessage("");
     try {
@@ -373,64 +347,69 @@ export function GitFlyout({
     } finally {
       setIsGenerating(false);
     }
-  }, [cwd, isBusy, serverId, t]);
+  }, [cwd, isGenerating, serverId, t]);
 
   const runAction = useCallback(
-    async (action: "commit" | "commit-and-push" | "push") => {
-      if (isBusy) return;
+    (action: "commit" | "commit-and-push" | "push") => {
+      if (isGenerating) return;
       if (action !== "push" && !git.isDirty) return;
       if (action === "push" && !git.ahead) return;
-      setBusyAction(action);
-      setErrorMessage("");
-      try {
-        const store = useCheckoutGitActionsStore.getState();
-        if (action !== "push") {
-          let finalMessage = message.trim();
-          if (!finalMessage) {
-            if (!supportsGenerate) {
-              setErrorMessage(t("workspace.git.rail.emptyMessage", "请先输入提交信息"));
-              setBusyAction(null);
-              return;
-            }
-            setIsGenerating(true);
-            try {
-              finalMessage = await store.generateCommitMessage({ serverId, cwd });
-              setMessage(finalMessage);
-              setResetKey((key) => key + 1);
-            } finally {
-              setIsGenerating(false);
-            }
-          }
-          await store.commit({ serverId, cwd, message: finalMessage });
-          setMessage("");
-          setResetKey((key) => key + 1);
-        }
-        if (action !== "commit") {
-          await store.push({ serverId, cwd });
-        }
-        toast.show(
-          action === "commit"
-            ? t("workspace.git.actions.commit.success", "提交成功")
-            : t("workspace.git.actions.push.success", "推送成功"),
-          { variant: "success" },
-        );
-        onClose();
-      } catch (error) {
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : t("workspace.git.actions.toasts.failedCommit", "操作失败"),
-        );
-      } finally {
-        setBusyAction(null);
+      const trimmedMessage = message.trim();
+      if (action !== "push" && !trimmedMessage && !supportsGenerate) {
+        setErrorMessage(t("workspace.git.rail.emptyMessage", "请先输入提交信息"));
+        return;
       }
+      // Close first so the flyout backdrop stops blocking the rest of the app.
+      // The store dedupes in-flight actions and invalidates queries on completion.
+      setErrorMessage("");
+      setMessage("");
+      setResetKey((key) => key + 1);
+      onClose();
+      void (async () => {
+        try {
+          const store = useCheckoutGitActionsStore.getState();
+          let finalMessage = trimmedMessage;
+          if (action !== "push" && !finalMessage) {
+            finalMessage = await store.generateCommitMessage({ serverId, cwd });
+          }
+          if (action !== "push") {
+            await store.commit({ serverId, cwd, message: finalMessage });
+          }
+          if (action !== "commit") {
+            await store.push({ serverId, cwd });
+          }
+          toast.show(
+            action === "commit"
+              ? t("workspace.git.actions.commit.success", "提交成功")
+              : t("workspace.git.actions.push.success", "推送成功"),
+            { variant: "success" },
+          );
+        } catch (error) {
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : t("workspace.git.actions.toasts.failedCommit", "操作失败"),
+          );
+        }
+      })();
     },
-    [cwd, git.ahead, git.isDirty, isBusy, message, onClose, serverId, supportsGenerate, t, toast],
+    [
+      cwd,
+      git.ahead,
+      git.isDirty,
+      isGenerating,
+      message,
+      onClose,
+      serverId,
+      supportsGenerate,
+      t,
+      toast,
+    ],
   );
 
-  const handleCommit = useCallback(() => void runAction("commit"), [runAction]);
-  const handleCommitAndPush = useCallback(() => void runAction("commit-and-push"), [runAction]);
-  const handlePush = useCallback(() => void runAction("push"), [runAction]);
+  const handleCommit = useCallback(() => runAction("commit"), [runAction]);
+  const handleCommitAndPush = useCallback(() => runAction("commit-and-push"), [runAction]);
+  const handlePush = useCallback(() => runAction("push"), [runAction]);
 
   const runActionRef = useRef(runAction);
   runActionRef.current = runAction;
@@ -441,7 +420,7 @@ export function GitFlyout({
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
         event.preventDefault();
         event.stopPropagation();
-        void runActionRef.current("commit");
+        runActionRef.current("commit");
       } else if (event.key === "Escape") {
         event.preventDefault();
         handleClose();
@@ -489,8 +468,8 @@ export function GitFlyout({
   if (!isOpen) return null;
 
   const branchName = git.branch ?? t("workspace.git.rail.detached", "游离 HEAD");
-  const commitDisabled = isBusy || !git.isDirty;
-  const pushDisabled = isBusy || !git.ahead;
+  const commitDisabled = isGenerating || !git.isDirty;
+  const pushDisabled = isGenerating || !git.ahead;
 
   const content = (
     <OverlayLayerProvider layer={overlayLayer}>
@@ -520,7 +499,7 @@ export function GitFlyout({
             <GitFlyoutInput
               message={message}
               resetKey={resetKey}
-              isBusy={isBusy}
+              isBusy={isGenerating}
               isGenerating={isGenerating}
               supportsGenerate={supportsGenerate}
               onChangeText={setMessage}
@@ -537,7 +516,6 @@ export function GitFlyout({
             {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
             <GitFlyoutActions
-              busyAction={busyAction}
               commitDisabled={commitDisabled}
               pushDisabled={pushDisabled}
               onCommit={handleCommit}
