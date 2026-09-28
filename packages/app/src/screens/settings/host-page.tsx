@@ -229,12 +229,23 @@ function HostStatusBadges({ serverId }: { serverId: string }) {
 }
 
 function HostConnectionError({ serverId }: { serverId: string }) {
+  const { t } = useTranslation();
   const snapshot = useHostRuntimeSnapshot(serverId);
   const lastError = snapshot?.lastError ?? null;
   const connectionError =
     typeof lastError === "string" && lastError.trim().length > 0 ? lastError.trim() : null;
   if (!connectionError) return null;
-  return <Text style={styles.errorText}>{connectionError}</Text>;
+  return (
+    <View style={styles.connectionError}>
+      <InlineAlert
+        size="sm"
+        variant="error"
+        title={connectionError}
+        description={snapshot?.authFailureReason ? t("settings.host.password.guidance") : undefined}
+        testID="host-connection-error"
+      />
+    </View>
+  );
 }
 
 export function HostConnectionsPage({ serverId }: { serverId: string }) {
@@ -408,13 +419,8 @@ export function HostSettingsPage({
 
   return (
     <View>
-      <View style={styles.daemonHeader}>
-        <Text style={styles.daemonHeaderLabel} numberOfLines={1}>
-          {host.label}
-        </Text>
-      </View>
-
       <HostStatusBadges serverId={serverId} />
+      <HostConnectionError serverId={serverId} />
 
       <HostAppearanceSection host={host} />
 
@@ -879,6 +885,7 @@ function UpdateDaemonCard({ host }: { host: HostProfile }) {
       </View>
       {updateState.status === "complete" ? (
         <InlineAlert
+          size="sm"
           variant="success"
           title={t("desktop.daemon.lifecycle.workerUpdated", {
             version: updateState.workerVersion,
@@ -889,6 +896,7 @@ function UpdateDaemonCard({ host }: { host: HostProfile }) {
       {updateState.status === "failed" ? (
         <View style={styles.updateFailure}>
           <InlineAlert
+            size="sm"
             variant="error"
             title={updateState.title}
             description={updateState.message}
@@ -1744,18 +1752,6 @@ const styles = StyleSheet.create((theme) => ({
     marginHorizontal: theme.spacing[4],
     marginBottom: theme.spacing[4],
   },
-  daemonHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[1],
-    marginBottom: theme.spacing[4],
-  },
-  daemonHeaderLabel: {
-    flexShrink: 1,
-    fontSize: theme.fontSize.base,
-    fontWeight: theme.fontWeight.medium,
-    color: theme.colors.foreground,
-  },
   identityBadges: {
     flexDirection: "row",
     alignItems: "center",
@@ -1786,10 +1782,8 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foregroundMuted,
     flexShrink: 1,
   },
-  errorText: {
-    color: theme.colors.palette.red[300],
-    fontSize: theme.fontSize.sm,
-    marginBottom: theme.spacing[2],
+  connectionError: {
+    marginBottom: theme.spacing[6],
   },
   connectionLatency: {
     fontSize: theme.fontSize.base,
