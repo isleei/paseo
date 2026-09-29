@@ -1808,6 +1808,10 @@ export class ACPAgentSession implements AgentSession, ACPClient {
   readonly provider: string;
   readonly capabilities: AgentCapabilityFlags;
 
+  async getUsageReference() {
+    return { source: this.provider, input: {} };
+  }
+
   private readonly logger: Logger;
   private readonly runtimeSettings?: ProviderRuntimeSettings;
   private readonly defaultCommand: [string, ...string[]];
@@ -1852,6 +1856,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
   private connection: ClientSideConnection | null = null;
   private agentCapabilities: ACPAgentCapabilities | null = null;
   private sessionId: string | null = null;
+  private readonly earlySessionUpdates: SessionNotification[] = [];
   private currentMode: string | null = null;
   private availableModes: AgentMode[];
   private currentModel: string | null = null;
@@ -1929,6 +1934,9 @@ export class ACPAgentSession implements AgentSession, ACPClient {
       this.sessionId = response.sessionId;
       this.bootstrapThreadEventPending = true;
       this.applySessionState(response);
+      for (const update of this.earlySessionUpdates.splice(0)) {
+        await this.sessionUpdate(update);
+      }
       await this.applyConfiguredOverrides();
     } catch (error) {
       await this.closeAfterInitializationFailure(error);
@@ -2698,6 +2706,10 @@ export class ACPAgentSession implements AgentSession, ACPClient {
       },
       "provider.acp.raw_event",
     );
+    if (!this.sessionId) {
+      this.earlySessionUpdates.push(params);
+      return;
+    }
     if (params.sessionId !== this.sessionId) {
       return;
     }

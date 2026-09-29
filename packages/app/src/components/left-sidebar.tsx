@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import {
   Bell,
   BellRing,
+  Gauge,
   Import,
   Search,
   Server,
@@ -72,7 +73,11 @@ import { useKeyboardShortcutsStore } from "@/stores/keyboard-shortcuts-store";
 import { useOwnsWindowChromeCorner, WindowChromeSafeArea } from "@/utils/desktop-window";
 import { useCloseAgentListGesture } from "@/mobile-panels/gestures";
 import { MobilePanelOverlay } from "@/mobile-panels/presentation";
-import { buildSettingsAddHostRoute, buildSettingsRoute } from "@/utils/host-routes";
+import {
+  buildSettingsAddHostRoute,
+  buildSettingsRoute,
+  buildUsageRoute,
+} from "@/utils/host-routes";
 import { openHostOverview } from "@/navigation/settings-navigation";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { pickSessionActivityTarget } from "@/utils/session-activity-target";
@@ -421,6 +426,25 @@ function SidebarHostPicker({
   );
 }
 
+function SidebarUsageButton({ theme }: { theme: SidebarTheme }) {
+  const { t } = useTranslation();
+  const isCompactLayout = useIsCompactFormFactor();
+  const showMobileAgent = usePanelStore((state) => state.showMobileAgent);
+  const handlePress = useCallback(() => {
+    if (isCompactLayout) showMobileAgent();
+    router.push(buildUsageRoute());
+  }, [isCompactLayout, showMobileAgent]);
+  return (
+    <FooterIconButton
+      onPress={handlePress}
+      testID="sidebar-usage"
+      label={t("settings.hostSections.usage")}
+      icon={Gauge}
+      theme={theme}
+    />
+  );
+}
+
 function IconTooltipContent({
   label,
   shortcutKeys,
@@ -475,6 +499,7 @@ function SidebarFooter({
           icon={Import}
           theme={theme}
         />
+        <SidebarUsageButton theme={theme} />
         <SidebarHelpMenu />
         <FooterIconButton
           onPress={handleSettings}
