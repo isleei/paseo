@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(which qoder 2>/dev/null; npm ls -g --depth=0 2>/dev/null | grep -i qoder; ls ~/.qoder 2>/dev/null | head)",
+      "Bash(npm uninstall -g @qoder-ai/qodercli && which qoder || echo \"qoder command removed\")",
+      "Bash(file ~/.qoder/entry/qoder; ls -la ~/.qoder/entry/ | head; echo \"$PATH\" | tr ':' '\\\\n' | grep -i qoder)",
+      "Bash(grep -n \"qoder\" ~/.zshrc ~/.zprofile ~/.bashrc ~/.profile 2>/dev/null; cat ~/.qoder/entry/.rc-written-sentinel)",
+      "Read(//Users/slee/**)",
+      "Bash(grep -n \"qoder\" ~/.zshenv 2>/dev/null; du -sh ~/.qoder 2>/dev/null; ls ~/.qoder-cn 2>/dev/null | head -3)",
+      "Bash(npm ls -g --depth=0 2>/dev/null | grep -iE \"qoderclicn|qoder\"; ls ~/.local/bin/ 2>/dev/null | grep -i qoder; which qodercn qoderclicn 2>/dev/null)",
+      "Bash(file ~/.local/bin/qodercli ~/.local/bin/qoderclicn; head -3 ~/.local/bin/qoderclicn 2>/dev/null; npm ls -g --depth=0 2>/dev/null)",
+      "Bash(file -b ~/.local/bin/qodercli ~/.local/bin/qoderclicn; npm ls -g --depth=0 2>/dev/null | cat)"
+    ]
+  }
+}
