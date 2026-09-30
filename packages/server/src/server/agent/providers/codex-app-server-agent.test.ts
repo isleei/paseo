@@ -804,6 +804,7 @@ let buffer = "";
 function resultFor(method, params) {
   if (method === "initialize") return {};
   if (method === "collaborationMode/list") return { data: [] };
+  if (method === "model/list") return { data: [] };
   if (method === "skills/list") {
     const cwds = params && params.cwds;
     const projectCwd = ${JSON.stringify(projectCwd)};
@@ -1167,6 +1168,36 @@ describe("Codex app-server provider", () => {
       appServer.assertNoErrors();
     } finally {
       await session.close();
+    }
+  });
+
+  test("keeps the default effort when a session without one is resumed after a restart", async () => {
+    const beforeRestart = createFakeCodexAppServer();
+    const firstSession = await createProviderWithFakeAppServer(beforeRestart).createSession(
+      createConfig({ thinkingOptionId: undefined }),
+    );
+    await firstSession.startTurn("first turn");
+    await expect(beforeRestart.waitForTurnStart()).resolves.toMatchObject({ effort: "medium" });
+    const handle = firstSession.describePersistence()!;
+    await firstSession.close();
+
+    const afterRestart = createFakeCodexAppServer();
+    // The daemon resumes with the stored agent config, which never recorded an effort.
+    const resumed = await createProviderWithFakeAppServer(afterRestart).resumeSession(handle, {
+      model: "gpt-5.4",
+      thinkingOptionId: undefined,
+    });
+
+    try {
+      await expect(resumed.getRuntimeInfo()).resolves.toMatchObject({
+        thinkingOptionId: "medium",
+      });
+      await resumed.startTurn("turn after restart");
+      await expect(afterRestart.waitForTurnStart()).resolves.toMatchObject({ effort: "medium" });
+      beforeRestart.assertNoErrors();
+      afterRestart.assertNoErrors();
+    } finally {
+      await resumed.close();
     }
   });
 
@@ -1934,6 +1965,66 @@ describe("Codex app-server provider", () => {
     await session.close();
   });
 
+  test("rewinds a legacy conversation with a bounded fork on Codex without thread/rollback", async () => {
+    const appServer = createFakeCodexAppServer({
+      initialize: () => ({ userAgent: "paseo/0.159.0 (Ubuntu 26.4.0; x86_64) (paseo; 0)" }),
+      "thread/read": () => ({
+        thread: { id: "thread-1", historyMode: "legacy", turns: [] },
+      }),
+      "thread/rollback": () => ({
+        __jsonRpcError: {
+          code: -32600,
+          message: "Invalid request: unknown variant `thread/rollback`",
+        },
+      }),
+    });
+    const session = new CodexAppServerAgentSession(
+      createConfig({ cwd: "/workspace/project" }),
+      null,
+      createTestLogger(),
+      async () => appServer.child,
+    );
+
+    await session.startTurn("remember first");
+    emitCodexUserMessage(appServer, {
+      id: "codex-first",
+      text: "remember first",
+      turnId: "turn-first",
+    });
+    appServer.completeTurn();
+    await session.startTurn("remember second");
+    emitCodexUserMessage(appServer, {
+      id: "codex-second",
+      text: "remember second",
+      turnId: "turn-second",
+    });
+    appServer.completeTurn();
+
+    await session.revertConversation({ messageId: "codex-second" });
+
+    const forkRequests = appServer
+      .requests()
+      .filter((request) => request.method === "thread/fork")
+      .map((request) => request.params);
+    expect(forkRequests).toEqual([
+      {
+        threadId: "thread-1",
+        beforeTurnId: "turn-second",
+        cwd: "/workspace/project",
+        model: "gpt-5.4",
+        serviceTier: null,
+        excludeTurns: false,
+        persistExtendedHistory: true,
+      },
+    ]);
+    expect(appServer.recordedRollbacks).toEqual([]);
+    await expect(session.getRuntimeInfo()).resolves.toMatchObject({
+      sessionId: "forked-thread",
+    });
+    appServer.assertNoErrors();
+    await session.close();
+  });
+
   test("rewinds a paginated conversation through the public session capability", async () => {
     const appServer = createFakeCodexAppServer({
       "thread/read": () => ({
@@ -2199,7 +2290,12 @@ describe("Codex app-server provider", () => {
       throw new Error(`resumeSession timed out; thread requests: ${threadRequests.join(", ")}`);
     }
 
-    expect(threadRequests).toEqual(["config/read", "thread/loaded/list", "thread/resume"]);
+    expect(threadRequests).toEqual([
+      "model/list",
+      "config/read",
+      "thread/loaded/list",
+      "thread/resume",
+    ]);
     expect(outcome).toBe("rejected");
     appServer.assertNoErrors();
   });
@@ -2370,6 +2466,71 @@ describe("Codex app-server provider", () => {
         overall: { type: "string" },
       },
       required: ["overall"],
+    });
+  });
+
+  test("keeps an output field named properties as a field", () => {
+    const input = {
+      type: "object",
+      properties: { properties: { type: "string" } },
+      required: ["properties"],
+      additionalProperties: false,
+    };
+
+    expect(normalizeCodexOutputSchema(input)).toEqual(input);
+  });
+
+  test("normalizes schemas under keywords and leaves literal values alone", () => {
+    const literal = { type: "object", properties: { type: "string" } };
+    const input = {
+      type: "object",
+      properties: {
+        result: { $ref: "#/$defs/result" },
+        choice: { anyOf: [{ type: "object", properties: { id: { type: "string" } } }] },
+      },
+      $defs: {
+        properties: { type: "string" },
+        result: {
+          type: "object",
+          properties: { value: { type: "string" } },
+          default: literal,
+          examples: [literal],
+          enum: [literal],
+          const: literal,
+        },
+      },
+    };
+
+    expect(normalizeCodexOutputSchema(input)).toEqual({
+      type: "object",
+      properties: {
+        result: { $ref: "#/$defs/result" },
+        choice: {
+          anyOf: [
+            {
+              type: "object",
+              properties: { id: { type: "string" } },
+              required: ["id"],
+              additionalProperties: false,
+            },
+          ],
+        },
+      },
+      required: ["result", "choice"],
+      additionalProperties: false,
+      $defs: {
+        properties: { type: "string" },
+        result: {
+          type: "object",
+          properties: { value: { type: "string" } },
+          default: literal,
+          examples: [literal],
+          enum: [literal],
+          const: literal,
+          required: ["value"],
+          additionalProperties: false,
+        },
+      },
     });
   });
 

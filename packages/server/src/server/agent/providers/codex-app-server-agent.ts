@@ -74,7 +74,12 @@ import {
 import { createPathEquivalenceMatcher } from "../../../utils/path.js";
 import { spawnProcess } from "../../../utils/spawn.js";
 import { extractCodexTerminalSessionId, nonEmptyString } from "./tool-call-mapper-utils.js";
-import { buildCodexFeatures, codexModelSupportsFastMode } from "./codex-feature-definitions.js";
+import {
+  buildCodexFeatures,
+  CodexServiceTierSchema,
+  readCodexServiceTier,
+  type CodexServiceTier,
+} from "./codex-feature-definitions.js";
 import {
   CodexAppServerClient,
   CodexAppServerRpcError,
@@ -170,6 +175,9 @@ const CODEX_PLAN_IMPLEMENTATION_PROMPT_PREFIX =
 // (and the /goal slash command) when the binary is too old.
 const CODEX_GOALS_MIN_VERSION: readonly [number, number, number] = [0, 128, 0];
 const CODEX_AUTO_REVIEW_MIN_VERSION: readonly [number, number, number] = [0, 115, 0];
+// Codex removed `thread/rollback` in 0.156.0, so rewinding a legacy thread there
+// has to fork before the target turn instead.
+const CODEX_THREAD_ROLLBACK_REMOVED_VERSION: readonly [number, number, number] = [0, 156, 0];
 
 function parseCodexVersion(versionOutput: string): [number, number, number] | null {
   const match = versionOutput.match(/(\d+)\.(\d+)\.(\d+)/);
@@ -188,6 +196,15 @@ function codexVersionAtLeast(
     if (parsed[i] < min[i]) return false;
   }
   return true;
+}
+
+// The initialize userAgent starts with `<client>/<codex version>`. An agent we
+// cannot parse is treated as an older server that still has rollback.
+function codexServerHasThreadRollback(userAgent: unknown): boolean {
+  return (
+    typeof userAgent !== "string" ||
+    !codexVersionAtLeast(userAgent, CODEX_THREAD_ROLLBACK_REMOVED_VERSION)
+  );
 }
 
 type GoalSubcommand =
@@ -366,19 +383,67 @@ function isObjectSchemaNode(schema: Record<string, unknown>): boolean {
   );
 }
 
-function normalizeCodexOutputSchemaNode(schema: unknown, schemaPath: string): unknown {
+// Keywords whose value maps names to schemas.
+const SCHEMA_MAP_KEYWORDS = [
+  "properties",
+  "patternProperties",
+  "$defs",
+  "definitions",
+  "dependentSchemas",
+] as const;
+
+// Keywords whose value is a schema or an array of schemas.
+const SUBSCHEMA_KEYWORDS = [
+  "items",
+  "prefixItems",
+  "additionalItems",
+  "contains",
+  "additionalProperties",
+  "unevaluatedProperties",
+  "unevaluatedItems",
+  "propertyNames",
+  "allOf",
+  "anyOf",
+  "oneOf",
+  "not",
+  "if",
+  "then",
+  "else",
+] as const;
+
+function normalizeCodexOutputSubschema(schema: unknown, schemaPath: string): unknown {
   if (Array.isArray(schema)) {
     return schema.map((entry, index) =>
       normalizeCodexOutputSchemaNode(entry, `${schemaPath}[${index}]`),
     );
   }
+  return normalizeCodexOutputSchemaNode(schema, schemaPath);
+}
+
+function normalizeCodexOutputSchemaNode(schema: unknown, schemaPath: string): unknown {
   if (!isSchemaRecord(schema)) {
     return schema;
   }
 
-  const normalized: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(schema)) {
-    normalized[key] = normalizeCodexOutputSchemaNode(value, `${schemaPath}.${key}`);
+  const normalized: Record<string, unknown> = { ...schema };
+  for (const keyword of SCHEMA_MAP_KEYWORDS) {
+    const schemas = schema[keyword];
+    if (isSchemaRecord(schemas)) {
+      normalized[keyword] = Object.fromEntries(
+        Object.entries(schemas).map(([name, child]) => [
+          name,
+          normalizeCodexOutputSchemaNode(child, `${schemaPath}.${keyword}.${name}`),
+        ]),
+      );
+    }
+  }
+  for (const keyword of SUBSCHEMA_KEYWORDS) {
+    if (keyword in schema) {
+      normalized[keyword] = normalizeCodexOutputSubschema(
+        schema[keyword],
+        `${schemaPath}.${keyword}`,
+      );
+    }
   }
 
   if (!isObjectSchemaNode(normalized)) {
@@ -882,6 +947,7 @@ interface CodexModel {
   model?: string;
   defaultReasoningEffort?: string;
   supportedReasoningEfforts?: CodexReasoningEffortEntry[];
+  serviceTiers?: CodexServiceTier[];
 }
 
 const CodexModelListResponseSchema = z.object({
@@ -889,6 +955,7 @@ const CodexModelListResponseSchema = z.object({
     .array(
       z.object({
         id: z.string(),
+        serviceTiers: z.array(CodexServiceTierSchema).optional(),
         displayName: z.string().optional(),
         description: z.string().optional(),
         isDefault: z.boolean().optional(),
@@ -3439,12 +3506,14 @@ export class CodexAppServerAgentSession implements AgentSession {
     cancelRequested: boolean;
   } | null = null;
   private client: CodexAppServerClient | null = null;
+  private threadRollbackAvailable = true;
   private readonly subscribers = new Set<(event: AgentStreamEvent) => void>();
   private nextTurnOrdinal = 0;
   private activeForegroundTurnId: string | null = null;
   private activeClientMessageId: string | null = null;
   private cachedRuntimeInfo: AgentRuntimeInfo | null = null;
-  private serviceTier: "fast" | null = null;
+  private serviceTier: string | null = null;
+  private speedModels: CodexModel[] = [];
   private planModeEnabled = false;
   private historyPending = false;
   private persistedHistory: PersistedTimelineEntry[] = [];
@@ -3535,9 +3604,7 @@ export class CodexAppServerAgentSession implements AgentSession {
     this.asyncQuestions = new CodexAsyncQuestions(resumeHandle?.metadata?.asyncQuestions);
     this.codexHome = deps.codexHome ?? resolveCodexHomeDir(process.env);
     this.config.thinkingOptionId = normalizeCodexThinkingOptionId(this.config.thinkingOptionId);
-    if (this.config.featureValues?.fast_mode && codexModelSupportsFastMode(this.config.model)) {
-      this.serviceTier = "fast";
-    }
+    this.serviceTier = readCodexServiceTier(this.config.featureValues);
     if (this.config.featureValues?.plan_mode) {
       this.planModeEnabled = true;
     }
@@ -3565,8 +3632,8 @@ export class CodexAppServerAgentSession implements AgentSession {
 
   get features(): AgentFeature[] {
     return buildCodexFeatures({
-      modelId: this.config.model,
-      fastModeEnabled: this.serviceTier === "fast",
+      serviceTiers: this.currentServiceTiers(),
+      serviceTier: this.serviceTier ?? "default",
       planModeEnabled: this.planModeEnabled,
       planModeAvailable: this.hasPlanCollaborationMode(),
     });
@@ -3619,9 +3686,15 @@ export class CodexAppServerAgentSession implements AgentSession {
     this.registerRequestHandlers();
 
     try {
-      await client.request("initialize", buildCodexAppServerInitializeParams());
+      const initialized = toObjectRecord(
+        await client.request("initialize", buildCodexAppServerInitializeParams()),
+      );
+      this.threadRollbackAvailable = codexServerHasThreadRollback(initialized?.userAgent);
       client.notify("initialized", {});
 
+      this.speedModels =
+        CodexModelListResponseSchema.parse(await client.request("model/list", {})).data ?? [];
+      this.reconcileServiceTier();
       await this.loadResolvedWorkspaceWrite();
       await this.loadCollaborationModes();
       await this.loadSkills();
@@ -3629,6 +3702,7 @@ export class CodexAppServerAgentSession implements AgentSession {
       if (this.currentThreadId) {
         await this.ensureThreadLoaded();
         await this.loadPersistedHistory(this.client);
+        await this.applyDefaultModelAndThinking();
       }
 
       if (this.closed) {
@@ -3825,18 +3899,30 @@ export class CodexAppServerAgentSession implements AgentSession {
     this.resolvedCollaborationMode = this.resolveCollaborationMode();
   }
 
-  private applyFeatureValue(featureId: "fast_mode" | "plan_mode", value: boolean): void {
-    this.config.featureValues = {
-      ...this.config.featureValues,
-      [featureId]: value,
-    };
+  private currentServiceTiers(): CodexServiceTier[] {
+    const selectedModel = this.config.model
+      ? this.speedModels.find(
+          (model) => model.id === this.config.model || model.model === this.config.model,
+        )
+      : (this.speedModels.find((model) => model.isDefault) ?? this.speedModels[0]);
+    return selectedModel?.serviceTiers ?? [];
+  }
 
-    if (featureId === "fast_mode") {
-      this.serviceTier = value ? "fast" : null;
-      this.cachedRuntimeInfo = null;
-      return;
+  private reconcileServiceTier(): void {
+    const tiers = this.currentServiceTiers();
+    // COMPAT(codexFastPreference): added in v0.10.0, remove after 2027-03-29 once saved Fast preferences have migrated.
+    if (this.serviceTier === "fast" && !tiers.some((tier) => tier.id === "fast")) {
+      this.serviceTier = tiers.find((tier) => tier.name.toLowerCase() === "fast")?.id ?? null;
     }
+    if (this.serviceTier !== "default" && !tiers.some((tier) => tier.id === this.serviceTier)) {
+      this.serviceTier = null;
+    }
+    const { fast_mode: _legacyFast, ...values } = this.config.featureValues ?? {};
+    this.config.featureValues = { ...values, service_tier: this.serviceTier ?? "default" };
+  }
 
+  private applyFeatureValue(featureId: "plan_mode", value: boolean): void {
+    this.config.featureValues = { ...this.config.featureValues, [featureId]: value };
     this.planModeEnabled = value;
     this.refreshResolvedCollaborationMode();
     this.cachedRuntimeInfo = null;
@@ -4167,9 +4253,7 @@ export class CodexAppServerAgentSession implements AgentSession {
     if (thinkingOptionId) {
       params.effort = thinkingOptionId;
     }
-    if (this.serviceTier) {
-      params.serviceTier = this.serviceTier;
-    }
+    params.serviceTier = this.serviceTier ?? "default";
     if (this.resolvedCollaborationMode) {
       params.collaborationMode = {
         mode: this.resolvedCollaborationMode.mode,
@@ -4587,9 +4671,7 @@ export class CodexAppServerAgentSession implements AgentSession {
 
   async setModel(modelId: string | null): Promise<void> {
     this.config.model = modelId ?? undefined;
-    if (!codexModelSupportsFastMode(this.config.model)) {
-      this.serviceTier = null;
-    }
+    this.reconcileServiceTier();
     this.refreshResolvedCollaborationMode();
     this.cachedRuntimeInfo = null;
   }
@@ -4604,13 +4686,27 @@ export class CodexAppServerAgentSession implements AgentSession {
   }
 
   async setFeature(featureId: string, value: unknown): Promise<void> {
+    // COMPAT(codexFastPreference): added in v0.10.0, remove after 2027-03-29 once clients use service_tier.
     if (featureId === "fast_mode") {
-      if (Boolean(value) && !codexModelSupportsFastMode(this.config.model)) {
+      const fast = this.currentServiceTiers().find((tier) => tier.name.toLowerCase() === "fast");
+      if (value && !fast)
         throw new Error(
           `Codex fast mode is not available for model '${this.config.model ?? "default"}'`,
         );
+      return this.setFeature("service_tier", value ? fast!.id : "default");
+    }
+    if (featureId === "service_tier") {
+      if (
+        typeof value !== "string" ||
+        (value !== "default" && !this.currentServiceTiers().some((tier) => tier.id === value))
+      ) {
+        throw new Error(
+          `Codex speed '${String(value)}' is not available for model '${this.config.model ?? "default"}'`,
+        );
       }
-      this.applyFeatureValue("fast_mode", Boolean(value));
+      this.serviceTier = value;
+      this.reconcileServiceTier();
+      this.cachedRuntimeInfo = null;
       return;
     }
     if (featureId === "plan_mode") {
@@ -4913,6 +5009,7 @@ export class CodexAppServerAgentSession implements AgentSession {
       serviceTier: this.serviceTier,
       config: this.buildCodexInnerConfig(),
       userMessageTurns: this.codexUserMessageTurns(),
+      threadRollbackAvailable: this.threadRollbackAvailable,
       setThreadId: async (threadId) => {
         this.currentThreadId = threadId;
         this.cachedRuntimeInfo = null;
@@ -5226,13 +5323,21 @@ export class CodexAppServerAgentSession implements AgentSession {
     return { model, thinkingOptionId };
   }
 
+  // A session without a model or effort runs on Codex's configured defaults, whether its
+  // thread is new or resumed after a restart.
+  private async applyDefaultModelAndThinking(): Promise<string> {
+    const { model, thinkingOptionId } = await this.resolveModelAndThinking();
+    this.config.model = model;
+    this.reconcileServiceTier();
+    this.config.thinkingOptionId = thinkingOptionId;
+    return model;
+  }
+
   private async ensureThread(): Promise<void> {
     if (!this.client) return;
     if (this.currentThreadId) return;
 
-    const { model, thinkingOptionId } = await this.resolveModelAndThinking();
-    this.config.model = model;
-    this.config.thinkingOptionId = thinkingOptionId;
+    const model = await this.applyDefaultModelAndThinking();
 
     const { params, approvalPolicy, sandbox } = this.buildThreadStartRequest(model);
     const rawResponse = await this.client.request("thread/start", params);
