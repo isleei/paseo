@@ -2266,8 +2266,10 @@ export const ko: TranslationResources = {
         description: "프롬프트 사이를 이동하기 위한 개요 표시",
       },
       sidebar: {
-        title: "사이드바",
-        description: "사이드바 상단에 표시할 항목과 순서를 선택하세요",
+        header: {
+          title: "헤더",
+          description: "사이드바 상단에 표시할 항목과 순서를 선택하세요",
+        },
         footer: {
           title: "푸터",
           description: "푸터 아이콘과 플러그인 행의 표시 여부와 순서를 선택하세요",

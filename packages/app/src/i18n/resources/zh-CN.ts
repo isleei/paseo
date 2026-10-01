@@ -2228,8 +2228,10 @@ export const zhCN: TranslationResources = {
         description: "显示用于在提示词之间跳转的大纲",
       },
       sidebar: {
-        title: "侧栏",
-        description: "选择侧栏顶部显示哪些项以及它们的顺序",
+        header: {
+          title: "顶部",
+          description: "选择侧栏顶部显示哪些项以及它们的顺序",
+        },
         footer: {
           title: "底部",
           description: "选择底部图标和插件行是否显示，以及它们的顺序",

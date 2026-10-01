@@ -83,11 +83,11 @@ test.describe("Sidebar items in Appearance settings", () => {
       await expectSidebarOrder(page, ["new-workspace", "history", "search", "schedules"]);
     });
 
-    await test.step("the Sidebar section lists every item in the same order", async () => {
+    await test.step("the Header section lists every item in the same order", async () => {
       await openSidebarNavSettings(page);
       // The section explains itself through the header's info tooltip, not a paragraph.
       await expect(page.getByTestId("sidebar-nav-section-info")).toHaveAccessibleName(
-        "About Sidebar",
+        "About Header",
       );
       await expectSidebarNavSettingsOrder(page, [
         "new-workspace",

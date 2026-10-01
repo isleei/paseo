@@ -145,8 +145,8 @@ function SidebarNavRow({
 
 const SECTION_COPY = {
   header: {
-    title: "settings.appearance.sidebar.title",
-    info: "settings.appearance.sidebar.description",
+    title: "settings.appearance.sidebar.header.title",
+    info: "settings.appearance.sidebar.header.description",
     testID: "sidebar-nav-section",
   },
   footer: {
