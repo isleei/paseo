@@ -1235,6 +1235,9 @@ export const ptBR: TranslationResources = {
       closeSidebar: "Fechar barra lateral",
       jumpToActivity: "Ir para a atividade",
     },
+    footer: {
+      usage: "Uso",
+    },
     help: {
       trigger: "Ajuda e suporte",
       sectionHelp: "Ajuda",
@@ -1714,6 +1717,17 @@ export const ptBR: TranslationResources = {
     hostPassword: {
       title: "Senha de {{host}}",
       label: "Senha do host",
+    },
+    hostConfirmation: {
+      title: "Conectar a este host?",
+      description:
+        "Este host poderá executar código neste app e acessar seus outros hosts conectados. Conecte apenas se você o reconhecer.",
+      descriptionChanged:
+        "Este link muda como você se conecta a este host. O host poderá executar código neste app e acessar seus outros hosts conectados. Conecte apenas se você o reconhecer.",
+      hostLabel: "Host",
+      fingerprintLabel: "Impressão da chave",
+      relayLabel: "Relay",
+      connect: "Conectar",
     },
     connectionMethods: {
       title: "Adicionar conexão",
@@ -2277,6 +2291,10 @@ export const ptBR: TranslationResources = {
       sidebar: {
         title: "Barra lateral",
         description: "Escolha quais itens aparecem no topo da barra lateral e em que ordem",
+        footer: {
+          title: "Rodapé",
+          description: "Escolha quais ícones e linhas de plugin aparecem embaixo e em que ordem",
+        },
         moveUp: "Mover para cima",
         moveDown: "Mover para baixo",
       },

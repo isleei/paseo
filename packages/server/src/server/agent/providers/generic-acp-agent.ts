@@ -1,9 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { Logger } from "pino";
-import { z } from "zod";
 
-import type { AgentCapabilityFlags } from "../agent-sdk-types.js";
 import type { ProviderLaunchSpec } from "../agent-sdk-types.js";
 import { checkProviderLaunchAvailable, resolveProviderLaunch } from "../provider-launch-config.js";
 import {
@@ -20,28 +18,9 @@ import {
   type DiagnosticEntry,
   toDiagnosticErrorMessage,
 } from "./diagnostic-utils.js";
-
-export const GenericACPProviderParamsSchema = z
-  .object({
-    authMethodId: z.string().min(1).optional(),
-    supportsMcpServers: z.boolean().optional(),
-    clientCapabilities: z
-      .object({
-        fs: z
-          .object({
-            readTextFile: z.boolean().optional(),
-            writeTextFile: z.boolean().optional(),
-          })
-          .optional(),
-        terminal: z.boolean().optional(),
-      })
-      .optional(),
-  })
-  .passthrough();
+import { ACPProviderOptionsSchema } from "./acp-options.js";
 
 const execFileAsync = promisify(execFile);
-
-type GenericACPProviderParams = z.infer<typeof GenericACPProviderParamsSchema>;
 
 interface GenericACPAgentClientOptions {
   logger: Logger;
@@ -49,7 +28,7 @@ interface GenericACPAgentClientOptions {
   env?: Record<string, string>;
   providerId?: string;
   label?: string;
-  providerParams?: unknown;
+  providerOptions?: unknown;
   waitForInitialCommands?: boolean;
   initialCommandsWaitTimeoutMs?: number;
   diagnosticPhaseTimeoutMs?: number;
@@ -67,7 +46,7 @@ export class GenericACPAgentClient extends ACPAgentClient {
   private readonly diagnosticPhaseTimeoutMs?: number;
 
   constructor(options: GenericACPAgentClientOptions) {
-    const providerParams = parseGenericACPProviderParams(options.providerParams);
+    const providerOptions = ACPProviderOptionsSchema.parse(options.providerOptions ?? {});
     super({
       provider: "acp",
       logger: options.logger,
@@ -75,13 +54,17 @@ export class GenericACPAgentClient extends ACPAgentClient {
         env: options.env,
       },
       defaultCommand: options.command,
-      authMethodId: providerParams.authMethodId,
-      capabilities: buildGenericACPCapabilities(providerParams),
+      authMethodId: providerOptions.authMethodId,
+      capabilities: {
+        ...DEFAULT_ACP_CAPABILITIES,
+        supportsMcpServers:
+          providerOptions.supportsMcpServers ?? DEFAULT_ACP_CAPABILITIES.supportsMcpServers,
+      },
       // ACP agents advertise slash commands with available_commands_update after
       // session/new, so the first listCommands() waits for that batch.
       waitForInitialCommands: options.waitForInitialCommands ?? true,
       initialCommandsWaitTimeoutMs: options.initialCommandsWaitTimeoutMs,
-      clientCapabilities: providerParams.clientCapabilities,
+      clientCapabilities: providerOptions.clientCapabilities,
       clientCapabilityMeta: options.clientCapabilityMeta,
       configFeatureOptions: options.configFeatureOptions,
       extensionCommandsParser: options.extensionCommandsParser,
@@ -208,17 +191,6 @@ async function inspectMacCodeSignature(
       ? "invalid"
       : "unknown";
   }
-}
-
-function buildGenericACPCapabilities(params: GenericACPProviderParams): AgentCapabilityFlags {
-  return {
-    ...DEFAULT_ACP_CAPABILITIES,
-    supportsMcpServers: params.supportsMcpServers ?? DEFAULT_ACP_CAPABILITIES.supportsMcpServers,
-  };
-}
-
-function parseGenericACPProviderParams(params: unknown): GenericACPProviderParams {
-  return GenericACPProviderParamsSchema.parse(params ?? {});
 }
 
 export interface CommandInvocation {

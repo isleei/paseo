@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Pressable, Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import type { OpenInSidePanePreferences } from "@/hooks/use-settings";
-import { getProviderIcon } from "@/components/provider-icons";
+import { useProviderIcons } from "@/components/provider-icons";
 import { CountChip, Section } from "@/components/ui/section";
 import {
   WorkspaceTabIcon,
@@ -108,15 +108,16 @@ const SubagentRowView = memo(function SubagentRowView({
   canOpen?: boolean;
 }) {
   const { t } = useTranslation();
+  const providerIcon = useProviderIcons(serverId);
   const presentation = useMemo<WorkspaceTabPresentation>(() => {
     const data = buildSubagentRowPresentationData(row);
     return {
       ...data,
       tooltip: data.label,
       modified: false,
-      icon: getProviderIcon(row.provider, serverId),
+      icon: providerIcon(row.provider),
     };
-  }, [row, serverId]);
+  }, [providerIcon, row]);
   const label =
     presentation.titleState === "loading" ? t("common.states.loading") : presentation.label;
   const handlePress = useCallback(() => onOpen(row), [onOpen, row]);

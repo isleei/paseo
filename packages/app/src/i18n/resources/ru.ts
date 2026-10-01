@@ -1227,6 +1227,9 @@ export const ru: TranslationResources = {
       closeSidebar: "Закрыть боковую панель",
       jumpToActivity: "Перейти к активности",
     },
+    footer: {
+      usage: "Использование",
+    },
     help: {
       trigger: "Помощь и поддержка",
       sectionHelp: "Помощь",
@@ -1712,6 +1715,17 @@ export const ru: TranslationResources = {
     hostPassword: {
       title: "Пароль для {{host}}",
       label: "Пароль хоста",
+    },
+    hostConfirmation: {
+      title: "Подключиться к этому хосту?",
+      description:
+        "Этот хост сможет выполнять код в приложении и обращаться к другим вашим подключённым хостам. Подключайтесь, только если узнаёте его.",
+      descriptionChanged:
+        "Эта ссылка меняет способ подключения к этому хосту. Хост сможет выполнять код в приложении и обращаться к другим вашим подключённым хостам. Подключайтесь, только если узнаёте его.",
+      hostLabel: "Хост",
+      fingerprintLabel: "Отпечаток ключа",
+      relayLabel: "Реле",
+      connect: "Подключить",
     },
     connectionMethods: {
       title: "Добавить подключение",
@@ -2281,6 +2295,11 @@ export const ru: TranslationResources = {
         title: "Боковая панель",
         description:
           "Выберите, какие элементы отображаются вверху боковой панели и в каком порядке",
+        footer: {
+          title: "Низ",
+          description:
+            "Выберите, какие значки и строки плагинов показывать внизу и в каком порядке",
+        },
         moveUp: "Переместить вверх",
         moveDown: "Переместить вниз",
       },

@@ -1216,6 +1216,9 @@ export const ko: TranslationResources = {
       closeSidebar: "사이드바 닫기",
       jumpToActivity: "활동으로 이동",
     },
+    footer: {
+      usage: "사용량",
+    },
     help: {
       trigger: "도움말 및 지원",
       sectionHelp: "도움말",
@@ -1693,6 +1696,17 @@ export const ko: TranslationResources = {
     hostPassword: {
       title: "{{host}}의 비밀번호",
       label: "호스트 비밀번호",
+    },
+    hostConfirmation: {
+      title: "이 호스트에 연결할까요?",
+      description:
+        "이 호스트는 이 앱에서 코드를 실행하고 연결된 다른 호스트에 접근할 수 있게 됩니다. 알고 있는 호스트인 경우에만 연결하세요.",
+      descriptionChanged:
+        "이 링크는 이 호스트에 연결하는 방식을 변경합니다. 호스트는 이 앱에서 코드를 실행하고 연결된 다른 호스트에 접근할 수 있게 됩니다. 알고 있는 호스트인 경우에만 연결하세요.",
+      hostLabel: "호스트",
+      fingerprintLabel: "키 지문",
+      relayLabel: "릴레이",
+      connect: "연결",
     },
     connectionMethods: {
       title: "연결 추가",
@@ -2253,6 +2267,10 @@ export const ko: TranslationResources = {
       sidebar: {
         title: "사이드바",
         description: "사이드바 상단에 표시할 항목과 순서를 선택하세요",
+        footer: {
+          title: "푸터",
+          description: "푸터 아이콘과 플러그인 행의 표시 여부와 순서를 선택하세요",
+        },
         moveUp: "위로 이동",
         moveDown: "아래로 이동",
       },

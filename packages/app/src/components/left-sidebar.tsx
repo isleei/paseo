@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import {
   Bell,
   BellRing,
+  FolderPlus,
   Gauge,
   Import,
   Search,
@@ -41,6 +42,7 @@ import {
 } from "@/components/sidebar-resize-handle-layout";
 import { HostPicker } from "@/components/hosts/host-picker";
 import { SidebarDisplayPreferencesMenu } from "@/components/sidebar/display-preferences/menu";
+import { SidebarSeparator } from "@/components/sidebar/sidebar-separator";
 import { SidebarNavRows } from "@/components/sidebar/sidebar-nav-rows";
 import { SidebarHelpMenu } from "@/components/sidebar/sidebar-help-menu";
 import { SidebarResizeHandle } from "@/components/sidebar-resize-handle";
@@ -61,26 +63,24 @@ import {
   builtinSidebarNavShortcutAction,
   isSidebarHeaderNavItem,
 } from "@/sidebar-nav/model";
-import { useSidebarNavItems } from "@/sidebar-nav/use-sidebar-nav-items";
 import type { PinnedSidebarGroups } from "@/hooks/use-sidebar-pins";
 import { RetainedPanelActivity } from "@/components/retained-panel";
 import type { SidebarWorkspaceGroup } from "@/components/sidebar/sidebar-labels";
 import type { SidebarProjectIconTarget } from "@/utils/sidebar-project-row-model";
 import { type SidebarGroupMode, useSidebarViewStore } from "@/stores/sidebar-view-store";
 import { useHosts } from "@/runtime/host-runtime";
+import { PluginSidebarItem } from "@/plugins/sidebar-items";
+import { useSidebarNavItems } from "@/sidebar-nav/use-sidebar-nav-items";
 import { usePanelStore } from "@/stores/panel-store";
 import { useKeyboardShortcutsStore } from "@/stores/keyboard-shortcuts-store";
 import { useOwnsWindowChromeCorner, WindowChromeSafeArea } from "@/utils/desktop-window";
 import { useCloseAgentListGesture } from "@/mobile-panels/gestures";
 import { MobilePanelOverlay } from "@/mobile-panels/presentation";
-import {
-  buildSettingsAddHostRoute,
-  buildSettingsRoute,
-  buildUsageRoute,
-} from "@/utils/host-routes";
+import { buildSettingsAddHostRoute, buildSettingsRoute } from "@/utils/host-routes";
 import { openHostOverview } from "@/navigation/settings-navigation";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { pickSessionActivityTarget } from "@/utils/session-activity-target";
+import { buildUsageRoute } from "@/utils/host-routes";
 import { SidebarAgentListSkeleton } from "./sidebar-agent-list-skeleton";
 import { SidebarCalloutSlot } from "./sidebar-callout-slot";
 import { SidebarWorkspaceList } from "./sidebar-workspace-list";
@@ -113,6 +113,7 @@ interface SidebarSharedProps {
 }
 
 interface SidebarLabels {
+  addProject: string;
   hosts: string;
   importSession: string;
   settings: string;
@@ -218,6 +219,7 @@ export const LeftSidebar = memo(function LeftSidebar({ active }: { active: boole
 
   const labels = useMemo(
     (): SidebarLabels => ({
+      addProject: t("sidebar.actions.addProject"),
       hosts: t("sidebar.actions.hosts"),
       importSession: t("importSession.title"),
       settings: t("sidebar.actions.settings"),
@@ -332,7 +334,7 @@ function FooterIconButton({
           )}
         </Pressable>
       </TooltipTrigger>
-      <TooltipContent side="top" align="center" offset={8}>
+      <TooltipContent side="top" align="center" offset={8} testID={`${testID}-tooltip`}>
         <IconTooltipContent label={label} shortcutKeys={shortcutKeys} />
       </TooltipContent>
     </Tooltip>
@@ -426,25 +428,6 @@ function SidebarHostPicker({
   );
 }
 
-function SidebarUsageButton({ theme }: { theme: SidebarTheme }) {
-  const { t } = useTranslation();
-  const isCompactLayout = useIsCompactFormFactor();
-  const showMobileAgent = usePanelStore((state) => state.showMobileAgent);
-  const handlePress = useCallback(() => {
-    if (isCompactLayout) showMobileAgent();
-    router.push(buildUsageRoute());
-  }, [isCompactLayout, showMobileAgent]);
-  return (
-    <FooterIconButton
-      onPress={handlePress}
-      testID="sidebar-usage"
-      label={t("settings.hostSections.usage")}
-      icon={Gauge}
-      theme={theme}
-    />
-  );
-}
-
 function IconTooltipContent({
   label,
   shortcutKeys,
@@ -462,55 +445,121 @@ function IconTooltipContent({
 
 function SidebarFooter({
   theme,
+  handleOpenProject,
   handleImportSession,
   handleSettings,
   labels,
   handleAddHost,
   handleOpenHostSettings,
+  onBeforeNavigate,
 }: {
   theme: SidebarTheme;
+  handleOpenProject: () => void;
   handleImportSession: () => void;
   handleSettings: () => void;
   labels: {
+    addProject: string;
     hosts: string;
     importSession: string;
     settings: string;
   };
   handleAddHost: () => void;
   handleOpenHostSettings: (serverId: string) => void;
+  onBeforeNavigate?: () => void;
 }) {
   const settingsKeys = useShortcutKeys("toggle-settings");
 
   return (
-    <View style={styles.sidebarFooter}>
-      <SidebarHostPicker
-        theme={theme}
-        label={labels.hosts}
-        onAddHost={handleAddHost}
-        onOpenHostSettings={handleOpenHostSettings}
-        avatarMode
-      />
-      <View style={styles.footerSpacer} />
-      <View style={styles.footerIconRow}>
-        <FooterIconButton
-          onPress={handleImportSession}
-          testID="sidebar-import-session"
-          label={labels.importSession}
-          icon={Import}
+    <View style={styles.footerContainer} testID="sidebar-footer">
+      <SidebarFooterRows onBeforeNavigate={onBeforeNavigate} />
+      <View style={styles.sidebarFooter}>
+        <SidebarHostPicker
           theme={theme}
+          label={labels.hosts}
+          onAddHost={handleAddHost}
+          onOpenHostSettings={handleOpenHostSettings}
+          avatarMode
         />
-        <SidebarUsageButton theme={theme} />
-        <SidebarHelpMenu />
-        <FooterIconButton
-          onPress={handleSettings}
-          testID="sidebar-settings"
-          label={labels.settings}
-          icon={Settings}
-          shortcutKeys={settingsKeys}
-          theme={theme}
-        />
+        <View style={styles.footerSpacer} />
+        <View style={styles.footerIconRow}>
+          <FooterIconButton
+            onPress={handleOpenProject}
+            testID="sidebar-add-project"
+            label={labels.addProject}
+            icon={FolderPlus}
+            theme={theme}
+          />
+          <FooterIconButton
+            onPress={handleImportSession}
+            testID="sidebar-import-session"
+            label={labels.importSession}
+            icon={Import}
+            theme={theme}
+          />
+          <SidebarUsageButton />
+          <SidebarHelpMenu />
+          <FooterIconButton
+            onPress={handleSettings}
+            testID="sidebar-settings"
+            label={labels.settings}
+            icon={Settings}
+            shortcutKeys={settingsKeys}
+            theme={theme}
+          />
+        </View>
       </View>
     </View>
+  );
+}
+
+/**
+ * Usage and footer plugin rows, in the user's footer order. Usage stays an icon in the
+ * footer icon row; plugin rows sit above it so the icon bar itself does not change.
+ */
+function SidebarFooterRows({ onBeforeNavigate }: { onBeforeNavigate?: () => void }) {
+  const { items } = useSidebarNavItems("footer");
+  const rowsRef = useRef<View | null>(null);
+  const pluginItems = items.filter(
+    (item): item is Extract<(typeof items)[number], { kind: "plugin" }> =>
+      item.visible && item.kind === "plugin",
+  );
+  if (pluginItems.length === 0) return null;
+  return (
+    <>
+      <View ref={rowsRef} collapsable={false} style={styles.footerRows}>
+        {pluginItems.map((item) => (
+          <PluginSidebarItem
+            key={item.key}
+            group={item.group}
+            section="footer"
+            fallbackAnchorRef={rowsRef}
+            onBeforeNavigate={onBeforeNavigate}
+          />
+        ))}
+      </View>
+      <SidebarSeparator testID="sidebar-footer-separator" />
+    </>
+  );
+}
+
+/** Usage stays a footer icon. The percent summary lives on the Usage screen. */
+function SidebarUsageButton() {
+  const { t } = useTranslation();
+  const { theme } = useUnistyles();
+  const { items } = useSidebarNavItems("footer");
+  const usage = items.find((item) => item.kind === "builtin" && item.id === "usage");
+  const handlePress = useCallback(() => {
+    router.push(buildUsageRoute());
+  }, []);
+  if (!usage?.visible) return null;
+  return (
+    <FooterIconButton
+      onPress={handlePress}
+      testID="sidebar-usage"
+      label={t(builtinSidebarNavLabelKey("usage"))}
+      icon={Gauge}
+      theme={theme}
+    />
   );
 }
 
@@ -622,11 +671,13 @@ function MobileSidebar({
 
         <SidebarFooter
           theme={theme}
+          handleOpenProject={handleOpenProject}
           handleImportSession={handleImportSession}
           handleSettings={handleSettings}
           labels={labels}
           handleAddHost={handleAddHost}
           handleOpenHostSettings={handleOpenHostSettings}
+          onBeforeNavigate={closeSidebar}
         />
       </View>
     </MobilePanelOverlay>
@@ -808,6 +859,7 @@ function DesktopSidebar({
 
         <SidebarFooter
           theme={theme}
+          handleOpenProject={handleOpenProject}
           handleImportSession={handleImportSession}
           handleSettings={handleSettings}
           labels={labels}
@@ -884,7 +936,7 @@ function SidebarBrandHeader({
 }) {
   const { t } = useTranslation();
   const { theme } = useUnistyles();
-  const { items } = useSidebarNavItems();
+  const { items } = useSidebarNavItems("header");
   const { agents } = useAggregatedAgents();
   const setCommandCenterOpen = useKeyboardShortcutsStore((state) => state.setCommandCenterOpen);
   const searchKeys = useShortcutKeys(builtinSidebarNavShortcutAction("search"));
@@ -1061,6 +1113,10 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.sm,
     fontWeight: theme.fontWeight.medium,
   },
+  footerContainer: {
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
   sidebarFooter: {
     flexDirection: "row",
     alignItems: "center",
@@ -1079,6 +1135,12 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     gap: theme.spacing[2],
     flexShrink: 0,
+  },
+  // Plugin footer rows sit above the icon bar.
+  footerRows: {
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: theme.spacing[3],
+    gap: theme.spacing[1],
   },
   footerIconButton: {
     width: 28,

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { getProviderIcon } from "@/components/provider-icons";
+import { useProviderIcon } from "@/components/provider-icons";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, type StatusBadgeVariant } from "@/components/ui/status-badge";
 import { copyText } from "@/plugins/react-native/clipboard";
@@ -17,7 +17,7 @@ interface EnvironmentIconProps {
 }
 
 function EnvironmentIcon({ iconKey, serverId, size, color = "" }: EnvironmentIconProps) {
-  const Icon = getProviderIcon(iconKey, serverId);
+  const Icon = useProviderIcon(iconKey, serverId);
   return <Icon size={size} color={color} />;
 }
 

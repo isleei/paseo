@@ -125,7 +125,6 @@ describe("cline usage source", () => {
           remainingPct: 80,
           resetsAt: "2026-06-19T05:00:00Z",
           tone: "ok",
-          headline: true,
         },
         {
           id: "weekly",

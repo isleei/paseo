@@ -1216,6 +1216,9 @@ export const en = {
       closeSidebar: "Close sidebar",
       jumpToActivity: "Jump to activity",
     },
+    footer: {
+      usage: "Usage",
+    },
     help: {
       trigger: "Help and support",
       sectionHelp: "Help",
@@ -1707,6 +1710,17 @@ export const en = {
     hostPassword: {
       title: "Password for {{host}}",
       label: "Host password",
+    },
+    hostConfirmation: {
+      title: "Connect to this host?",
+      description:
+        "This host will be able to run code in this app and reach your other connected hosts. Only connect if you recognize it.",
+      descriptionChanged:
+        "This link changes how you connect to this host. The host will be able to run code in this app and reach your other connected hosts. Only connect if you recognize it.",
+      hostLabel: "Host",
+      fingerprintLabel: "Key fingerprint",
+      relayLabel: "Relay",
+      connect: "Connect",
     },
     connectionMethods: {
       title: "Add connection",
@@ -2365,6 +2379,10 @@ export const en = {
       sidebar: {
         title: "Sidebar",
         description: "Choose which items appear at the top of the sidebar and in what order",
+        footer: {
+          title: "Footer",
+          description: "Choose which footer icons and plugin rows show, and in what order",
+        },
         moveUp: "Move up",
         moveDown: "Move down",
       },

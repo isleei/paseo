@@ -1209,6 +1209,9 @@ export const ar: TranslationResources = {
       closeSidebar: "إغلاق الشريط الجانبي",
       jumpToActivity: "الانتقال إلى النشاط",
     },
+    footer: {
+      usage: "الاستخدام",
+    },
     help: {
       trigger: "المساعدة والدعم",
       sectionHelp: "المساعدة",
@@ -1683,6 +1686,17 @@ export const ar: TranslationResources = {
     hostPassword: {
       title: "كلمة المرور لـ {{host}}",
       label: "كلمة مرور المضيف",
+    },
+    hostConfirmation: {
+      title: "الاتصال بهذا المضيف؟",
+      description:
+        "سيتمكن هذا المضيف من تشغيل تعليمات برمجية في هذا التطبيق والوصول إلى مضيفيك الآخرين المتصلين. اتصل فقط إذا كنت تعرفه.",
+      descriptionChanged:
+        "يغيّر هذا الرابط طريقة اتصالك بهذا المضيف. سيتمكن المضيف من تشغيل تعليمات برمجية في هذا التطبيق والوصول إلى مضيفيك الآخرين المتصلين. اتصل فقط إذا كنت تعرفه.",
+      hostLabel: "المضيف",
+      fingerprintLabel: "بصمة المفتاح",
+      relayLabel: "المُرحّل",
+      connect: "اتصال",
     },
     connectionMethods: {
       title: "إضافة اتصال",
@@ -2241,6 +2255,10 @@ export const ar: TranslationResources = {
       sidebar: {
         title: "الشريط الجانبي",
         description: "اختر العناصر التي تظهر أعلى الشريط الجانبي وترتيبها",
+        footer: {
+          title: "التذييل",
+          description: "اختر أيقونات التذييل وصفوف الإضافات الظاهرة وترتيبها",
+        },
         moveUp: "نقل لأعلى",
         moveDown: "نقل لأسفل",
       },

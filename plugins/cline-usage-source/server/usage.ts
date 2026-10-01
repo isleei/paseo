@@ -306,8 +306,6 @@ async function fetchUsageWithCredential(
   const balanceData = balance === null ? null : ClineBalanceSchema.safeParse(balance);
   const creditBalance =
     balanceData?.success === true ? balanceFromRaw(balanceData.data.balance) : null;
-  if (windows[0]) windows[0].headline = true;
-
   return {
     status: "available",
     planLabel,

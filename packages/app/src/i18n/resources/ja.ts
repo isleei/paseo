@@ -1223,6 +1223,9 @@ export const ja: TranslationResources = {
       closeSidebar: "サイドバーを閉じる",
       jumpToActivity: "アクティビティに移動",
     },
+    footer: {
+      usage: "使用状況",
+    },
     help: {
       trigger: "ヘルプとサポート",
       sectionHelp: "ヘルプ",
@@ -1700,6 +1703,17 @@ export const ja: TranslationResources = {
     hostPassword: {
       title: "{{host}} のパスワード",
       label: "ホストのパスワード",
+    },
+    hostConfirmation: {
+      title: "このホストに接続しますか？",
+      description:
+        "このホストはこのアプリ内でコードを実行し、接続中の他のホストにアクセスできるようになります。心当たりがある場合のみ接続してください。",
+      descriptionChanged:
+        "このリンクはこのホストへの接続方法を変更します。ホストはこのアプリ内でコードを実行し、接続中の他のホストにアクセスできるようになります。心当たりがある場合のみ接続してください。",
+      hostLabel: "ホスト",
+      fingerprintLabel: "鍵のフィンガープリント",
+      relayLabel: "リレー",
+      connect: "接続",
     },
     connectionMethods: {
       title: "接続を追加",
@@ -2261,6 +2275,10 @@ export const ja: TranslationResources = {
       sidebar: {
         title: "サイドバー",
         description: "サイドバー上部に表示する項目とその順序を選択します",
+        footer: {
+          title: "フッター",
+          description: "フッターのアイコンとプラグイン行の表示と順序を選択します",
+        },
         moveUp: "上に移動",
         moveDown: "下に移動",
       },

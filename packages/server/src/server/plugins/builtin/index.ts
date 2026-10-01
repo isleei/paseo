@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const builtinPlugins = [
+  "antigravity-provider",
   "claude-usage-source",
   "cline-usage-source",
   "codex-usage-source",
@@ -11,6 +12,7 @@ export const builtinPlugins = [
   "grok-usage-source",
   "kimi-usage-source",
   "minimax-usage-source",
+  "muse-provider",
   "opencode-go-usage-source",
   "zai-usage-source",
 ] as const;

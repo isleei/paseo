@@ -1245,6 +1245,9 @@ export const fr: TranslationResources = {
       closeSidebar: "Fermer la barre latérale",
       jumpToActivity: "Accéder à l’activité",
     },
+    footer: {
+      usage: "Utilisation",
+    },
     help: {
       trigger: "Aide et assistance",
       sectionHelp: "Aide",
@@ -1733,6 +1736,17 @@ export const fr: TranslationResources = {
     hostPassword: {
       title: "Mot de passe pour {{host}}",
       label: "Mot de passe de l’hôte",
+    },
+    hostConfirmation: {
+      title: "Se connecter à cet hôte ?",
+      description:
+        "Cet hôte pourra exécuter du code dans cette application et accéder à vos autres hôtes connectés. Connectez-vous uniquement si vous le reconnaissez.",
+      descriptionChanged:
+        "Ce lien modifie la façon dont vous vous connectez à cet hôte. L'hôte pourra exécuter du code dans cette application et accéder à vos autres hôtes connectés. Connectez-vous uniquement si vous le reconnaissez.",
+      hostLabel: "Hôte",
+      fingerprintLabel: "Empreinte de la clé",
+      relayLabel: "Relais",
+      connect: "Se connecter",
     },
     connectionMethods: {
       title: "Ajouter une connexion",
@@ -2298,6 +2312,11 @@ export const fr: TranslationResources = {
       sidebar: {
         title: "Barre latérale",
         description: "Choisissez les éléments affichés en haut de la barre latérale et leur ordre",
+        footer: {
+          title: "Pied",
+          description:
+            "Choisissez les icônes et les lignes d’extension affichées en bas, et leur ordre",
+        },
         moveUp: "Déplacer vers le haut",
         moveDown: "Déplacer vers le bas",
       },
