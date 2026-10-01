@@ -2667,6 +2667,8 @@ export class Session {
 
   private dispatchAgentRelationshipMessage(msg: SessionInboundMessage): Promise<void> | undefined {
     switch (msg.type) {
+      case "agent.retry_now.request":
+        return this.handleRetryAgentNowRequest(msg.agentId, msg.requestId);
       case "agent.detach.request":
         return this.handleDetachAgentRequest(msg.agentId, msg.requestId);
       default:
@@ -3298,6 +3300,26 @@ export class Session {
     }
 
     return { agentId, archivedAt };
+  }
+
+  private async handleRetryAgentNowRequest(agentId: string, requestId: string): Promise<void> {
+    try {
+      this.agentManager.retryAgentNow(agentId);
+      this.emit({
+        type: "agent.retry_now.response",
+        payload: { requestId, agentId, accepted: true, error: null },
+      });
+    } catch (error) {
+      this.emit({
+        type: "agent.retry_now.response",
+        payload: {
+          requestId,
+          agentId,
+          accepted: false,
+          error: getErrorMessageOr(error, "Failed to retry agent"),
+        },
+      });
+    }
   }
 
   private async handleDetachAgentRequest(agentId: string, requestId: string): Promise<void> {

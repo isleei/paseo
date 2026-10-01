@@ -18,6 +18,7 @@ function createSnapshot(
     lastUserMessageAt: input.lastUserMessageAt ?? null,
     status: input.status ?? "idle",
     activeTurn: input.activeTurn,
+    retry: input.retry,
     capabilities: input.capabilities ?? {
       supportsStreaming: true,
       supportsSessionPersistence: true,
@@ -36,6 +37,23 @@ function createSnapshot(
 }
 
 describe("normalizeAgentSnapshot", () => {
+  it("retains retry progress and active controls across snapshot restoration", () => {
+    const snapshot = createSnapshot({
+      status: "running",
+      activeTurn: { turnId: "failed-attempt", startedAt: "2026-10-01T00:00:00.000Z" },
+      retry: {
+        attempt: 1,
+        maxAttempts: 2,
+        retryAt: "2026-10-01T00:00:05.000Z",
+        error: "503 Service unavailable",
+      },
+    });
+    const restored = normalizeAgentSnapshot(snapshot, "server-1");
+    expect(restored.turn.phase).toBe("open");
+    expect(restored.retry).toEqual(snapshot.retry);
+    expect(projectAgentSnapshot(restored).retry).toEqual(snapshot.retry);
+    expect(normalizeAgentSnapshot({ ...snapshot, retry: null }, "server-1").retry).toBeNull();
+  });
   it("round-trips identified active turns through the canonical snapshot boundary", () => {
     const snapshot = createSnapshot({
       status: "running",

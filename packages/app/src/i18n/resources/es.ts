@@ -114,6 +114,10 @@ export const es: TranslationResources = {
     },
   },
   composer: {
+    retry: {
+      waiting: "Reintento en {{seconds}} s · {{attempt}}/{{maxAttempts}}",
+      now: "Reintentar ahora",
+    },
     placeholders: {
       desktop: "Envíe un mensaje al agente, etiquete@fileso use/commandsy/skills",
       mobile: "Mensaje,@files,/commands",
@@ -2555,6 +2559,13 @@ export const es: TranslationResources = {
         },
       },
       agents: {
+        retry: {
+          label: "Reintentos tras un fallo",
+          hint: "0 desactiva los reintentos. No incluyen el intento inicial y continúan la sesión existente.",
+          off: "Desactivado",
+          updateHost: "Actualiza este host para configurar los reintentos automáticos.",
+          saving: "Guardando…",
+        },
         unavailable: "Connect to this host to manage agents",
       },
       workspaces: {

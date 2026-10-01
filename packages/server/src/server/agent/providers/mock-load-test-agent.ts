@@ -254,7 +254,7 @@ function shouldEmitPlanApprovalPrompt(prompt: AgentPromptInput): boolean {
 }
 
 function shouldEmitTurnFailure(prompt: AgentPromptInput): boolean {
-  return /emit\s+(?:a\s+)?synthetic\s+turn\s+failure/i.test(promptToText(prompt));
+  return /emit\s+(?:a\s+)?synthetic\s+(?:transient\s+)?turn\s+failure/i.test(promptToText(prompt));
 }
 
 function parseSteeringReplayShape(prompt: AgentPromptInput): SteeringReplayShape | null {
@@ -1120,6 +1120,10 @@ export class MockLoadTestAgentSession implements AgentSession {
   }
 
   private scheduleFailedTurn(turn: ActiveTurn): void {
+    const transient = /synthetic\s+transient\s+turn\s+failure/i.test(promptToText(turn.prompt));
+    const error = transient
+      ? "503 Service unavailable; retry-after: 30"
+      : "Requested mock provider failure";
     turn.timer = setTimeout(() => {
       if (this.activeTurn !== turn) {
         return;
@@ -1131,7 +1135,7 @@ export class MockLoadTestAgentSession implements AgentSession {
         type: "turn_failed",
         provider: this.provider,
         turnId: turn.turnId,
-        error: "Requested mock provider failure",
+        error,
       });
       turn.resolve({
         sessionId: this.id,

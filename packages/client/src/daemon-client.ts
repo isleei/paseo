@@ -3526,6 +3526,13 @@ export class DaemonClient {
     return payload;
   }
 
+  async retryAgentNow(agentId: string): Promise<void> {
+    const payload = await this.sendNamespacedCorrelatedSessionRequest<"agent.retry_now.response">({
+      message: { type: "agent.retry_now.request", agentId },
+    });
+    if (!payload.accepted) throw new Error(payload.error ?? "Agent retry rejected");
+  }
+
   async cancelAgent(agentId: string): Promise<void> {
     const requestId = this.createRequestId();
     const message = SessionInboundMessageSchema.parse({

@@ -114,6 +114,10 @@ export const ptBR: TranslationResources = {
     },
   },
   composer: {
+    retry: {
+      waiting: "Nova tentativa em {{seconds}} s · {{attempt}}/{{maxAttempts}}",
+      now: "Tentar agora",
+    },
     placeholders: {
       desktop: "Envie uma mensagem ao agente, marque @files ou use /commands e /skills",
       mobile: "Mensagem, @files, /commands",
@@ -2537,6 +2541,13 @@ export const ptBR: TranslationResources = {
         },
       },
       agents: {
+        retry: {
+          label: "Tentativas após falha",
+          hint: "0 desativa as novas tentativas. A tentativa inicial não é contada e a sessão existente é continuada.",
+          off: "Desativado",
+          updateHost: "Atualize este host para configurar novas tentativas automáticas.",
+          saving: "Salvando…",
+        },
         unavailable: "Conecte-se a este host para gerenciar agentes",
       },
       workspaces: {

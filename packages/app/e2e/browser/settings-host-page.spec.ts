@@ -1,3 +1,10 @@
+import { rename, mkdir, rm } from "node:fs/promises";
+import path from "node:path";
+import { connectDaemonClient } from "../support/helpers/daemon-client-loader";
+import { seedWorkspace } from "../support/helpers/seed-client";
+import { createMockIdleAgent } from "../support/helpers/archive-tab";
+import { openAgentRoute } from "../support/helpers/mock-agent";
+import { expectComposerVisible } from "../support/helpers/composer";
 import { expect, test } from "../support/fixtures";
 import { gotoAppShell, openSettings } from "../support/helpers/app";
 import { getE2EDaemonPort } from "../support/helpers/daemon-port";
@@ -151,4 +158,113 @@ test.describe("Settings host page", () => {
     await expectHostLabelDisplayed(page);
     await expectHostActionCards(page, serverId);
   });
+});
+
+test("automatic retry settings persist and expose save failures", async ({ page }, testInfo) => {
+  const client = await connectDaemonClient<
+    import("@getpaseo/client/internal/daemon-client").DaemonClient
+  >({ clientIdPrefix: "retry-settings-e2e" });
+  const previous = (await client.getDaemonConfig()).config.agentRetryAttempts;
+  const home = process.env.E2E_PASEO_HOME;
+  if (!home) throw new Error("Missing isolated test home");
+  const configFile = path.join(home, "config.json");
+  const backup = path.join(home, "retry-test-config-backup.json");
+  let blocked = false;
+  try {
+    await client.patchDaemonConfig({ agentRetryAttempts: 2 });
+    await gotoAppShell(page);
+    await openSettings(page);
+    await openSettingsHost(page, getServerId());
+    await openHostSection(page, getServerId(), "agents");
+    const card = page.getByTestId("agent-retry-settings");
+    await expect(
+      card.getByRole("button", { name: "Retry after failure: 2", exact: true }),
+    ).toBeVisible();
+    await card.getByRole("button").click();
+    await page.getByRole("menuitem", { name: "Off", exact: true }).click();
+    await expect
+      .poll(async () => (await client.getDaemonConfig()).config.agentRetryAttempts)
+      .toBe(0);
+    await page.reload();
+    await expect(
+      card.getByRole("button", { name: "Retry after failure: Off", exact: true }),
+    ).toBeVisible();
+    await rename(configFile, backup);
+    await mkdir(configFile);
+    blocked = true;
+    await card.getByRole("button").click();
+    await page.getByRole("menuitem", { name: "3", exact: true }).click();
+    await expect(card.getByRole("alert")).toBeVisible();
+    await expect(
+      card.getByRole("button", { name: "Retry after failure: Off", exact: true }),
+    ).toBeEnabled();
+    await rm(configFile, { recursive: true });
+    await rename(backup, configFile);
+    blocked = false;
+    await card.getByRole("button").click();
+    await page.getByRole("menuitem", { name: "3", exact: true }).click();
+    await expect(card.getByRole("alert")).toHaveCount(0);
+    await expect
+      .poll(async () => (await client.getDaemonConfig()).config.agentRetryAttempts)
+      .toBe(3);
+    await page.screenshot({ path: testInfo.outputPath("retry-settings.png") });
+  } finally {
+    if (blocked) {
+      await rm(configFile, { recursive: true });
+      await rename(backup, configFile);
+    }
+    await client.patchDaemonConfig({ agentRetryAttempts: previous ?? 2 });
+    await client.close();
+  }
+});
+
+test("automatic retry countdown survives reload, retries immediately, and can be canceled", async ({
+  page,
+}, testInfo) => {
+  const workspace = await seedWorkspace({ repoPrefix: "retry-chat-" });
+  const client = await connectDaemonClient<
+    import("@getpaseo/client/internal/daemon-client").DaemonClient
+  >({ clientIdPrefix: "retry-chat-e2e" });
+  try {
+    const agent = await createMockIdleAgent(workspace.client, {
+      cwd: workspace.repoPath,
+      workspaceId: workspace.workspaceId,
+      title: "Retry test",
+    });
+    await gotoAppShell(page);
+    await expect
+      .poll(async () =>
+        (await client.fetchWorkspaces()).entries.some(
+          (entry) => entry.id === workspace.workspaceId,
+        ),
+      )
+      .toBe(true);
+    await openAgentRoute(page, { workspaceId: agent.workspaceId, agentId: agent.id });
+    await expectComposerVisible(page);
+    await client.sendAgentMessage(agent.id, "Emit a synthetic transient turn failure.");
+    const banner = page.getByTestId("agent-retry-status");
+    await expect(banner).toContainText("1/2");
+    await page.reload();
+    await expect(banner).toContainText("1/2");
+    await page.screenshot({ path: testInfo.outputPath("retry-chat.png") });
+    await banner.getByRole("button", { name: "Retry now", exact: true }).click();
+    await expect(banner).toHaveCount(0);
+    await expect
+      .poll(async () => (await client.fetchAgent({ agentId: agent.id }))?.agent?.retry)
+      .toBeNull();
+    await client.cancelAgent(agent.id);
+    await client.sendAgentMessage(agent.id, "Emit a synthetic transient turn failure.");
+    await expect(banner).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: testInfo.outputPath("retry-chat-compact.png") });
+    await banner.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(banner).toHaveCount(0);
+    await expect
+      .poll(async () => (await client.fetchAgent({ agentId: agent.id }))?.agent?.status)
+      .toBe("idle");
+    await expect(client.retryAgentNow(agent.id)).rejects.toThrow("not waiting");
+  } finally {
+    await client.close();
+    await workspace.cleanup();
+  }
 });

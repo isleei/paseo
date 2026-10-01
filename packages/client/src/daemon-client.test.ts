@@ -7162,3 +7162,36 @@ test("reviewed plugin updates gate before requests and preserve exact proposal d
     ]);
   }
 });
+
+test.each([true, false])("retry-now RPC handles accepted=%s", async (accepted) => {
+  const mock = createMockTransport();
+  const client = new DaemonClient({
+    url: "ws://test",
+    clientId: "retry-test",
+    logger: createMockLogger(),
+    reconnect: { enabled: false },
+    transportFactory: () => mock.transport,
+  });
+  clients.push(client);
+  const connected = client.connect();
+  mock.triggerOpen();
+  await connected;
+  const retry = client.retryAgentNow("agent-1");
+  const result = accepted
+    ? expect(retry).resolves.toBeUndefined()
+    : expect(retry).rejects.toThrow("Not waiting");
+  const request = parseSentFrame(mock.sent[0]);
+  expect(request).toMatchObject({ type: "agent.retry_now.request", agentId: "agent-1" });
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "agent.retry_now.response",
+      payload: {
+        requestId: request.requestId,
+        agentId: "agent-1",
+        accepted,
+        error: accepted ? null : "Not waiting",
+      },
+    }),
+  );
+  await result;
+});

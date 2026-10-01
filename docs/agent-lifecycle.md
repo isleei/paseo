@@ -37,6 +37,28 @@ work is gone. Report that exit as a turn failure so the agent lands in `error` w
 Claude and OMP report exits between turns. OMP relaunches from its session file on the next prompt;
 the unfinished turn is lost.
 
+### Automatic retry
+
+Configure **Retry after failure** in the host's Agents settings. The daemon stores
+`daemon.agentRetryAttempts` in `config.json`; 0 disables retries, 1-5 sets the additional
+attempts, and the default is 2. Each new foreground run captures the current limit.
+Provider-owned retries finish before this budget begins.
+
+Only a terminal, recognized transient provider failure qualifies. An ambiguous prompt
+submission or steering error does not: the provider may already be executing it. Unknown
+errors, authentication, billing, and invalid requests also stop without retrying.
+
+Retries continue the existing session with a system-injected continuation, not a replay
+of the original prompt. This preserves partial work but does not make tools idempotent;
+the continuation instructs the agent to verify uncertain outcomes before proceeding.
+The wait backs off from 5 seconds and respects a retry-after value included in the error.
+
+Waiting is part of the logical foreground run. Keep running state and withhold terminal
+events so notifications, queued messages, parent waits, and auto-archive do not finish
+between attempts. The snapshot carries the countdown for reconnecting clients. Stop,
+replacement, runtime closure, and daemon shutdown cancel pending retries. Timers are
+daemon-owned but not durable: restarting the daemon does not replay interrupted work.
+
 ### Cancellation
 
 Provider interruption is idempotent at the `AgentSession` boundary. It resolves when the prior

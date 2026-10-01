@@ -27,6 +27,7 @@ function reloadableConfig(
     autoArchiveAfterMerge: daemon.autoArchiveAfterMerge ?? false,
     enableTerminalAgentHooks: daemon.enableTerminalAgentHooks ?? false,
     appendSystemPrompt: daemon.appendSystemPrompt ?? "",
+    agentRetryAttempts: daemon.agentRetryAttempts,
     terminalProfiles: daemon.terminalProfiles,
     agentProfiles: daemon.agentProfiles,
     cors: { allowedOrigins: [] },
@@ -1192,4 +1193,24 @@ describe("DaemonConfigStore reload", () => {
       overrideControlledPaths: [],
     });
   });
+});
+
+test("agent retry count defaults to two, persists zero, and rejects invalid counts", () => {
+  const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-retry-config-"));
+  try {
+    const store = new DaemonConfigStore(paseoHome, reloadableConfig({ version: 1 }));
+    expect(store.get().agentRetryAttempts).toBe(2);
+    for (const invalid of [-1, 6, 1.5, NaN]) {
+      expect(() => store.patch({ agentRetryAttempts: invalid })).toThrow();
+    }
+    store.patch({ agentRetryAttempts: 0 });
+    expect(store.get().agentRetryAttempts).toBe(0);
+    const persisted = loadPersistedConfig(paseoHome);
+    expect(persisted.daemon?.agentRetryAttempts).toBe(0);
+    const reloaded = new DaemonConfigStore(paseoHome, reloadableConfig(persisted));
+    expect(reloaded.get().agentRetryAttempts).toBe(0);
+    expect(reloaded.patch({ agentRetryAttempts: 5 }).agentRetryAttempts).toBe(5);
+  } finally {
+    rmSync(paseoHome, { recursive: true, force: true });
+  }
 });

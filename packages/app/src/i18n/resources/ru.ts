@@ -114,6 +114,10 @@ export const ru: TranslationResources = {
     },
   },
   composer: {
+    retry: {
+      waiting: "Повтор через {{seconds}} с · {{attempt}}/{{maxAttempts}}",
+      now: "Повторить сейчас",
+    },
     placeholders: {
       desktop: "Напишите агенту сообщение, отметьте @files или используйте /commands и /skills.",
       mobile: "Сообщение,@files,/commands",
@@ -2545,6 +2549,13 @@ export const ru: TranslationResources = {
         },
       },
       agents: {
+        retry: {
+          label: "Повторные попытки после ошибки",
+          hint: "0 отключает повторы. Первая попытка не учитывается. Повторы продолжают текущий сеанс.",
+          off: "Выключено",
+          updateHost: "Обновите этот хост для настройки автоматических повторов.",
+          saving: "Сохранение…",
+        },
         unavailable: "Подключитесь к этому хосту, чтобы управлять агентами",
       },
       workspaces: {

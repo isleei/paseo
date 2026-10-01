@@ -113,6 +113,10 @@ export const ar: TranslationResources = {
     },
   },
   composer: {
+    retry: {
+      waiting: "إعادة المحاولة خلال {{seconds}} ث · {{attempt}}/{{maxAttempts}}",
+      now: "إعادة المحاولة الآن",
+    },
     placeholders: {
       desktop: "أرسل رسالة إلى الوكيل أو ضع علامة على @files أو استخدم /commands و /skills",
       mobile: "الرسالة، @files ، /commands",
@@ -2498,6 +2502,13 @@ export const ar: TranslationResources = {
         },
       },
       agents: {
+        retry: {
+          label: "إعادة المحاولة بعد الفشل",
+          hint: "0 يعطّل إعادة المحاولة. لا تُحتسب المحاولة الأولى وتستمر الجلسة الحالية.",
+          off: "إيقاف",
+          updateHost: "حدّث هذا المضيف لتهيئة إعادة المحاولة تلقائيًا.",
+          saving: "جارٍ الحفظ…",
+        },
         unavailable: "Connect to this host to manage agents",
       },
       workspaces: {

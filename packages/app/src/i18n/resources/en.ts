@@ -109,6 +109,10 @@ export const en = {
     },
   },
   composer: {
+    retry: {
+      waiting: "Retrying in {{seconds}}s · {{attempt}}/{{maxAttempts}}",
+      now: "Retry now",
+    },
     placeholders: {
       desktop: "Message the agent, tag @files, or use /commands and /skills",
       mobile: "Message, @files, /commands",
@@ -2625,6 +2629,13 @@ export const en = {
         },
       },
       agents: {
+        retry: {
+          label: "Retry after failure",
+          hint: "0 disables retries. Retries exclude the initial attempt and continue the existing session.",
+          off: "Off",
+          updateHost: "Update this host to configure automatic retries.",
+          saving: "Saving...",
+        },
         unavailable: "Connect to this host to manage agents",
       },
       workspaces: {

@@ -1,3 +1,4 @@
+import type { RetryClock } from "./retry/sequence.js";
 import { expect, test, vi } from "vitest";
 import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -11571,4 +11572,311 @@ test("failed startup history closes the session without registering an agent", a
   } finally {
     for (const agent of manager.listAgents()) await manager.closeAgent(agent.id);
   }
+});
+
+test("automatic retry continues the session without publishing a terminal failure", async () => {
+  const session = new SteeringTestSession({ provider: "codex", cwd: process.cwd() });
+  const client = new (class extends TestAgentClient {
+    override async createSession() {
+      return session;
+    }
+  })();
+  const manager = new AgentManager({ clients: { codex: client }, logger });
+  const agent = await manager.createAgent({ provider: "codex", cwd: process.cwd() }, undefined, {
+    workspaceId: undefined,
+  });
+  const published: AgentStreamEvent[] = [];
+  manager.subscribe((event) => {
+    if (event.type === "agent_stream") published.push(event.event);
+  });
+  const run = manager.runAgent(agent.id, "original task");
+  await manager.waitForAgentRunStart(agent.id);
+  session.pushEvent({
+    type: "turn_failed",
+    provider: "codex",
+    turnId: "active-turn-1",
+    error: "503 Service unavailable",
+  });
+  await vi.waitFor(() => expect(manager.getAgent(agent.id)?.retry?.attempt).toBe(1));
+  expect(manager.getAgent(agent.id)?.lifecycle).toBe("running");
+  expect(published.some((event) => event.type === "turn_failed")).toBe(false);
+  manager.retryAgentNow(agent.id);
+  await vi.waitFor(() => expect(session.startCount).toBe(2));
+  expect(session.startPrompts[1]).toContain("Do not repeat completed commands");
+  session.pushEvent({ type: "turn_completed", provider: "codex", turnId: "active-turn-2" });
+  await run;
+  expect(manager.getAgent(agent.id)?.lifecycle).toBe("idle");
+  expect(manager.getAgent(agent.id)?.retry).toBeNull();
+});
+
+async function createRetryTestAgent(attempts: number, registry?: AgentStorage) {
+  const session = new SteeringTestSession({ provider: "codex", cwd: process.cwd() });
+  const client = new (class extends TestAgentClient {
+    override async createSession() {
+      return session;
+    }
+  })();
+  const manager = new AgentManager({
+    clients: { codex: client },
+    logger,
+    registry,
+    getAgentRetryAttempts: () => attempts,
+  });
+  const agent = await manager.createAgent({ provider: "codex", cwd: process.cwd() }, undefined, {
+    workspaceId: undefined,
+  });
+  const events: AgentStreamEvent[] = [];
+  const states: ManagedAgent["lifecycle"][] = [];
+  manager.subscribe((event) => {
+    if (event.type === "agent_stream") events.push(event.event);
+    if (event.type === "agent_state") states.push(event.agent.lifecycle);
+  });
+  const completed = drainAsyncGenerator(manager.streamAgent(agent.id, "original task"));
+  await manager.waitForAgentRunStart(agent.id);
+  states.length = 0;
+  function fail(error = "503 Service unavailable") {
+    session.pushEvent({
+      type: "turn_failed",
+      provider: "codex",
+      turnId: `active-turn-${session.startCount}`,
+      error,
+    });
+  }
+  return { manager, session, agentId: agent.id, completed, events, states, fail };
+}
+
+test("automatic retry stops at the configured count and publishes only the final failure", async () => {
+  const testAgent = await createRetryTestAgent(2);
+  const { manager, agentId, fail, session, completed, events, states } = testAgent;
+  for (const attempt of [1, 2]) {
+    fail();
+    await vi.waitFor(() => expect(manager.getAgent(agentId)?.retry?.attempt).toBe(attempt));
+    expect(states).not.toContain("error");
+    expect(states).not.toContain("idle");
+    manager.retryAgentNow(agentId);
+    await vi.waitFor(() => expect(session.startCount).toBe(attempt + 1));
+  }
+  fail();
+  await completed;
+  expect(session.startCount).toBe(3);
+  expect(manager.getAgent(agentId)?.lifecycle).toBe("error");
+  expect(events.filter((event) => event.type === "turn_failed")).toHaveLength(1);
+});
+
+test.each([
+  "401 Unauthorized",
+  "429 insufficient_quota",
+  "Invalid API key",
+  "Something unknown happened",
+])("automatic retry does not retry permanent or unknown errors: %s", async (error) => {
+  const { manager, agentId, fail, session, completed } = await createRetryTestAgent(2);
+  fail(error);
+  await completed;
+  expect(session.startCount).toBe(1);
+  expect(manager.getAgent(agentId)?.lifecycle).toBe("error");
+  expect(() => manager.retryAgentNow(agentId)).toThrow("not waiting");
+});
+
+test("automatic retry is disabled when the configured count is zero", async () => {
+  const { manager, agentId, fail, session, completed } = await createRetryTestAgent(0);
+  fail();
+  await completed;
+  expect(session.startCount).toBe(1);
+  expect(manager.getAgent(agentId)?.lifecycle).toBe("error");
+});
+
+test("automatic retry can be canceled without interrupting an already finished provider turn", async () => {
+  const { manager, agentId, fail, session, completed, events } = await createRetryTestAgent(2);
+  fail();
+  await vi.waitFor(() => expect(manager.getAgent(agentId)?.retry).toBeTruthy());
+  await manager.cancelAgentRun(agentId);
+  await completed;
+  expect(session.interruptCount).toBe(0);
+  expect(session.startCount).toBe(1);
+  expect(manager.getAgent(agentId)?.lifecycle).toBe("idle");
+  expect(manager.getAgent(agentId)?.activeTurnId).toBeNull();
+  expect(manager.getAgent(agentId)?.retry).toBeNull();
+  expect(events.filter((event) => event.type === "turn_canceled")).toHaveLength(1);
+  expect(() => manager.retryAgentNow(agentId)).toThrow("not waiting");
+});
+
+test("automatic retry is canceled when a new message replaces the waiting task", async () => {
+  const { manager, agentId, fail, session, completed } = await createRetryTestAgent(2);
+  fail();
+  await vi.waitFor(() => expect(manager.getAgent(agentId)?.retry).toBeTruthy());
+  const result = await manager.steerOrReplaceActiveTurn(agentId, "different task");
+  expect(result.status).toBe("replaced");
+  if (result.status !== "replaced") throw new Error("Expected replacement");
+  const replacement = drainAsyncGenerator(result.iterator);
+  await vi.waitFor(() => expect(session.startCount).toBe(2));
+  expect(session.startPrompts[1]).toBe("different task");
+  await completed;
+  session.pushEvent({ type: "turn_completed", provider: "codex", turnId: "active-turn-2" });
+  await replacement;
+  expect(manager.getAgent(agentId)?.lifecycle).toBe("idle");
+});
+
+test("automatic retry never resumes after archive", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-retry-archive-"));
+  const registry = new AgentStorage(join(workdir, "agents"), logger);
+  const { manager, agentId, fail, session, completed } = await createRetryTestAgent(2, registry);
+  try {
+    fail();
+    await vi.waitFor(() => expect(manager.getAgent(agentId)?.retry).toBeTruthy());
+    await manager.archiveAgent(agentId);
+    await completed;
+    expect(session.startCount).toBe(1);
+    expect(manager.hasInFlightRun(agentId)).toBe(false);
+    expect(() => manager.retryAgentNow(agentId)).toThrow("not waiting");
+  } finally {
+    await manager.flushForShutdown();
+    rmSync(workdir, { recursive: true, force: true });
+  }
+});
+
+test("automatic retry ignores late terminal and start events from a failed attempt", async () => {
+  const { manager, agentId, fail, session, completed } = await createRetryTestAgent(1);
+  fail();
+  await vi.waitFor(() => expect(manager.getAgent(agentId)?.retry).toBeTruthy());
+  session.pushEvent({ type: "turn_started", provider: "codex", turnId: "active-turn-1" });
+  session.pushEvent({ type: "turn_completed", provider: "codex", turnId: "active-turn-1" });
+  manager.retryAgentNow(agentId);
+  await vi.waitFor(() => expect(session.startCount).toBe(2));
+  session.pushEvent({
+    type: "turn_failed",
+    provider: "codex",
+    turnId: "active-turn-1",
+    error: "late failure",
+  });
+  session.pushEvent({ type: "turn_completed", provider: "codex", turnId: "active-turn-2" });
+  await completed;
+  expect(manager.getAgent(agentId)?.lifecycle).toBe("idle");
+});
+
+class ManualRetryClock implements RetryClock {
+  private time = 0;
+  private timers = new Map<() => void, number>();
+  now() {
+    return this.time;
+  }
+  after(delayMs: number, callback: () => void) {
+    this.timers.set(callback, this.time + delayMs);
+    return () => {
+      this.timers.delete(callback);
+    };
+  }
+  advance(delayMs: number) {
+    this.time += delayMs;
+    for (const [callback, due] of this.timers) {
+      if (due <= this.time) {
+        this.timers.delete(callback);
+        callback();
+      }
+    }
+  }
+  get pendingCount() {
+    return this.timers.size;
+  }
+}
+
+test("automatic retry uses exponential delays and honors provider retry-after", async () => {
+  const { RetrySequence } = await import("./retry/sequence.js");
+  const clock = new ManualRetryClock();
+  const sequence = new RetrySequence({ maxAttempts: 3, clock });
+  const failure: AgentStreamEvent = {
+    type: "turn_failed",
+    provider: "codex",
+    error: "503 Service unavailable",
+  };
+  for (const delay of [5_000, 10_000]) {
+    const retry = sequence.schedule(failure);
+    expect(retry?.retryAt).toBe(new Date(clock.now() + delay).toISOString());
+    let ready = false;
+    const waiting = sequence.wait().then((value) => {
+      ready = value;
+      return value;
+    });
+    clock.advance(delay - 1);
+    await Promise.resolve();
+    expect(ready).toBe(false);
+    clock.advance(1);
+    await waiting;
+    expect(ready).toBe(true);
+  }
+  const retry = sequence.schedule({ ...failure, error: "429 Too many requests; Retry-After: 90" });
+  expect(retry?.retryAt).toBe(new Date(clock.now() + 90_000).toISOString());
+  const waiting = sequence.wait();
+  sequence.cancel();
+  expect(await waiting).toBe(false);
+  expect(clock.pendingCount).toBe(0);
+});
+
+test("automatic retry cancellation wins even when its timer has already fired", async () => {
+  const { RetrySequence } = await import("./retry/sequence.js");
+  const clock = new ManualRetryClock();
+  const sequence = new RetrySequence({ maxAttempts: 2, clock });
+  sequence.schedule({ type: "turn_failed", provider: "codex", error: "503 retry-after-ms: 6000" });
+  const waiting = sequence.wait();
+  clock.advance(6_000);
+  sequence.cancel();
+  expect(await waiting).toBe(false);
+  expect(sequence.canContinue()).toBe(false);
+  expect(clock.pendingCount).toBe(0);
+});
+
+test("automatic retry wakes from the daemon clock without a connected client", async () => {
+  const clock = new ManualRetryClock();
+  const session = new SteeringTestSession({ provider: "codex", cwd: process.cwd() });
+  const client = new (class extends TestAgentClient {
+    override async createSession() {
+      return session;
+    }
+  })();
+  const manager = new AgentManager({ clients: { codex: client }, logger, retryClock: clock });
+  const agent = await manager.createAgent({ provider: "codex", cwd: process.cwd() }, undefined, {
+    workspaceId: undefined,
+  });
+  const run = manager.runAgent(agent.id, "original task");
+  await manager.waitForAgentRunStart(agent.id);
+  session.pushEvent({
+    type: "turn_failed",
+    provider: "codex",
+    turnId: "active-turn-1",
+    error: "503 Service unavailable",
+  });
+  await vi.waitFor(() => expect(manager.getAgent(agent.id)?.retry).toBeTruthy());
+  clock.advance(4_999);
+  await Promise.resolve();
+  expect(session.startCount).toBe(1);
+  clock.advance(1);
+  await vi.waitFor(() => expect(session.startCount).toBe(2));
+  session.pushEvent({ type: "turn_completed", provider: "codex", turnId: "active-turn-2" });
+  await run;
+  expect(clock.pendingCount).toBe(0);
+});
+
+test("automatic retry cancels its timer at the shutdown barrier", async () => {
+  const { manager, agentId, fail, session, completed } = await createRetryTestAgent(2);
+  fail();
+  await vi.waitFor(() => expect(manager.getAgent(agentId)?.retry).toBeTruthy());
+  manager.prepareForShutdown();
+  await completed;
+  expect(session.startCount).toBe(1);
+  expect(() => manager.retryAgentNow(agentId)).toThrow("not waiting");
+  await manager.closeAgent(agentId);
+  expect(manager.hasInFlightRun(agentId)).toBe(false);
+});
+
+test("automatic retry never turns an overflowing retry-after into an immediate retry", async () => {
+  const { RetrySequence } = await import("./retry/sequence.js");
+  const clock = new ManualRetryClock();
+  const sequence = new RetrySequence({ maxAttempts: 2, clock });
+  expect(
+    sequence.schedule({
+      type: "turn_failed",
+      provider: "codex",
+      error: "429 retry-after: 999999999999",
+    }),
+  ).toBeNull();
+  expect(clock.pendingCount).toBe(0);
 });

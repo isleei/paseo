@@ -114,6 +114,10 @@ export const ja: TranslationResources = {
     },
   },
   composer: {
+    retry: {
+      waiting: "{{seconds}} 秒後に再試行 · {{attempt}}/{{maxAttempts}}",
+      now: "今すぐ再試行",
+    },
     placeholders: {
       desktop: "エージェントにメッセージ、@ファイル、/コマンドや/スキルを入力",
       mobile: "メッセージ、@ファイル、/コマンド",
@@ -2523,6 +2527,13 @@ export const ja: TranslationResources = {
         },
       },
       agents: {
+        retry: {
+          label: "失敗時の自動再試行",
+          hint: "0 で無効。初回の実行は回数に含みません。既存のセッションを続行します。",
+          off: "オフ",
+          updateHost: "自動再試行を設定するにはホストを更新してください。",
+          saving: "保存中…",
+        },
         unavailable: "エージェントを管理するにはこのホストに接続してください",
       },
       workspaces: {

@@ -113,6 +113,10 @@ export const zhCN: TranslationResources = {
     },
   },
   composer: {
+    retry: {
+      waiting: "{{seconds}} 秒后重试 · 第 {{attempt}}/{{maxAttempts}} 次",
+      now: "立即重试",
+    },
     placeholders: {
       desktop: "描述任务，输入/调用技能",
       mobile: "描述任务，输入/调用技能",
@@ -2471,6 +2475,13 @@ export const zhCN: TranslationResources = {
         },
       },
       agents: {
+        retry: {
+          label: "失败后自动重试",
+          hint: "0 表示关闭，次数不包含首次执行。重试会继续原会话。",
+          off: "关闭",
+          updateHost: "请更新此主机以配置自动重试。",
+          saving: "正在保存…",
+        },
         unavailable: "连接到这个 Host 以管理 Agent",
       },
       workspaces: {

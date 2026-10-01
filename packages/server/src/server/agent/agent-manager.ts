@@ -1,3 +1,10 @@
+import {
+  RetrySequence,
+  retryClock,
+  RETRY_CONTINUATION_PROMPT,
+  type RetryClock,
+} from "./retry/sequence.js";
+import type { AgentRetryState } from "@getpaseo/protocol/messages";
 import { projectTimelineRows } from "./timeline-projection.js";
 import type { PluginLifecycle } from "../plugins/lifecycle/index.js";
 import { describeHookAgent, publishAgentStream } from "../plugins/lifecycle/index.js";
@@ -78,7 +85,7 @@ import {
   type PendingForegroundRun,
 } from "./agent-run-state.js";
 import { invokeRewindCapability, type RewindMode } from "./rewind/rewind.js";
-import { isSystemInjectedEnvelope } from "./agent-prompt.js";
+import { formatSystemNotificationPrompt, isSystemInjectedEnvelope } from "./agent-prompt.js";
 import { isStaleProviderSessionError } from "./stale-provider-session-error.js";
 import { stripInternalPaseoMcpServer, withRuntimePaseoMcpServer } from "./runtime-mcp-config.js";
 import { resolveCreateAgentTitles } from "./create-agent-title.js";
@@ -331,6 +338,8 @@ export interface AgentManagerOptions {
   paseoToolsEnabled?: boolean;
   paseoToolCatalogFactory?: PaseoToolCatalogFactory;
   resolvePaseoToolPolicy?: (provider: AgentProvider) => ProviderPaseoToolsPolicy | undefined;
+  getAgentRetryAttempts?: () => number;
+  retryClock?: RetryClock;
   appendSystemPrompt?: string;
   agentStreamCoalesceWindowMs?: number;
   rescueTimeouts?: AgentManagerRescueTimeouts;
@@ -428,6 +437,7 @@ interface ManagedAgentBase {
   activeTurnId: string | null;
   activeTurnStartedAt: Date | null;
   lastUsage?: AgentUsage;
+  retry?: AgentRetryState | null;
   lastError?: string;
   attention: AttentionState;
   foregroundTurnWaiters: Set<ForegroundTurnWaiter>;
@@ -729,6 +739,8 @@ export class AgentManager {
   private readonly steerEventBarriers = new Map<string, SteerEventBarrier>();
   private readonly foregroundMutationTails = new Map<string, Promise<void>>();
   private readonly runs = new AgentRunState();
+  private readonly retrySequences = new Map<string, RetrySequence>();
+  private readonly retryOptions: Pick<AgentManagerOptions, "getAgentRetryAttempts" | "retryClock">;
   private readonly subscribers = new Set<SubscriptionRecord>();
   private readonly idFactory: () => string;
   private readonly registry?: AgentStorage;
@@ -758,6 +770,7 @@ export class AgentManager {
   private acceptingAgentRegistrations = true;
 
   constructor(options: AgentManagerOptions) {
+    this.retryOptions = options;
     this.pluginLifecycle = options.pluginLifecycle;
     this.idFactory = options?.idFactory ?? (() => randomUUID());
     this.registry = options?.registry;
@@ -852,6 +865,7 @@ export class AgentManager {
 
   prepareForShutdown(): void {
     this.acceptingAgentRegistrations = false;
+    for (const sequence of this.retrySequences.values()) sequence.cancel();
   }
 
   setPaseoToolsEnabled(enabled: boolean): void {
@@ -1691,7 +1705,9 @@ export class AgentManager {
   }
 
   private async closeAgentRuntime(agentId: string): Promise<void> {
+    this.retrySequences.get(agentId)?.cancel();
     const agent = this.requireAgent(agentId);
+    if (agent.retry) await this.cancelAgentRun(agentId);
     this.logger.trace(
       {
         agentId,
@@ -1758,6 +1774,9 @@ export class AgentManager {
     if (!this.registry) {
       throw new Error("Agent storage is not configured");
     }
+
+    if (agent.retry) await this.cancelAgentRun(agentId);
+    this.retrySequences.get(agentId)?.cancel();
 
     await this.registry.applySnapshot(agent, {
       internal: agent.internal,
@@ -2491,6 +2510,68 @@ export class AgentManager {
     prompt: AgentPromptInput,
     options?: AgentRunOptions,
   ): AsyncGenerator<AgentStreamEvent> {
+    const agent = this.requireSessionAgent(agentId);
+    if (!this.acceptingAgentRegistrations) throw new AgentManagerShuttingDownError();
+    if (agent.retry) throw new Error(`Agent ${agentId} is waiting to retry`);
+    const firstAttempt = this.streamAgentAttempt(agentId, prompt, options);
+    const sequence = new RetrySequence({
+      maxAttempts: this.retryOptions.getAgentRetryAttempts?.() ?? 2,
+      clock: this.retryOptions.retryClock ?? retryClock,
+    });
+    this.retrySequences.set(agentId, sequence);
+    const forward = async function* (this: AgentManager): AsyncGenerator<AgentStreamEvent> {
+      let attempt = firstAttempt;
+      try {
+        while (true) {
+          let retry = false;
+          for await (const event of attempt) {
+            if (event.type === "turn_failed" && sequence.wasScheduledFor(event)) {
+              retry = true;
+            } else {
+              yield event;
+            }
+          }
+          if (!retry) return;
+          if (!(await sequence.wait())) {
+            yield { type: "turn_canceled", provider: agent.provider, reason: "interrupted" };
+            return;
+          }
+          const ownsRetry = this.retrySequences.get(agentId) === sequence;
+          if (!ownsRetry || !sequence.canContinue() || !this.acceptingAgentRegistrations) return;
+          if (this.agents.get(agentId) !== agent) return;
+          if (agent.activeTurnId) this.runs.rememberFinalizedTurn(agent, agent.activeTurnId);
+          agent.retry = null;
+          agent.activeTurnId = null;
+          agent.activeTurnStartedAt = null;
+          // Continue the durable session rather than replaying a prompt whose tools may have run.
+          attempt = this.streamAgentAttempt(
+            agentId,
+            formatSystemNotificationPrompt(RETRY_CONTINUATION_PROMPT),
+            {
+              ...options,
+              clientMessageId: undefined,
+            },
+          );
+        }
+      } finally {
+        sequence.cancel();
+        if (this.retrySequences.get(agentId) === sequence) this.retrySequences.delete(agentId);
+      }
+    }.call(this);
+    return forward;
+  }
+
+  retryAgentNow(agentId: string): void {
+    if (!this.retrySequences.get(agentId)?.retryNow()) {
+      throw new Error("Agent is not waiting to retry");
+    }
+  }
+
+  private streamAgentAttempt(
+    agentId: string,
+    prompt: AgentPromptInput,
+    options?: AgentRunOptions,
+  ): AsyncGenerator<AgentStreamEvent> {
     const existingAgent = this.requireSessionAgent(agentId);
     this.logger.trace(
       {
@@ -2749,6 +2830,9 @@ export class AgentManager {
     options?: AgentSteerOptions,
   ): Promise<ActiveTurnSteerDispatchResult> {
     const agent = this.requireSessionAgent(agentId);
+    if (agent.retry) {
+      return { status: "replaced", iterator: await this.replaceAgentRun(agentId, prompt, options) };
+    }
     const expectedTurnId = agent.activeForegroundTurnId ?? agent.activeTurnId;
     if (!expectedTurnId) {
       return { status: "inactive" };
@@ -3030,11 +3114,24 @@ export class AgentManager {
   }
 
   async cancelAgentRun(agentId: string): Promise<AgentRunCancellationResult> {
+    this.retrySequences.get(agentId)?.cancel();
     return this.runForegroundMutation(agentId, () => this.cancelAgentRunNow(agentId));
   }
 
   private async cancelAgentRunNow(agentId: string): Promise<AgentRunCancellationResult> {
     const agent = this.requireSessionAgent(agentId);
+    if (agent.retry) {
+      agent.retry = null;
+      agent.lastError = undefined;
+      if (agent.activeTurnId) agent.finalizedForegroundTurnIds.delete(agent.activeTurnId);
+      await this.dispatchSessionEvent(agent, {
+        type: "turn_canceled",
+        provider: agent.provider,
+        reason: "interrupted",
+        turnId: agent.activeTurnId ?? undefined,
+      });
+      return { status: "settled" };
+    }
     const run =
       this.runs.getRun(agentId) ??
       (agent.lifecycle === "running" ? this.runs.trackAutonomousRun(agentId, null) : null);
@@ -3679,6 +3776,7 @@ export class AgentManager {
       inFlightPermissionResponses: new Set(),
       pendingReplacement: false,
       activeForegroundTurnId: null,
+      retry: null,
       activeTurnId: null,
       activeTurnStartedAt: null,
       foregroundTurnWaiters: new Set<ForegroundTurnWaiter>(),
@@ -3715,6 +3813,8 @@ export class AgentManager {
     agent: LiveManagedAgent,
     cancelReason: string,
   ): ManagedAgentClosed {
+    this.retrySequences.get(agent.id)?.cancel();
+    this.retrySequences.delete(agent.id);
     this.agentStreamCoalescer.flushAndDiscard(agent.id);
     this.agents.delete(agent.id);
     this.previousStatuses.delete(agent.id);
@@ -3734,6 +3834,7 @@ export class AgentManager {
       lifecycle: "closed",
       session: null,
       activeForegroundTurnId: null,
+      retry: null,
       activeTurnId: null,
       activeTurnStartedAt: null,
       pendingPermissions: new Map(),
@@ -4184,7 +4285,7 @@ export class AgentManager {
     this.traceHandleStreamEventStart(agent, event, eventTurnId, isForegroundEvent);
     if (
       eventTurnId &&
-      isTurnTerminalEvent(event) &&
+      (isTurnTerminalEvent(event) || event.type === "turn_started") &&
       this.runs.hasFinalizedTurn(agent, eventTurnId)
     ) {
       return false;
@@ -4199,6 +4300,9 @@ export class AgentManager {
       }
       this.agentStreamCoalescer.flushFor(agent.id);
     }
+
+    const retryDisposition = this.handleRetryEvent(agent, event, options);
+    if (retryDisposition !== null) return retryDisposition;
 
     let terminalDisposition: ActiveTurnTerminalDisposition = "untracked";
     if (isTurnTerminalEvent(event)) {
@@ -4240,6 +4344,29 @@ export class AgentManager {
     this.traceHandleStreamEventEnd(agent, event, eventTurnId, flags);
 
     return flags.shouldNotifyWaiters;
+  }
+
+  private handleRetryEvent(
+    agent: ActiveManagedAgent,
+    event: AgentStreamEvent,
+    options: HandleStreamEventOptions | undefined,
+  ): boolean | null {
+    if (options?.fromHistory) return null;
+    if (isTurnTerminalEvent(event) && agent.retry) return false;
+    if (event.type !== "turn_failed") return null;
+    const turnId = getAgentStreamEventTurnId(event);
+    if (agent.activeForegroundTurnId !== turnId) return null;
+    const retry = this.retrySequences.get(agent.id)?.schedule(event);
+    if (!retry) return null;
+    // A failed provider attempt is not the end of the user's logical run.
+    // Withhold terminal notifications and automation until retries finish.
+    if (turnId) this.runs.rememberFinalizedTurn(agent, turnId);
+    this.runs.settleTerminalRun(agent.id, turnId);
+    agent.activeForegroundTurnId = null;
+    agent.retry = retry;
+    this.resolvePendingPermissionsForAgent(agent, event.provider, undefined, "Turn failed");
+    this.emitState(agent);
+    return true;
   }
 
   private traceHandleStreamEventStart(

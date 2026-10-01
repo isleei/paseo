@@ -116,6 +116,10 @@ export const fr: TranslationResources = {
     },
   },
   composer: {
+    retry: {
+      waiting: "Nouvel essai dans {{seconds}} s · {{attempt}}/{{maxAttempts}}",
+      now: "Réessayer maintenant",
+    },
     placeholders: {
       desktop: "Envoyez un message à l'agent, marquez@filesou utilisez/commandset/skills",
       mobile: "Message,@files,/commands",
@@ -2561,6 +2565,13 @@ export const fr: TranslationResources = {
         },
       },
       agents: {
+        retry: {
+          label: "Réessais après un échec",
+          hint: "0 désactive les réessais. Ils excluent la tentative initiale et poursuivent la session existante.",
+          off: "Désactivé",
+          updateHost: "Mettez cet hôte à jour pour configurer les réessais automatiques.",
+          saving: "Enregistrement…",
+        },
         unavailable: "Connect to this host to manage agents",
       },
       workspaces: {

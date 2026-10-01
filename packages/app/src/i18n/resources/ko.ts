@@ -113,6 +113,10 @@ export const ko: TranslationResources = {
     },
   },
   composer: {
+    retry: {
+      waiting: "{{seconds}}초 후 재시도 · {{attempt}}/{{maxAttempts}}",
+      now: "지금 재시도",
+    },
     placeholders: {
       desktop: "에이전트에게 메시지를 보내거나 @files 태그, /commands, /skills를 사용하세요",
       mobile: "메시지, @files, /commands",
@@ -2510,6 +2514,13 @@ export const ko: TranslationResources = {
         },
       },
       agents: {
+        retry: {
+          label: "실패 후 자동 재시도",
+          hint: "0은 끄기입니다. 최초 실행은 횟수에 포함되지 않으며 기존 세션을 이어서 실행합니다.",
+          off: "끄기",
+          updateHost: "자동 재시도를 설정하려면 이 호스트를 업데이트하세요.",
+          saving: "저장 중…",
+        },
         unavailable: "에이전트를 관리하려면 이 호스트에 연결하세요",
       },
       workspaces: {

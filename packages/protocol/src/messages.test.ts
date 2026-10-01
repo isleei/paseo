@@ -520,3 +520,38 @@ describe("viewed timeline subscription messages", () => {
     });
   });
 });
+
+describe("agent retry protocol", () => {
+  test("accepts a namespaced retry request and response", () => {
+    expect(
+      SessionInboundMessageSchema.parse({
+        type: "agent.retry_now.request",
+        agentId: "agent-1",
+        requestId: "retry-1",
+      }).type,
+    ).toBe("agent.retry_now.request");
+    expect(
+      SessionOutboundMessageSchema.parse({
+        type: "agent.retry_now.response",
+        payload: {
+          agentId: "agent-1",
+          requestId: "retry-1",
+          accepted: false,
+          error: "Not waiting",
+        },
+      }).type,
+    ).toBe("agent.retry_now.response");
+  });
+  test("accepts server info with and without the retry feature", () => {
+    expect(
+      parseServerInfoStatusPayload({
+        status: "server_info",
+        serverId: "host-1",
+        features: { agentRetry: true },
+      })?.features?.agentRetry,
+    ).toBe(true);
+    expect(
+      parseServerInfoStatusPayload({ status: "server_info", serverId: "host-1" }),
+    ).toBeTruthy();
+  });
+});

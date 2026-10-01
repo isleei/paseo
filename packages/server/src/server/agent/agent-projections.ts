@@ -125,6 +125,7 @@ export function toAgentPayload(
     updatedAt: agent.updatedAt.toISOString(),
     lastUserMessageAt: agent.lastUserMessageAt ? agent.lastUserMessageAt.toISOString() : null,
     status: agent.lifecycle,
+    retry: agent.retry ?? null,
     activeTurn: agent.activeTurnId
       ? {
           turnId: agent.activeTurnId,

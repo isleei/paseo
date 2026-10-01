@@ -548,3 +548,26 @@ describe("MockLoadTestAgentClient", () => {
     }
   });
 });
+
+test("emits a transient failure with retry-after through the real mock provider", async () => {
+  const client = new MockLoadTestAgentClient();
+  const session = await client.createSession({
+    provider: "mock",
+    cwd: process.cwd(),
+    model: "e2e-fast-stream",
+  });
+  try {
+    const failed = new Promise<AgentStreamEvent>((resolve) => {
+      session.subscribe((event) => {
+        if (event.type === "turn_failed") resolve(event);
+      });
+    });
+    await session.startTurn("Emit a synthetic transient turn failure.");
+    expect(await failed).toMatchObject({
+      type: "turn_failed",
+      error: "503 Service unavailable; retry-after: 30",
+    });
+  } finally {
+    await session.close();
+  }
+});

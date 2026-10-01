@@ -1,4 +1,5 @@
 import type { ComposerTextSource } from "./text-source";
+import { AgentRetryStatus } from "./retry-status";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { useStore } from "zustand";
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
@@ -2436,6 +2437,7 @@ function ComposerContentImpl({
           <View style={styles.inputAreaContent}>
             {queueList}
             {sendErrorNode}
+            {agentId ? <AgentRetryStatus serverId={serverId} agentId={agentId} /> : null}
 
             <View ref={messageInputContainerRef} style={styles.messageInputContainer}>
               <ComposerAutocompleteBinding
