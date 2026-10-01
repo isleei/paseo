@@ -80,7 +80,7 @@ import { buildSettingsAddHostRoute, buildSettingsRoute } from "@/utils/host-rout
 import { openHostOverview } from "@/navigation/settings-navigation";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { pickSessionActivityTarget } from "@/utils/session-activity-target";
-import { buildUsageRoute } from "@/utils/host-routes";
+import { UsageSidebarItem, useHasUsageSummary, useOpenUsageScreen } from "@/usage";
 import { SidebarAgentListSkeleton } from "./sidebar-agent-list-skeleton";
 import { SidebarCalloutSlot } from "./sidebar-callout-slot";
 import { SidebarWorkspaceList } from "./sidebar-workspace-list";
@@ -221,7 +221,7 @@ export const LeftSidebar = memo(function LeftSidebar({ active }: { active: boole
     (): SidebarLabels => ({
       addProject: t("sidebar.actions.addProject"),
       hosts: t("sidebar.actions.hosts"),
-      importSession: t("importSession.title"),
+      importSession: t("sidebar.header.actions.importSession"),
       settings: t("sidebar.actions.settings"),
       closeSidebar: t("sidebar.actions.closeSidebar"),
     }),
@@ -306,7 +306,7 @@ function FooterIconButton({
   onPress: () => void;
   testID: string;
   label: string;
-  icon: typeof Import;
+  icon: LucideIcon;
   iconSize?: number;
   shortcutKeys?: ReturnType<typeof useShortcutKeys>;
   theme: SidebarTheme;
@@ -513,29 +513,34 @@ function SidebarFooter({
 }
 
 /**
- * Usage and footer plugin rows, in the user's footer order. Usage stays an icon in the
- * footer icon row; plugin rows sit above it so the icon bar itself does not change.
+ * Footer plugin rows and the usage summary, in the user's footer order. The Usage icon stays
+ * in the footer icon row. The summary row is left out while no pinned window has data.
  */
 function SidebarFooterRows({ onBeforeNavigate }: { onBeforeNavigate?: () => void }) {
   const { items } = useSidebarNavItems("footer");
+  const hasUsageSummary = useHasUsageSummary();
   const rowsRef = useRef<View | null>(null);
-  const pluginItems = items.filter(
-    (item): item is Extract<(typeof items)[number], { kind: "plugin" }> =>
-      item.visible && item.kind === "plugin",
+  const visibleItems = items.filter(
+    (item) =>
+      item.visible && (item.kind === "plugin" || (item.kind === "builtin" && hasUsageSummary)),
   );
-  if (pluginItems.length === 0) return null;
+  if (visibleItems.length === 0) return null;
   return (
     <>
       <View ref={rowsRef} collapsable={false} style={styles.footerRows}>
-        {pluginItems.map((item) => (
-          <PluginSidebarItem
-            key={item.key}
-            group={item.group}
-            section="footer"
-            fallbackAnchorRef={rowsRef}
-            onBeforeNavigate={onBeforeNavigate}
-          />
-        ))}
+        {visibleItems.map((item) =>
+          item.kind === "plugin" ? (
+            <PluginSidebarItem
+              key={item.key}
+              group={item.group}
+              section="footer"
+              fallbackAnchorRef={rowsRef}
+              onBeforeNavigate={onBeforeNavigate}
+            />
+          ) : (
+            <UsageSidebarItem key={item.key} />
+          ),
+        )}
       </View>
       <SidebarSeparator testID="sidebar-footer-separator" />
     </>
@@ -548,14 +553,12 @@ function SidebarUsageButton() {
   const { theme } = useUnistyles();
   const { items } = useSidebarNavItems("footer");
   const usage = items.find((item) => item.kind === "builtin" && item.id === "usage");
-  const handlePress = useCallback(() => {
-    router.push(buildUsageRoute());
-  }, []);
+  const handlePress = useOpenUsageScreen();
   if (!usage?.visible) return null;
   return (
     <FooterIconButton
       onPress={handlePress}
-      testID="sidebar-usage"
+      testID="sidebar-usage-icon"
       label={t(builtinSidebarNavLabelKey("usage"))}
       icon={Gauge}
       theme={theme}
@@ -1117,6 +1120,7 @@ const styles = StyleSheet.create((theme) => ({
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
   },
+  // The icons' 28pt buttons sit edge to edge; their own inset spaces the glyphs.
   sidebarFooter: {
     flexDirection: "row",
     alignItems: "center",
@@ -1136,11 +1140,11 @@ const styles = StyleSheet.create((theme) => ({
     gap: theme.spacing[2],
     flexShrink: 0,
   },
-  // Plugin footer rows sit above the icon bar.
+  // Plugin rows and the usage summary sit above the icon bar.
   footerRows: {
     paddingHorizontal: theme.spacing[2],
-    paddingVertical: theme.spacing[3],
-    gap: theme.spacing[1],
+    paddingVertical: theme.spacing[1.5],
+    gap: 2,
   },
   footerIconButton: {
     width: 28,

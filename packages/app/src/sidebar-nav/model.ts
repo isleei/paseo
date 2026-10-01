@@ -82,6 +82,16 @@ export function builtinSidebarNavShortcutAction(id: BuiltinSidebarItemId): strin
   return BUILTIN_SHORTCUT_ACTIONS[id];
 }
 
+/**
+ * Builtins that start hidden on compact layouts, until the user turns them on. A phone's footer
+ * has no room to spare for the Usage summary.
+ */
+const HIDDEN_BY_DEFAULT_ON_COMPACT: ReadonlySet<BuiltinSidebarItemId> = new Set(["usage"]);
+
+function builtinVisibleByDefault(id: BuiltinSidebarItemId, compact: boolean): boolean {
+  return !(compact && HIDDEN_BY_DEFAULT_ON_COMPACT.has(id));
+}
+
 export function pluginSidebarNavKey(
   group: Pick<PluginSidebarGroup, "pluginId" | "contributionId">,
 ): string {
@@ -104,6 +114,8 @@ function isBuiltinSidebarItemId<Section extends SidebarSection>(
 
 export function resolveSidebarNavItems<Section extends SidebarSection>(input: {
   section: Section;
+  /** Compact layouts start some builtins hidden; a stored preference always wins. */
+  compact: boolean;
   pluginGroups: readonly PluginSidebarGroup[];
   panelGroups?: readonly PluginSidebarPanelGroup[];
   preferences: readonly SidebarNavPreference[];
@@ -154,7 +166,12 @@ export function resolveSidebarNavItems<Section extends SidebarSection>(input: {
 
   for (const id of builtinIds) {
     if (placed.has(id)) continue;
-    items.push({ kind: "builtin", key: id, id, visible: true });
+    items.push({
+      kind: "builtin",
+      key: id,
+      id,
+      visible: builtinVisibleByDefault(id, input.compact),
+    });
   }
   for (const [key, group] of groupsByKey) {
     if (placed.has(key)) continue;

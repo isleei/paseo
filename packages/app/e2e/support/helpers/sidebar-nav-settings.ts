@@ -163,7 +163,6 @@ async function expectVerticalOrder<Key extends string>(
 
 /** Persisted footer row key -> the testID the app shell renders that row with. */
 function shellFooterTestID(key: string): string {
-  // With nothing pinned the Usage item is the plain Usage row.
   if (key === "usage") return "sidebar-usage";
   const [, pluginId, itemId] = key.split(":");
   return `plugin-sidebar-footer-${pluginId}-${itemId}`;
@@ -222,7 +221,7 @@ const FOOTER_ICON_TEST_IDS = [
   "sidebar-hosts-trigger",
   "sidebar-add-project",
   "sidebar-import-session",
-  "sidebar-usage",
+  "sidebar-usage-icon",
   "sidebar-help",
   "sidebar-settings",
 ];
