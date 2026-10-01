@@ -7,8 +7,12 @@
 // report freshness (exit 0 fresh, 2 stale) without exporting.
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+const require = createRequire(import.meta.url);
+const { assertCompleteElectronWebDist, inspectElectronWebDist } = require("./electron-web-dist.js");
 
 const here = dirname(fileURLToPath(import.meta.url));
 const desktopDir = resolve(here, "..");
@@ -83,6 +87,8 @@ function newestMtimeMs(dir) {
 
 function isFresh() {
   if (!existsSync(webDistDir)) return { fresh: false, reason: "packages/app/dist is missing" };
+  const completeness = inspectElectronWebDist(webDistDir);
+  if (!completeness.complete) return { fresh: false, reason: completeness.reason };
   for (const marker of distMarkers) {
     if (!existsSync(marker)) return { fresh: false, reason: `${marker} is missing` };
   }
@@ -133,4 +139,5 @@ execFileSync("npx", ["expo", "export", "--platform", "web"], {
   stdio: "inherit",
   shell: process.platform === "win32",
 });
+assertCompleteElectronWebDist(webDistDir);
 console.log("[ensure-electron-web-dist] export complete.");

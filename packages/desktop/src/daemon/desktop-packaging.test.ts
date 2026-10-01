@@ -99,6 +99,18 @@ describe("desktop packaging", () => {
     expect(config).toContain("!node_modules/@getpaseo/**/*.spec.*");
   });
 
+  it("fails packaging when the Expo web export has no JS bundle", () => {
+    const afterPack = readFileSync(join(packageRoot, "scripts", "after-pack.js"), "utf8");
+    const ensureExport = readFileSync(
+      join(packageRoot, "scripts", "ensure-electron-web-dist.mjs"),
+      "utf8",
+    );
+
+    expect(afterPack).toContain("assertCompleteElectronWebDist(packagedAppDistDir");
+    expect(ensureExport).toContain("inspectElectronWebDist(webDistDir)");
+    expect(ensureExport).toContain("assertCompleteElectronWebDist(webDistDir)");
+  });
+
   it("excludes the bundled daemon web UI from the packaged app", () => {
     const config = readFileSync(join(packageRoot, "electron-builder.yml"), "utf8");
 

@@ -508,6 +508,8 @@ Use `npm run build:server` whenever you have changed any daemon/server-facing pa
 
 Ship the desktop app with `npm run build:desktop` from the repo root, never with the package-local `npm run build --workspace=@getpaseo/desktop` on its own. The desktop renderer is a prebuilt Expo web export (`packages/app/dist`, packaged as `app-dist`); the package-local build has no export step and silently ships whatever export happens to be on disk, producing a new daemon with a stale UI. The package `prebuild` hook (`packages/desktop/scripts/ensure-electron-web-dist.mjs`) re-exports when app sources are newer than the export and skips otherwise — if it ever reports stale content you did not expect, the export on disk predates your change and must not ship.
 
+`expo export` deletes `packages/app/dist`, copies `public/`, then bundles. If bundling dies after the copy (Metro cannot bind `8081`, OOM, a thrown serializer), dist looks fresh by mtime and contains only `index.html` with no `_expo/static/js` script. Packaging that produces a white window titled `%WEB_TITLE%`. Completeness is required: `index.html` must reference `_expo/static/js`, or prebuild re-exports and after-pack refuses to ship. Expo export hardcodes Metro on `8081`; anything else listening there (a Docker publish, another Expo) will fail the bundle step.
+
 The app Metro config disables Watchman and uses Metro's node crawler for exports. Keep that invariant unless you have verified production app exports on machines with and without Watchman installed; distro Watchman builds can differ in capabilities and change Metro's crawl behavior.
 
 For tighter loops, you can rebuild a single workspace:

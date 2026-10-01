@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 const { smokePackagedDesktopApp } = require("../e2e/packaged-app-smoke.js");
+const { assertCompleteElectronWebDist } = require("./electron-web-dist.js");
 
 const { installLinuxLauncher } = require("./linux-sandbox");
 
@@ -111,10 +112,18 @@ function fmtMB(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function packagedAppDistDir(appOutDir, platform) {
+  if (platform === "darwin") {
+    return path.join(appOutDir, `${EXECUTABLE_NAME}.app`, "Contents", "Resources", "app-dist");
+  }
+  return path.join(appOutDir, "resources", "app-dist");
+}
+
 exports.default = async function afterPack(context) {
   const platform = context.electronPlatformName;
   const arch = ARCH_MAP[context.arch] || process.arch;
 
+  assertCompleteElectronWebDist(packagedAppDistDir(context.appOutDir, platform));
   pruneNativeModules(context.appOutDir, platform, arch);
 
   if (platform === "linux") {
