@@ -1,4 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { computeAgentIslandFrame } from "./geometry.js";
+import {
+  applyAgentIslandEvent,
+  buildAgentIslandDisplayState,
+  createAgentIslandState,
+} from "./state.js";
 
 import {
   AGENT_ISLAND_CARRIER_COMPACT_INSET,
@@ -8,10 +18,83 @@ import {
   AGENT_ISLAND_COMPACT_HARDWARE_IDLE_EXTRA_WIDTH,
   AGENT_ISLAND_COMPACT_IDLE_WIDTH,
   AGENT_ISLAND_MAX_RESIZABLE_WIDTH,
+  computeAgentIslandContentHeight,
   getAgentIslandCompactBadgeWidth,
   getAgentIslandDefaultContentWidth,
   snapAgentIslandCompactHardwareContentWidth,
 } from "./agent-island-shared.js";
+
+describe("MacBook Air island geometry", () => {
+  function frame(expanded: boolean, compactContentWidth?: number, expandedContentWidth?: number) {
+    const state = createAgentIslandState();
+    applyAgentIslandEvent(
+      state,
+      { sessionId: "air-task", agentKind: "codex" },
+      { type: "status", data: { isRunning: true } },
+      1000,
+    );
+    const display = buildAgentIslandDisplayState(state, 1000);
+    return computeAgentIslandFrame({
+      display: { id: 1, bounds: { x: 0, y: 0, width: 1470, height: 956 } },
+      state: { ...display, mode: expanded ? "expanded" : "compact" },
+      screenMetrics: { hasNotch: true, notchWidth: 179 },
+      preference: { compactContentWidth, expandedContentWidth },
+    });
+  }
+
+  it("uses the real notch and bounds remembered compact widths without rewriting preferences", () => {
+    const basic = frame(false);
+    expect(basic.contentWidth).toBe(243);
+    expect(frame(false, 300).contentWidth).toBe(basic.contentWidth);
+    expect(frame(false, 179).contentWidth).toBe(179);
+  });
+
+  it("defaults to a 480pt detail panel", () => {
+    expect(frame(true).contentWidth).toBe(480);
+  });
+
+  it("preserves explicitly resized detail panels below the menu bar", () => {
+    expect(frame(true, undefined, 600).contentWidth).toBe(600);
+  });
+
+  it("limits the multi-session viewport to three rows", () => {
+    expect(
+      computeAgentIslandContentHeight({
+        mode: "expanded",
+        displaySurface: "sessionList",
+        hasSession: true,
+        totalCount: 5,
+      }),
+    ).toBe(330);
+  });
+
+  it.skipIf(process.platform !== "darwin")(
+    "keeps native menu items clickable",
+    () => {
+      const directory = mkdtempSync(path.join(tmpdir(), "paseo-island-menubar-"));
+      try {
+        const helper = readFileSync(
+          new URL("../../../native/agent-island/macos-agent-island-helper.swift", import.meta.url),
+          "utf8",
+        );
+        const harness = readFileSync(
+          new URL("./fixtures/menu-bar-regression.swift", import.meta.url),
+          "utf8",
+        );
+        const bootstrap = helper.lastIndexOf("\nlet app = NSApplication.shared");
+        expect(bootstrap).toBeGreaterThan(0);
+        const source = path.join(directory, "main.swift");
+        const executable = path.join(directory, "check");
+        writeFileSync(source, helper.slice(0, bootstrap) + "\n" + harness);
+        execFileSync("swiftc", [source, "-o", executable], { timeout: 60_000 });
+        expect(execFileSync(executable, { encoding: "utf8", timeout: 10_000 })).toContain("PASS:");
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    },
+    75_000,
+  );
+});
 
 /**
  * 灵动岛计数徽标由 native helper(macos-agent-island-helper.swift)绘制,但 carrier

@@ -7,6 +7,12 @@ import {
   AGENT_ISLAND_MAX_RESIZABLE_WIDTH,
   AGENT_ISLAND_MIN_EXPANDED_WIDTH,
   AGENT_ISLAND_SCREEN_EDGE_GUTTER,
+  computeAgentIslandContentHeight,
+  getAgentIslandDefaultContentWidth,
+  getAgentIslandMinimumContentWidth,
+  snapAgentIslandCompactHardwareContentWidth,
+  type AgentIslandDisplayState,
+  type AgentIslandScreenLayoutMetrics,
 } from "./agent-island-shared.js";
 
 interface DisplayLike {
@@ -45,6 +51,72 @@ export interface AgentIslandLayoutPreference extends AgentIslandDisplayIdentity 
   centerXRatio?: number | null;
   compactContentWidth?: number | null;
   expandedContentWidth?: number | null;
+}
+
+interface AgentIslandFrameInput {
+  display: DisplayLike & { id: number };
+  state: AgentIslandDisplayState;
+  preference?: AgentIslandLayoutPreference;
+  screenMetrics: AgentIslandScreenLayoutMetrics | null;
+}
+
+export function computeAgentIslandFrame(input: AgentIslandFrameInput) {
+  const { display, state, preference } = input;
+  const expanded = state.mode === "expanded";
+  const hasSession = state.sessions.length > 0;
+  const centerXRatio = preference?.centerXRatio ?? 0.5;
+  const alignedWithNotch = Math.abs(centerXRatio - 0.5) * display.bounds.width <= 2;
+  const screenMetrics = alignedWithNotch ? input.screenMetrics : null;
+  const defaultContentWidth = getAgentIslandDefaultContentWidth({
+    expanded,
+    hasSession,
+    displayWidth: display.bounds.width,
+    screenMetrics,
+    pillSnapshot: state.pillSnapshot,
+  });
+  const minimumContentWidth = getAgentIslandMinimumContentWidth({ expanded, screenMetrics });
+  const contentHeight = computeAgentIslandContentHeight({
+    mode: state.mode,
+    displaySurface: state.displaySurface,
+    hasSession,
+    totalCount: state.totalCount,
+    measuredContentHeight: state.measuredContentHeight,
+  });
+  const preferredWidth =
+    (expanded ? preference?.expandedContentWidth : preference?.compactContentWidth) ??
+    defaultContentWidth;
+  // A remembered wide pill must not reclaim menu items beside the hardware notch.
+  const compactNotch = !expanded && screenMetrics?.hasNotch;
+  const widthLimit = compactNotch ? defaultContentWidth : AGENT_ISLAND_MAX_RESIZABLE_WIDTH;
+  const maxWidth = Math.min(
+    widthLimit,
+    Math.max(0, display.bounds.width - AGENT_ISLAND_SCREEN_EDGE_GUTTER),
+  );
+  const clamped = Math.min(maxWidth, Math.max(minimumContentWidth, preferredWidth));
+  const contentWidth = expanded
+    ? clamped
+    : snapAgentIslandCompactHardwareContentWidth({
+        desiredWidth: preferredWidth,
+        clampedWidth: clamped,
+        maxWidth,
+        hasSession,
+        screenMetrics,
+        pillSnapshot: state.pillSnapshot,
+      });
+  const bounds = computeAgentIslandWindowBounds(display, {
+    expanded,
+    contentHeight,
+    centerXRatio,
+    contentWidth,
+    defaultContentWidth,
+    minimumContentWidth,
+  });
+  return {
+    ...bounds,
+    displayId: display.id,
+    displayBounds: { ...display.bounds },
+    contentWidth,
+  };
 }
 
 export function computeAgentIslandCarrierSize(

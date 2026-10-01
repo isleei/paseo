@@ -14,22 +14,16 @@ import { release as getOsRelease } from "node:os";
 import log from "electron-log/main";
 
 import {
-  AGENT_ISLAND_MAX_EXPANDED_HEIGHT,
-  AGENT_ISLAND_MAX_EXPANDED_WIDTH,
   cloneAgentIslandDisplayTarget,
   cloneAgentIslandSoundSettings,
-  computeAgentIslandContentHeight,
   createDefaultAgentIslandDisplayConfig,
   DEFAULT_AGENT_ISLAND_DISPLAY_TARGET,
   DEFAULT_AGENT_ISLAND_MASCOT_SKIN,
-  getAgentIslandDefaultContentWidth,
-  getAgentIslandMinimumContentWidth,
   isAgentIslandMascotSkin,
   isAgentIslandSupportedPlatform,
   isSilentAgentIslandSoundChoice,
   normalizeAgentIslandDisplayTarget,
   normalizeAgentIslandSoundSettings,
-  snapAgentIslandCompactHardwareContentWidth,
   type AgentIslandDisplayState,
   type AgentIslandDisplayTarget,
   type AgentIslandMascotSkin,
@@ -60,12 +54,16 @@ import {
   setAgentIslandVisibleSession,
   type AgentIslandState,
 } from "./state.js";
-import { computeAgentIslandCarrierSize, computeAgentIslandWindowBounds } from "./geometry.js";
+import { computeAgentIslandFrame } from "./geometry.js";
 import {
   readAgentIslandLayoutPreferences,
   writeAgentIslandLayoutPreference,
 } from "./layout-preference-store.js";
-import { MacAgentIslandNativeHost, type AgentIslandNativeFrame } from "./native-host.js";
+import {
+  MacAgentIslandNativeHost,
+  type AgentIslandNativeFrame,
+  type AgentIslandNativeScreenMetrics,
+} from "./native-host.js";
 import { createIslandToolWording } from "./tool-wording.js";
 
 /** Compact agent snapshot pushed by the renderer (owns the daemon subscription). */
@@ -124,6 +122,7 @@ const SOUND_BY_PHASE: Record<string, AgentIslandSoundEvent> = {
 export class PaseoIslandService {
   private readonly state: AgentIslandState = createAgentIslandState();
   private readonly nativeHost: MacAgentIslandNativeHost;
+  private readonly screenMetrics = new Map<number, AgentIslandNativeScreenMetrics>();
   private readonly tracked = new Map<string, TrackedPush>();
   private readonly requestToAgent = new Map<string, string>();
   private readonly lastPhases = new Map<string, string>();
@@ -193,7 +192,9 @@ export class PaseoIslandService {
       onContentHeight: (height) => {
         if (setAgentIslandMeasuredContentHeight(this.state, height)) this.publish();
       },
-      onScreenMetrics: () => {
+      onScreenMetrics: ({ screens }) => {
+        this.screenMetrics.clear();
+        for (const metrics of screens) this.screenMetrics.set(metrics.displayId, metrics);
         this.publish();
       },
     });
@@ -546,71 +547,12 @@ export class PaseoIslandService {
     displayState: AgentIslandDisplayState,
     target: Display,
   ): AgentIslandNativeFrame {
-    const expanded = displayState.mode === "expanded";
-    const hasSession = displayState.sessions.length > 0;
-    const preferences = readAgentIslandLayoutPreferences();
-    const preference = preferences.get(target.id);
-    const defaultContentWidth = getAgentIslandDefaultContentWidth({
-      expanded,
-      hasSession,
-      displayWidth: target.bounds.width,
-      screenMetrics: null,
-      pillSnapshot: displayState.pillSnapshot,
+    return computeAgentIslandFrame({
+      display: target,
+      state: displayState,
+      preference: readAgentIslandLayoutPreferences().get(target.id),
+      screenMetrics: this.screenMetrics.get(target.id) ?? null,
     });
-    const minimumContentWidth = getAgentIslandMinimumContentWidth({
-      expanded,
-      screenMetrics: null,
-    });
-    const contentHeight = computeAgentIslandContentHeight({
-      mode: displayState.mode,
-      displaySurface: displayState.displaySurface,
-      hasSession,
-      totalCount: displayState.totalCount,
-      measuredContentHeight: displayState.measuredContentHeight,
-    });
-    const preferredWidth =
-      (expanded ? preference?.expandedContentWidth : preference?.compactContentWidth) ??
-      defaultContentWidth;
-    const maxWidth = Math.min(AGENT_ISLAND_MAX_EXPANDED_WIDTH, Math.max(0, target.bounds.width));
-    const clamped = Math.min(maxWidth, Math.max(minimumContentWidth, preferredWidth));
-    const snapped = expanded
-      ? clamped
-      : snapAgentIslandCompactHardwareContentWidth({
-          desiredWidth: preferredWidth,
-          clampedWidth: clamped,
-          maxWidth,
-          hasSession,
-          screenMetrics: null,
-          pillSnapshot: displayState.pillSnapshot,
-        });
-    const carrier = computeAgentIslandCarrierSize(
-      { bounds: target.bounds },
-      expanded,
-      Math.min(contentHeight, AGENT_ISLAND_MAX_EXPANDED_HEIGHT),
-      snapped,
-      defaultContentWidth,
-      minimumContentWidth,
-    );
-    const bounds = computeAgentIslandWindowBounds(
-      { bounds: target.bounds },
-      {
-        expanded,
-        contentHeight: carrier.height,
-        centerXRatio: preference?.centerXRatio ?? 0.5,
-        contentWidth: carrier.contentWidth,
-        defaultContentWidth,
-        minimumContentWidth,
-      },
-    );
-    return {
-      x: Math.round(bounds.x),
-      y: Math.round(target.bounds.y),
-      width: Math.round(bounds.width),
-      height: Math.round(bounds.height),
-      displayId: target.id,
-      displayBounds: { ...target.bounds },
-      contentWidth: carrier.contentWidth,
-    };
   }
 
   private getAvailableDisplays(): Display[] {

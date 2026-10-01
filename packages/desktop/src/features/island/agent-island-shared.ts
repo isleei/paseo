@@ -498,7 +498,7 @@ export const DEFAULT_AGENT_ISLAND_STRINGS: AgentIslandStrings = {
   deny: "Deny",
 };
 
-export const AGENT_ISLAND_MAX_EXPANDED_WIDTH = 640;
+export const AGENT_ISLAND_MAX_EXPANDED_WIDTH = 480;
 export const AGENT_ISLAND_MAX_RESIZABLE_WIDTH = 920;
 export const AGENT_ISLAND_MIN_EXPANDED_WIDTH = 360;
 export const AGENT_ISLAND_IDLE_EXPANDED_WIDTH = 340;
@@ -543,12 +543,10 @@ export const AGENT_ISLAND_IDLE_EXPANDED_HEIGHT = 154;
 export const AGENT_ISLAND_EXPANDED_MIN_HEIGHT = 176;
 export const AGENT_ISLAND_EXPANDED_MEASURED_MIN_HEIGHT = 118;
 export const AGENT_ISLAND_EXPANDED_FALLBACK_HEIGHT = 190;
-export const AGENT_ISLAND_EXPANDED_LIST_MAX_VISIBLE_ROWS = 5;
+export const AGENT_ISLAND_EXPANDED_LIST_MAX_VISIBLE_ROWS = 3;
 export const AGENT_ISLAND_EXPANDED_LIST_ROW_HEIGHT = 90;
 export const AGENT_ISLAND_EXPANDED_LIST_VERTICAL_CHROME = 60;
 export const AGENT_ISLAND_EXPANDED_MEASURED_HEIGHT_OFFSET = 8;
-export const AGENT_ISLAND_EXPANDED_HARDWARE_NOTCH_SIDE_WIDTH = 96;
-export const AGENT_ISLAND_EXPANDED_HARDWARE_NOTCH_HORIZONTAL_PADDING = 36;
 
 export interface AgentIslandScreenLayoutMetrics {
   hasNotch: boolean;
@@ -642,14 +640,7 @@ export function getAgentIslandMinimumContentWidth(input: {
   screenMetrics?: AgentIslandScreenLayoutMetrics | null;
 }): number {
   if (input.expanded) {
-    if (input.screenMetrics?.hasNotch) {
-      return Math.max(
-        AGENT_ISLAND_MIN_EXPANDED_WIDTH,
-        input.screenMetrics.notchWidth +
-          AGENT_ISLAND_EXPANDED_HARDWARE_NOTCH_SIDE_WIDTH * 2 +
-          AGENT_ISLAND_EXPANDED_HARDWARE_NOTCH_HORIZONTAL_PADDING,
-      );
-    }
+    // Expanded content lives below the menu bar, not beside the camera cutout.
     return AGENT_ISLAND_MIN_EXPANDED_WIDTH;
   }
   if (input.screenMetrics?.hasNotch) {

@@ -1325,6 +1325,10 @@ struct AgentIslandScreenMetrics: Codable, Equatable {
   let isMain: Bool
   let signature: String
 
+  var expandedTopInset: CGFloat {
+    CGFloat(max(topBarHeight, menuBarHeight, safeAreaTop))
+  }
+
   static let fallback = AgentIslandScreenMetrics(
     displayId: 0,
     frame: AgentIslandRect(x: 0, y: 0, width: 1728, height: 1117),
@@ -1645,7 +1649,7 @@ final class AgentIslandModel: ObservableObject {
   var currentSession: AgentIslandSession? { state.currentSession }
 }
 
-private let expandedIslandMaxVisibleRows = 5
+private let expandedIslandMaxVisibleRows = 3
 private let expandedIslandMultiRowSlotHeight: CGFloat = 90
 private let expandedIslandMultiRowHeight: CGFloat = 84
 private let expandedIslandMultiRowGap: CGFloat = 6
@@ -1669,10 +1673,8 @@ private let compactIslandStatusIconWidth: CGFloat = 18
 private let compactIslandCarrierInset: CGFloat = 20
 private let expandedIslandCarrierExpandedInset: CGFloat = 80
 private let expandedIslandMinContentWidth: CGFloat = 360
-private let expandedIslandDefaultContentWidth: CGFloat = 640
+private let expandedIslandDefaultContentWidth: CGFloat = 480
 private let expandedIslandMaxContentWidth: CGFloat = 920
-private let expandedIslandHardwareNotchSideWidth: CGFloat = 96
-private let expandedIslandHardwareNotchHorizontalPadding: CGFloat = 36
 private let expandedIslandScreenEdgeGutter: CGFloat = 112
 private let compactIslandResizeHitWidth: CGFloat = 18
 private let expandedIslandTopResizeInnerHitWidth: CGFloat = 16
@@ -2136,7 +2138,7 @@ struct AgentIslandLayout: Equatable {
       shadowY: shadow.y,
       shadowOpacity: shadowVisible ? shadow.opacity : 0,
       expanded: expanded,
-      hasHardwareNotch: layoutScreenMetrics.hasNotch,
+      hasHardwareNotch: !expanded && layoutScreenMetrics.hasNotch,
       notchWidth: CGFloat(layoutScreenMetrics.notchWidth)
     )
   }
@@ -2161,7 +2163,10 @@ struct AgentIslandLayout: Equatable {
     let preferred = preferredContentWidth.map { desiredWidth in
       let maxWidth = min(expandedIslandMaxContentWidth, availableWidth)
       let minWidth = min(minContentWidth(expanded: false, screenMetrics: screenMetrics), maxWidth)
-      let clampedWidth = min(maxWidth, max(minWidth, desiredWidth))
+      let compactLimit = screenMetrics.hasNotch
+        ? defaultCompactWidth(hasSession: hasSession, screenMetrics: screenMetrics, compactBadgeWidth: compactBadgeWidth)
+        : maxWidth
+      let clampedWidth = min(maxWidth, compactLimit, max(minWidth, desiredWidth))
       return snappedCompactHardwareWidth(
         desiredWidth: desiredWidth,
         clampedWidth: clampedWidth,
@@ -2181,14 +2186,6 @@ struct AgentIslandLayout: Equatable {
 
   static func minContentWidth(expanded: Bool, screenMetrics: AgentIslandScreenMetrics) -> CGFloat {
     if expanded {
-      if screenMetrics.hasNotch {
-        return max(
-          expandedIslandMinContentWidth,
-          CGFloat(screenMetrics.notchWidth)
-            + expandedIslandHardwareNotchSideWidth * 2
-            + expandedIslandHardwareNotchHorizontalPadding
-        )
-      }
       return expandedIslandMinContentWidth
     }
     if screenMetrics.hasNotch {
@@ -4772,7 +4769,8 @@ final class AgentIslandController {
     let cocoaFrame = convertToCocoaFrame(
       frame,
       screen: screen,
-      carrierHeight: ceil(layout.height + layout.carrierInset)
+      carrierHeight: ceil(layout.height + layout.carrierInset),
+      topInset: layout.expanded ? screenMetrics.expandedTopInset : 0
     )
     emitFrameDebug(
       event: "apply-frame",
@@ -5763,6 +5761,13 @@ final class AgentIslandController {
       expandedIslandMaxContentWidth,
       max(1, screen.frame.width - expandedIslandScreenEdgeGutter)
     )
+    if !expanded && isHardwareNotchLayoutEnabled(expanded: false, centerX: fixedCenterX ?? panel.frame.midX) {
+      maxWidth = min(maxWidth, AgentIslandLayout.defaultCompactWidth(
+        hasSession: model.state.totalCount > 0,
+        screenMetrics: model.screenMetrics,
+        compactBadgeWidth: compactBadgeWidth
+      ))
+    }
     if let fixedCenterX {
       let sideAllowance = max(
         0,
@@ -5912,6 +5917,8 @@ final class AgentIslandController {
   }
 
   private func handleMouseMoved(screenPoint: NSPoint, hit: PanelPointerHit, force: Bool = false) {
+    // Transparent carrier space is for shadows, never a mouse-event shield.
+    panel.ignoresMouseEvents = hit == .outside && dragInteraction == nil && pendingMoveInteraction == nil
     updateCursor(for: hit, screenPoint: screenPoint)
     guard dragInteraction == nil, pendingMoveInteraction == nil else {
       return
@@ -6026,6 +6033,12 @@ final class AgentIslandController {
     }
     let insideVisualX = screenPoint.x >= hitRect.minX && screenPoint.x <= hitRect.maxX
     if screenPoint.y > hitRect.maxY {
+      if lastLayout.expanded {
+        // Only the camera cutout remains a trigger above the detail card.
+        // Invisible compact wings must not claim the menu items underneath.
+        let halfWidth = expandedTriggerWidth / 2
+        return halfWidth > 0 && abs(screenPoint.x - panel.frame.midX) <= halfWidth ? .menuBar : .outside
+      }
       return moveHitTestAboveVisualTop(screenPoint: screenPoint, hitRect: hitRect)
     }
     if isResizable(layout: lastLayout) {
@@ -6046,6 +6059,10 @@ final class AgentIslandController {
     }
 
     return .menuBar
+  }
+
+  private var expandedTriggerWidth: CGFloat {
+    model.hardwareNotchLayoutEnabled ? CGFloat(model.screenMetrics.notchWidth) : 0
   }
 
   private func isResizeHit(
@@ -6132,7 +6149,7 @@ final class AgentIslandController {
     }
     return AgentIslandCarrierFrame(
       x: Double(panel.frame.minX - screen.frame.minX) + frame.displayBounds.x,
-      y: Double(screen.frame.maxY - panel.frame.maxY) + frame.displayBounds.y,
+      y: Double(screen.frame.maxY - panel.frame.maxY - (lastLayout.expanded ? model.screenMetrics.expandedTopInset : 0)) + frame.displayBounds.y,
       width: Double(panel.frame.width),
       height: Double(panel.frame.height),
       displayId: frame.displayId,
@@ -6186,13 +6203,14 @@ final class AgentIslandController {
   private func convertToCocoaFrame(
     _ frame: AgentIslandCarrierFrame,
     screen: NSScreen?,
-    carrierHeight: CGFloat
+    carrierHeight: CGFloat,
+    topInset: CGFloat = 0
   ) -> NSRect {
     guard let screen else {
       return NSRect(x: frame.x, y: frame.y, width: frame.width, height: Double(carrierHeight))
     }
     let x = screen.frame.minX + CGFloat(frame.x - frame.displayBounds.x)
-    let topOffset = CGFloat(frame.y - frame.displayBounds.y)
+    let topOffset = CGFloat(frame.y - frame.displayBounds.y) + topInset
     let y = screen.frame.maxY - topOffset - carrierHeight
     return NSRect(x: x, y: y, width: frame.width, height: carrierHeight)
   }
