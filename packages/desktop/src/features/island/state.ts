@@ -24,6 +24,7 @@ import {
 import {
   createDefaultAgentIslandDisplayConfig,
   DEFAULT_AGENT_ISLAND_STRINGS,
+  type AgentMenuBarState,
   type AgentIslandActivityLine,
   type AgentIslandActivityLineKind,
   type AgentIslandDisplayPolicy,
@@ -1233,6 +1234,28 @@ export function pruneAgentIslandSessions(state: AgentIslandState, now: number): 
     state.sessions.delete(sessionId);
     removeQueuedTransientReveal(state, sessionId);
   }
+}
+
+export function buildAgentMenuBarState(state: AgentIslandState, now: number): AgentMenuBarState {
+  pruneAgentIslandSessions(state, now);
+  const priority: Record<AgentIslandSessionPhase, number> = {
+    "needs-interaction": 0,
+    error: 1,
+    running: 2,
+    completed: 3,
+  };
+  const sessions = Array.from(state.sessions.values());
+  sessions.sort(
+    (a, b) =>
+      priority[a.phase] - priority[b.phase] ||
+      b.lastActivityAt - a.lastActivityAt ||
+      a.sessionId.localeCompare(b.sessionId),
+  );
+  return {
+    sessions: sessions.map(toSnapshot),
+    ...createDefaultAgentIslandDisplayConfig(),
+    updatedAt: now,
+  };
 }
 
 export function buildAgentIslandDisplayState(

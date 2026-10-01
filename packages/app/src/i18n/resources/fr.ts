@@ -2122,12 +2122,12 @@ export const fr: TranslationResources = {
       sendFailedTitle: "Impossible d’envoyer la notification de test",
     },
     island: {
-      title: "Agent Island",
-      enabled: "Afficher Agent Island",
-      enabledHint: "Affiche une pastille flottante de statut d’agent dans la barre des menus.",
-      dismissHint: "Fermer les cartes",
+      title: "Barre des menus",
+      enabled: "Afficher l’icône dans la barre des menus",
+      enabledHint: "Affiche la mascotte et un point de statut dans la barre des menus du Mac.",
+      dismissHint: "Voir les tâches",
       dismissHintDetail:
-        "Ouvrez un agent pour fermer sa carte. Les cartes de fin et d’erreur disparaissent d’elles-mêmes.",
+        "Cliquez sur l’icône pour voir les tâches et les autorisations. Les mises à jour n’ouvrent pas le panneau automatiquement.",
       mascot: "Mascotte",
     },
     hostSections: {

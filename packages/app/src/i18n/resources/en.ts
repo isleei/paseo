@@ -2131,12 +2131,12 @@ export const en = {
       sendFailedTitle: "Unable to send test notification",
     },
     island: {
-      title: "Agent Island",
-      enabled: "Show Agent Island",
-      enabledHint: "Show a floating agent status pill on the Mac menu bar.",
-      dismissHint: "Dismiss island cards",
+      title: "Menu bar",
+      enabled: "Show menu bar icon",
+      enabledHint: "Show one mascot icon with a task status dot in the Mac menu bar.",
+      dismissHint: "View tasks",
       dismissHintDetail:
-        "Open an agent to dismiss its card. Completed and error cards also fade on their own.",
+        "Click the icon to view tasks and permissions. Updates do not open the panel automatically.",
       mascot: "Mascot",
     },
     hostSections: {

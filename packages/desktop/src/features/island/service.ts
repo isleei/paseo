@@ -1,31 +1,15 @@
-/**
- * Paseo Agent Island service (main process).
- *
- * Port of Cindy's `main/agent-island/service.ts` display core, adapted to
- * Paseo's data model: the renderer (which owns the daemon `observeAgents`
- * subscription) pushes compact agent snapshots via `pushAgents()`; this
- * service feeds them into the ported island state reducer and publishes
- * display frames to the native Swift helper. Reverse interactions
- * (permission allow/deny, focus agent) are forwarded to the renderer, which
- * owns the DaemonClient.
- */
-import { screen, type Display } from "electron";
+/** Agent task state and actions shared with the native macOS menu bar helper. */
 import { release as getOsRelease } from "node:os";
-import log from "electron-log/main";
 
 import {
-  cloneAgentIslandDisplayTarget,
   cloneAgentIslandSoundSettings,
   createDefaultAgentIslandDisplayConfig,
-  DEFAULT_AGENT_ISLAND_DISPLAY_TARGET,
   DEFAULT_AGENT_ISLAND_MASCOT_SKIN,
   isAgentIslandMascotSkin,
   isAgentIslandSupportedPlatform,
   isSilentAgentIslandSoundChoice,
-  normalizeAgentIslandDisplayTarget,
   normalizeAgentIslandSoundSettings,
-  type AgentIslandDisplayState,
-  type AgentIslandDisplayTarget,
+  type AgentMenuBarState,
   type AgentIslandMascotSkin,
   type AgentIslandSoundChoice,
   type AgentIslandSoundEvent,
@@ -37,33 +21,18 @@ import {
   applyAgentIslandInteractionDismissed,
   applyAgentIslandInteractionRequest,
   applyAgentIslandMetadata,
-  buildAgentIslandDisplayState,
   closeAgentIslandSessionPreservingUnread,
   createAgentIslandState,
-  dismissAgentIslandActiveReveal,
+  buildAgentMenuBarState,
   getNextAgentIslandTimerAt,
   patchAgentIslandMetadata,
   removeAgentIslandSession,
-  requestAgentIslandManualCollapse,
-  requestAgentIslandManualExpand,
   setAgentIslandAppFocused,
-  setAgentIslandLayoutDragActive,
-  setAgentIslandMeasuredContentHeight,
-  setAgentIslandPointerZones,
   setAgentIslandToolWording,
   setAgentIslandVisibleSession,
   type AgentIslandState,
 } from "./state.js";
-import { computeAgentIslandFrame } from "./geometry.js";
-import {
-  readAgentIslandLayoutPreferences,
-  writeAgentIslandLayoutPreference,
-} from "./layout-preference-store.js";
-import {
-  MacAgentIslandNativeHost,
-  type AgentIslandNativeFrame,
-  type AgentIslandNativeScreenMetrics,
-} from "./native-host.js";
+import { MacAgentIslandNativeHost } from "./native-host.js";
 import { createIslandToolWording } from "./tool-wording.js";
 
 /** Compact agent snapshot pushed by the renderer (owns the daemon subscription). */
@@ -122,37 +91,20 @@ const SOUND_BY_PHASE: Record<string, AgentIslandSoundEvent> = {
 export class PaseoIslandService {
   private readonly state: AgentIslandState = createAgentIslandState();
   private readonly nativeHost: MacAgentIslandNativeHost;
-  private readonly screenMetrics = new Map<number, AgentIslandNativeScreenMetrics>();
   private readonly tracked = new Map<string, TrackedPush>();
   private readonly requestToAgent = new Map<string, string>();
   private readonly lastPhases = new Map<string, string>();
   private publishTimer: ReturnType<typeof setTimeout> | null = null;
-  private layoutSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly permissionTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private enabled = true;
   private soundSettings: AgentIslandSoundSettings = cloneAgentIslandSoundSettings(
     createDefaultAgentIslandDisplayConfig().soundSettings,
   );
   private mascotSkin: AgentIslandMascotSkin = DEFAULT_AGENT_ISLAND_MASCOT_SKIN;
-  private displayTarget: AgentIslandDisplayTarget = cloneAgentIslandDisplayTarget(
-    DEFAULT_AGENT_ISLAND_DISPLAY_TARGET,
-  );
 
   constructor(private readonly options: PaseoIslandServiceOptions) {
     setAgentIslandToolWording(this.state, createIslandToolWording());
     this.nativeHost = new MacAgentIslandNativeHost({
-      onPointerZones: (zones) => {
-        if (setAgentIslandPointerZones(this.state, zones, Date.now())) this.publish();
-      },
-      onExpand: (displayId) => {
-        if (requestAgentIslandManualExpand(this.state, displayId)) {
-          this.playSoundChoice(this.soundSettings.sounds.select);
-          this.publish();
-        }
-      },
-      onCollapse: (displayId) => {
-        void displayId;
-        if (requestAgentIslandManualCollapse(this.state, Date.now())) this.publish();
-      },
       onFocusSession: (sessionId) => {
         this.options.onEvent({ type: "focus-agent", agentId: sessionId });
       },
@@ -169,7 +121,22 @@ export class PaseoIslandService {
       },
       onPermissionAction: ({ requestId, action }) => {
         const agentId = this.requestToAgent.get(requestId);
-        if (!agentId) return;
+        if (!agentId) {
+          this.nativeHost.permissionResult(
+            requestId,
+            "This request is no longer available. Open the task to check its status.",
+          );
+          return;
+        }
+        if (this.permissionTimers.has(requestId)) return;
+        const timer = setTimeout(() => {
+          this.permissionResult(
+            requestId,
+            "No response from the host. Open the task to check its status before retrying.",
+          );
+        }, 15_000);
+        timer.unref();
+        this.permissionTimers.set(requestId, timer);
         this.options.onEvent({
           type: "permission-action",
           agentId,
@@ -177,31 +144,19 @@ export class PaseoIslandService {
           behavior: action === "allowForSession" ? "allowForSession" : action,
         });
       },
-      onOutsideClick: () => {
-        if (dismissAgentIslandActiveReveal(this.state, Date.now())) this.publish();
-      },
-      onLayoutDragActive: (active) => {
-        setAgentIslandLayoutDragActive(this.state, active);
-      },
-      onLayoutPreference: (preference) => {
-        if (typeof preference.displayId === "number") {
-          this.scheduleLayoutSave(preference.displayId, preference);
-        }
-        this.publish();
-      },
-      onContentHeight: (height) => {
-        if (setAgentIslandMeasuredContentHeight(this.state, height)) this.publish();
-      },
-      onScreenMetrics: ({ screens }) => {
-        this.screenMetrics.clear();
-        for (const metrics of screens) this.screenMetrics.set(metrics.displayId, metrics);
-        this.publish();
-      },
     });
   }
 
   get isEnabled(): boolean {
     return this.enabled;
+  }
+
+  permissionResult(requestId: string, error: string | null): void {
+    const timer = this.permissionTimers.get(requestId);
+    if (!timer) return;
+    clearTimeout(timer);
+    this.permissionTimers.delete(requestId);
+    this.nativeHost.permissionResult(requestId, error);
   }
 
   getAgentServerId(agentId: string): string | null {
@@ -235,11 +190,6 @@ export class PaseoIslandService {
     return cloneAgentIslandSoundSettings(this.soundSettings);
   }
 
-  setDisplayTarget(target: unknown): void {
-    this.displayTarget = normalizeAgentIslandDisplayTarget(target);
-    this.publish();
-  }
-
   setVisibleSession(sessionId: string | readonly string[] | null): void {
     if (setAgentIslandVisibleSession(this.state, sessionId)) this.publish();
   }
@@ -248,7 +198,7 @@ export class PaseoIslandService {
     if (setAgentIslandAppFocused(this.state, focused)) this.publish();
   }
 
-  /** Recompute the frame (display list changed, window moved across screens). */
+  /** Publish the menu bar entry even before the first task arrives. */
   refresh(): void {
     this.publish();
   }
@@ -294,8 +244,8 @@ export class PaseoIslandService {
   shutdown(): void {
     if (this.publishTimer) clearTimeout(this.publishTimer);
     this.publishTimer = null;
-    if (this.layoutSaveTimer) clearTimeout(this.layoutSaveTimer);
-    this.layoutSaveTimer = null;
+    for (const timer of this.permissionTimers.values()) clearTimeout(timer);
+    this.permissionTimers.clear();
     this.nativeHost.stop();
   }
 
@@ -465,23 +415,6 @@ export class PaseoIslandService {
     this.nativeHost.playSound(choice);
   }
 
-  private scheduleLayoutSave(
-    displayId: number,
-    preference: Parameters<typeof writeAgentIslandLayoutPreference>[1],
-  ): void {
-    if (this.layoutSaveTimer) clearTimeout(this.layoutSaveTimer);
-    this.layoutSaveTimer = setTimeout(() => {
-      this.layoutSaveTimer = null;
-      try {
-        writeAgentIslandLayoutPreference(displayId, preference);
-      } catch (error) {
-        log.warn("[agent-island] failed to persist layout preference", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }, 150);
-  }
-
   private publish(): void {
     if (this.publishTimer) {
       clearTimeout(this.publishTimer);
@@ -492,21 +425,9 @@ export class PaseoIslandService {
       this.nativeHost.suspend();
       return;
     }
-    const displayState = this.decorateDisplayState(buildAgentIslandDisplayState(this.state, now));
+    const displayState = this.decorateDisplayState(buildAgentMenuBarState(this.state, now));
     this.playTransitionSounds(displayState);
-    const displays = this.getTargetDisplays();
-    if (displays.length === 0) {
-      this.nativeHost.suspend();
-      return;
-    }
-    const statesByDisplayId = this.computeStatesByDisplayId(displayState, displays);
-    const frames = displays.map((display) => {
-      const stateForDisplay =
-        (statesByDisplayId?.[String(display.id)] as AgentIslandDisplayState | undefined) ??
-        displayState;
-      return this.computeFrame(stateForDisplay, display);
-    });
-    this.nativeHost.publish(displayState, frames, statesByDisplayId);
+    this.nativeHost.publish(displayState);
     const nextAt = getNextAgentIslandTimerAt(this.state, Date.now());
     if (nextAt !== null) {
       const delay = Math.max(0, nextAt - Date.now());
@@ -519,7 +440,7 @@ export class PaseoIslandService {
   }
 
   /** Edge-trigger sounds on phase transitions (new sessions count as entered). */
-  private playTransitionSounds(displayState: AgentIslandDisplayState): void {
+  private playTransitionSounds(displayState: AgentMenuBarState): void {
     const seen = new Set<string>();
     for (const session of displayState.sessions) {
       seen.add(session.sessionId);
@@ -535,83 +456,11 @@ export class PaseoIslandService {
     }
   }
 
-  private decorateDisplayState(displayState: AgentIslandDisplayState): AgentIslandDisplayState {
+  private decorateDisplayState(displayState: AgentMenuBarState): AgentMenuBarState {
     return {
       ...displayState,
       soundSettings: cloneAgentIslandSoundSettings(this.soundSettings),
       mascotSkin: this.mascotSkin,
     };
   }
-
-  private computeFrame(
-    displayState: AgentIslandDisplayState,
-    target: Display,
-  ): AgentIslandNativeFrame {
-    return computeAgentIslandFrame({
-      display: target,
-      state: displayState,
-      preference: readAgentIslandLayoutPreferences().get(target.id),
-      screenMetrics: this.screenMetrics.get(target.id) ?? null,
-    });
-  }
-
-  private getAvailableDisplays(): Display[] {
-    const displays = screen.getAllDisplays();
-    return displays.length > 0 ? displays : [screen.getPrimaryDisplay()];
-  }
-
-  private getTargetDisplays(displays: Display[] = this.getAvailableDisplays()): Display[] {
-    const selected = this.displayTarget;
-    if (selected.mode === "display") {
-      const match = displays.find((d) => d.id === selected.displayId);
-      // A temporary disconnect renders on primary; the saved identity is kept
-      // so reconnecting restores the user's choice.
-      return [match ?? screen.getPrimaryDisplay()];
-    }
-    return displays;
-  }
-
-  /**
-   * Per-display states for manual expand: the expanded card stays on the
-   * display it was opened on, every other display falls back to compact.
-   */
-  private computeStatesByDisplayId(
-    displayState: AgentIslandDisplayState,
-    displays: Display[],
-  ): Record<string, AgentIslandDisplayState> | undefined {
-    if (
-      displayState.mode !== "expanded" ||
-      displayState.displayPolicy !== "manualExpanded" ||
-      typeof displayState.expandedDisplayId !== "number" ||
-      displays.length <= 1
-    ) {
-      return undefined;
-    }
-    if (!displays.some((display) => display.id === displayState.expandedDisplayId)) {
-      return undefined;
-    }
-    return Object.fromEntries(
-      displays.map((display) => [
-        String(display.id),
-        display.id === displayState.expandedDisplayId
-          ? displayState
-          : collapseManualExpandedStateForInactiveDisplay(displayState),
-      ]),
-    );
-  }
-}
-
-function collapseManualExpandedStateForInactiveDisplay(
-  displayState: AgentIslandDisplayState,
-): AgentIslandDisplayState {
-  return {
-    ...displayState,
-    mode: "compact",
-    notchStatus: displayState.currentSessionId ? "peek" : "closed",
-    displayPolicy: displayState.currentSessionId ? "peek" : "closed",
-    displaySurface: "collapsed",
-    layoutMode: "compact",
-    shadowVisible: false,
-    expandedDisplayId: null,
-  };
 }

@@ -2046,11 +2046,11 @@ export const zhCN: TranslationResources = {
       sendFailedTitle: "无法发送测试通知",
     },
     island: {
-      title: "灵动岛",
-      enabled: "显示灵动岛",
-      enabledHint: "在 Mac 菜单栏显示 Agent 状态浮岛。",
-      dismissHint: "清除浮岛卡片",
-      dismissHintDetail: "打开对应 Agent 即可清除它的卡片；完成与出错卡片稍后会自动消失。",
+      title: "菜单栏",
+      enabled: "显示菜单栏图标",
+      enabledHint: "在 Mac 菜单栏显示角色图标和任务状态点。",
+      dismissHint: "查看任务",
+      dismissHintDetail: "点击图标查看任务与权限请求；状态更新不会自动展开面板。",
       mascot: "图标皮肤",
     },
     hostSections: {

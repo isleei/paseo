@@ -204,10 +204,10 @@ export interface DesktopIslandBridge {
   setEnabled?: (enabled: boolean) => Promise<boolean>;
   setMascotSkin?: (skin: string) => Promise<boolean>;
   setSoundSettings?: (settings: unknown) => Promise<void>;
-  setDisplayTarget?: (target: unknown) => Promise<void>;
   setVisibleSession?: (sessionId: string | string[] | null) => Promise<void>;
   acknowledgeRead?: (agentId: string) => Promise<void>;
   getState?: () => Promise<DesktopIslandState>;
+  permissionResult?: (requestId: string, error: string | null) => Promise<void>;
 }
 
 export interface DesktopHostBridge {

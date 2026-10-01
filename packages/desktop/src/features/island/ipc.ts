@@ -5,7 +5,7 @@
  * island interactions flow back as renderer events so the DaemonClient owner
  * can resolve permissions / navigate.
  */
-import { app, BrowserWindow, ipcMain, screen } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import log from "electron-log/main";
 
 import { PaseoIslandService, type PaseoIslandAgentPush } from "./service.js";
@@ -14,7 +14,6 @@ export const ISLAND_PUSH_CHANNEL = "paseo:island:push";
 export const ISLAND_SET_ENABLED_CHANNEL = "paseo:island:set-enabled";
 export const ISLAND_SET_MASCOT_SKIN_CHANNEL = "paseo:island:set-mascot-skin";
 export const ISLAND_SET_SOUND_SETTINGS_CHANNEL = "paseo:island:set-sound-settings";
-export const ISLAND_SET_DISPLAY_TARGET_CHANNEL = "paseo:island:set-display-target";
 export const ISLAND_SET_VISIBLE_SESSION_CHANNEL = "paseo:island:set-visible-session";
 export const ISLAND_ACKNOWLEDGE_READ_CHANNEL = "paseo:island:acknowledge-read";
 export const ISLAND_REMOVE_AGENT_CHANNEL = "paseo:island:remove-agent";
@@ -144,9 +143,6 @@ export function registerIslandService(deps: RegisterIslandServiceDeps): PaseoIsl
   ipcMain.handle(ISLAND_SET_SOUND_SETTINGS_CHANNEL, (_event, settings: unknown) => {
     service.setSoundSettings(settings);
   });
-  ipcMain.handle(ISLAND_SET_DISPLAY_TARGET_CHANNEL, (_event, target: unknown) => {
-    service.setDisplayTarget(target);
-  });
   ipcMain.handle(ISLAND_SET_VISIBLE_SESSION_CHANNEL, (_event, sessionId: unknown) => {
     service.setVisibleSession(
       typeof sessionId === "string" || Array.isArray(sessionId) ? sessionId : null,
@@ -166,13 +162,18 @@ export function registerIslandService(deps: RegisterIslandServiceDeps): PaseoIsl
     };
   });
 
-  const handleDisplayChange = (): void => service.refresh();
-  screen.on("display-added", handleDisplayChange);
-  screen.on("display-removed", handleDisplayChange);
-  screen.on("display-metrics-changed", handleDisplayChange);
+  ipcMain.handle(
+    "paseo:menu-bar:permission-result",
+    (_event, requestId: unknown, error: unknown) => {
+      if (typeof requestId !== "string") return;
+      service.permissionResult(requestId, typeof error === "string" ? error : null);
+    },
+  );
 
   app.on("browser-window-focus", () => service.setAppFocused(true));
   app.on("browser-window-blur", () => service.setAppFocused(false));
 
+  service.refresh();
+  app.once("before-quit", () => service.shutdown());
   return service;
 }

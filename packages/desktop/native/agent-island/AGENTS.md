@@ -1,6 +1,6 @@
-# 灵动岛原生 helper：角色（mascot）开发说明
+# Mac 菜单栏 helper：角色（mascot）开发说明
 
-本目录是 macOS 灵动岛的 SwiftUI helper（`macos-agent-island-helper.swift`，单文件、
+本目录是 macOS 菜单栏的 SwiftUI helper（`macos-agent-island-helper.swift`，单文件、
 顶层脚本模式）与其素材，移植自 Cindy。产品运行时由
 `src/features/island/native-host.ts` 以子进程方式拉起，通过 stdin/stdout 逐行
 JSON 通信；打包时由 `scripts/build-island-helper.mjs` 编译并随包分发到
@@ -21,18 +21,12 @@ XDT_AGENT_ISLAND_ASSET_DIR=$PWD/native/agent-island /tmp/paseo-island-preview --
 会启动一个独立预览窗口：**行 = 角色，列 = 动画状态**，可切 Dark / Light /
 两种模式同屏、切换真实渲染尺寸档位、放大倍数、暂停动画、从头播放。关窗即退出进程。
 
-尺寸档位给的是产品里的**真实值**，取自 helper 内 `AgentIslandMascotView` /
-`RunningMascotIcon` 的各个调用点（grep `AgentIslandMascotView(` 可一次看全）：
-16pt（收起 pill）、18pt（紧凑行与 `RunningMascotIcon`）、20pt（展开态）。
-默认 20pt 且 1:1 显示 —— 角色在灵动岛里本来就只有 20pt 上下，
-放大档位只做 `scaleEffect` 视觉缩放、不改渲染尺寸，所以放大后看到的几何比例仍是真实的。
-调角色参数时**不要**靠放大后的观感下结论，最终一定要回到 1× 看。
+菜单栏图标是静态角色加状态点，固定一个图标位。动画只在用户点击打开的
+`NSPopover` 中运行；数据更新不能自动打开它。不要恢复刘海窗口、屏幕定位或全局鼠标追踪。
+角色预览是独立普通窗口，不读 stdin，也不创建菜单栏入口。
 
-这条分支只创建普通窗口，不读 stdin、不创建刘海面板，因此不会干扰正在运行的 Paseo。
-
-另有一个更早的单状态 harness：`XDT_AGENT_ISLAND_DEBUG=idle|completion|interaction`
-（见 `AgentIslandDebugHarness`），用来在真实刘海面板里看整块 UI，与角色预览互补。
-日志开关是 `XDT_AGENT_ISLAND_DEBUG_LOGS=1`。
+保留 `agent-island` 路径和素材名称用于构建与已有角色资源；产品入口已替换为菜单栏。
+运行 `src/features/island/agent-island-shared.test.ts` 验证原生点击开关、任务更新不弹窗和退出清理。
 
 ## 新增一个角色
 
@@ -52,7 +46,7 @@ XDT_AGENT_ISLAND_ASSET_DIR=$PWD/native/agent-island /tmp/paseo-island-preview --
 
 角色清单的单一真源是 `AgentIslandMascotCatalog.skins`（Swift 侧）与
 `AGENT_ISLAND_MASCOT_SKINS`（TS 侧），两处必须一致；预览网格从前者派生，所以加完
-第 2 步就能在预览窗口里看到新角色的全部状态。TS/Swift 徽标宽度一致性由
+第 2 步就能在预览窗口里看到新角色的全部状态。菜单栏与角色行为由
 `src/features/island/agent-island-shared.test.ts` 守护。
 
 ## 本文件的两个 SwiftUI 陷阱

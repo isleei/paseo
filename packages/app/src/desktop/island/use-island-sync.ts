@@ -123,9 +123,19 @@ export function useIslandSync() {
             for (const session of Object.values(sessions)) {
               const client = session.client;
               if (!client || !session.agents?.has(agentId)) continue;
-              void client.respondToPermission(agentId, requestId, response).catch((error) => {
-                console.error("[island] respondToPermission failed", error);
-              });
+              void client
+                .respondToPermission(agentId, requestId, response)
+                .then(
+                  () => getDesktopHost()?.island?.permissionResult?.(requestId, null),
+                  (error: unknown) =>
+                    getDesktopHost()?.island?.permissionResult?.(
+                      requestId,
+                      error instanceof Error ? error.message : String(error),
+                    ),
+                )
+                .catch((error) =>
+                  console.warn("[menu-bar] permission result delivery failed", error),
+                );
               break;
             }
           },

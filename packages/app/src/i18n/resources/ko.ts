@@ -2079,12 +2079,12 @@ export const ko: TranslationResources = {
       sendFailedTitle: "테스트 알림을 보낼 수 없음",
     },
     island: {
-      title: "Agent Island",
-      enabled: "Agent Island 표시",
-      enabledHint: "Mac 메뉴 막대에 에이전트 상태 플로팅을 표시합니다.",
-      dismissHint: "아일랜드 카드 지우기",
+      title: "메뉴 막대",
+      enabled: "메뉴 막대 아이콘 표시",
+      enabledHint: "Mac 메뉴 막대에 마스코트 아이콘과 작업 상태 점을 표시합니다.",
+      dismissHint: "작업 보기",
       dismissHintDetail:
-        "에이전트를 열면 해당 카드가 지워집니다. 완료·오류 카드는 자동으로 사라집니다.",
+        "아이콘을 클릭해 작업과 권한 요청을 확인하세요. 상태가 바뀌어도 패널은 자동으로 열리지 않습니다.",
       mascot: "마스코트",
     },
     hostSections: {

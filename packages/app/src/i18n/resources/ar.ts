@@ -2069,11 +2069,12 @@ export const ar: TranslationResources = {
       sendFailedTitle: "تعذر إرسال إشعار الاختبار",
     },
     island: {
-      title: "Agent Island",
-      enabled: "إظهار Agent Island",
-      enabledHint: "يعرض مؤشرًا عائمًا لحالة الوكيل في شريط قوائم Mac.",
-      dismissHint: "إزالة البطاقات",
-      dismissHintDetail: "افتح وكيلًا لإزالة بطاقته. تختفي بطاقات الاكتمال والخطأ تلقائيًا.",
+      title: "شريط القوائم",
+      enabled: "إظهار أيقونة شريط القوائم",
+      enabledHint: "يعرض أيقونة التميمة ونقطة حالة المهام في شريط قوائم Mac.",
+      dismissHint: "عرض المهام",
+      dismissHintDetail:
+        "انقر الأيقونة لعرض المهام وطلبات الأذونات. لا تفتح تحديثات الحالة اللوحة تلقائيًا.",
       mascot: "التميمة",
     },
     hostSections: {

@@ -1,102 +1,71 @@
-// Compiled after the production helper's declarations, without its stdin app loop.
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
-setenv("XDT_AGENT_ISLAND_DEBUG", "completion", 1)
-let update = AgentIslandDebugHarness.makeUpdate()!
-let screen = NSScreen.main!
-let originalMouse = NSEvent.mouseLocation
-let mainScreen = NSScreen.screens[0]
+app.finishLaunching()
+MainActor.assumeIsolated {
+  var events: [[String: Any]] = []
+  let controller = AgentMenuBarController { events.append($0) }
+  defer { controller.close() }
+  precondition(controller.statusItem.length == NSStatusItem.squareLength, "Status item must occupy one icon slot")
+  precondition(controller.statusItem.button?.image != nil, "Missing mascot icon")
+  precondition(!controller.popover.isShown, "Idle state opens a window")
+  precondition(!controller.model.open, "Hidden popover animates")
+  precondition(controller.model.state.indicator == nil, "Idle icon shows attention")
 
-func movePointer(_ point: NSPoint) {
-  CGWarpMouseCursorPosition(CGPoint(x: point.x, y: mainScreen.frame.maxY - point.y))
-}
+  let session = AgentIslandSession(sessionId: "test", title: "Review changes", projectName: "Paimon",
+    detail: "Approve file edit", compactDetail: "Approve file edit", messagePreview: nil,
+    phase: "needs-interaction", agentKind: "codex", interactionKind: "permission",
+    permissionAction: AgentIslandPermissionAction(requestId: "request", canAllowForSession: true),
+    attention: true, activityLines: [], startedAt: 1000, lastActivityAt: 2000)
+  let state = AgentMenuBarState(sessions: [session], strings: .fallback, soundSettings: .fallback,
+    mascotSkin: "paimon", updatedAt: 3000)
+  controller.apply(state: state)
+  precondition(!controller.popover.isShown, "Attention update automatically opens popover")
+  precondition(controller.statusItem.length == NSStatusItem.squareLength, "Task count widens menu bar item")
+  precondition(controller.model.state.waitingCount == 1, "Missing pending permission count")
+  precondition(controller.model.state.indicator == .systemOrange, "Permission does not set indicator")
+  RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+  controller.statusItem.button?.performClick(nil)
+  RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+  precondition(controller.popover.isShown, "Click does not open native popover")
+  precondition(controller.model.open, "Opened popover does not activate content")
+  controller.apply(state: state)
+  precondition(controller.popover.isShown, "Update closes user-opened popover")
+  controller.model.pendingRequests.insert("request")
+  controller.permissionResult(requestId: "request", error: "Host disconnected")
+  precondition(controller.model.pendingRequests.isEmpty, "Failed action cannot be retried")
+  precondition(controller.model.permissionErrors["request"] == "Host disconnected", "Permission error is lost")
+  controller.permissionResult(requestId: "request", error: nil)
+  precondition(controller.model.permissionErrors.isEmpty, "Successful retry leaves error visible")
 
-defer { movePointer(originalMouse) }
-
-let controller = AgentIslandController(eventSink: { _ in })
-let menuIcon = NSPoint(x: screen.frame.midX + 180, y: screen.frame.maxY - 12)
-movePointer(menuIcon)
-controller.apply(state: update.state, frame: update.frame)
-let panel = app.windows.compactMap { $0 as? AgentIslandPanel }.first!
-let metrics = AgentIslandScreenMetricsProvider.metrics(for: screen)
-precondition(!controller.contains(screenPoint: menuIcon), "Expanded island intercepts a menu bar item")
-let besideNotch = NSPoint(x: screen.frame.midX + CGFloat(metrics.notchWidth) / 2 + 5, y: screen.frame.maxY - 12)
-precondition(!controller.contains(screenPoint: besideNotch), "Invisible compact wing intercepts a menu item")
-precondition(panel.frame.maxY <= screen.frame.maxY - metrics.expandedTopInset, "Detail panel overlaps menu bar")
-precondition(panel.ignoresMouseEvents, "Transparent carrier blocks menu clicks")
-precondition(!panel.canBecomeKey && !panel.canBecomeMain, "Island steals keyboard focus")
-
-let contentPoint = NSPoint(x: panel.frame.midX, y: panel.frame.maxY - 65)
-movePointer(contentPoint)
-controller.apply(state: update.state, frame: update.frame)
-precondition(controller.contains(screenPoint: contentPoint), "Detail content is not interactive")
-precondition(!panel.ignoresMouseEvents, "Detail buttons cannot receive clicks")
-
-let shadowPoint = NSPoint(x: panel.frame.minX + 2, y: panel.frame.maxY - 65)
-movePointer(shadowPoint)
-controller.apply(state: update.state, frame: update.frame)
-precondition(!controller.contains(screenPoint: shadowPoint), "Shadow claims a click target")
-precondition(panel.ignoresMouseEvents, "Shadow blocks clicks on underlying apps")
-
-let triggerPoint = NSPoint(x: screen.frame.midX, y: screen.frame.maxY - 12)
-precondition(controller.contains(screenPoint: triggerPoint) == metrics.hasNotch, "Only the hardware notch should remain a trigger above the detail card")
-
-let compactMetrics = AgentIslandScreenMetrics(
-  displayId: 1, frame: AgentIslandRect(x: 0, y: 0, width: 1470, height: 956),
-  hasNotch: true, notchWidth: 179, topBarHeight: 34, menuBarHeight: 34,
-  safeAreaTop: 32, isMain: true, signature: "air"
-)
-precondition(compactMetrics.expandedTopInset == 34, "Menu bar can extend below the camera safe area")
-let compact = AgentIslandLayout.compute(
-  state: .empty, availableFrameWidth: 960, locallyHovered: false,
-  notchBaselineHeight: 34, screenMetrics: compactMetrics, preferredContentWidth: 920
-)
-precondition(compact.width == 243, "Remembered compact width obscures the menu bar")
-let hidden = AgentIslandLayout.compute(
-  state: .empty, availableFrameWidth: 219, locallyHovered: false,
-  notchBaselineHeight: 34, screenMetrics: compactMetrics, preferredContentWidth: 179
-)
-precondition(hidden.width == 179, "User's hidden notch preference is lost")
-
-// Return to compact, then expand again: the menu-bar offset must not accumulate.
-controller.apply(state: .empty, frame: update.frame)
-RunLoop.main.run(until: Date().addingTimeInterval(0.5))
-precondition(abs(panel.frame.maxY - screen.frame.maxY) < 1, "Compact panel does not return to the screen edge")
-controller.apply(state: update.state, frame: update.frame)
-precondition(abs(panel.frame.maxY - (screen.frame.maxY - metrics.expandedTopInset)) < 1, "Repeated expansion shifts the panel down")
-
-// A layout update during a move is replayed using the current panel frame.
-let dragStart = NSPoint(x: panel.frame.midX, y: panel.frame.maxY - 12)
-movePointer(dragStart)
-controller.apply(state: update.state, frame: update.frame)
-func sendMouse(_ type: NSEvent.EventType, at point: NSPoint) {
-  let event = NSEvent.mouseEvent(with: type, location: panel.convertPoint(fromScreen: point),
-    modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
-    windowNumber: panel.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
-  app.sendEvent(event)
-}
-sendMouse(.leftMouseDown, at: dragStart)
-let dragEnd = NSPoint(x: dragStart.x + 40, y: dragStart.y)
-movePointer(dragEnd)
-sendMouse(.leftMouseDragged, at: dragEnd)
-controller.apply(state: update.state, frame: update.frame)
-sendMouse(.leftMouseUp, at: dragEnd)
-precondition(abs(panel.frame.maxY - (screen.frame.maxY - metrics.expandedTopInset)) < 1, "Deferred drag update applies menu-bar clearance twice")
-
-setenv("XDT_AGENT_ISLAND_DEBUG", "interaction", 1)
-let permissionUpdate = AgentIslandDebugHarness.makeUpdate()!
-controller.apply(state: permissionUpdate.state, frame: permissionUpdate.frame)
-precondition(!controller.contains(screenPoint: menuIcon), "Permission card blocks the menu bar")
-
-// Optional local visual QA; does not capture the desktop or another app.
-if let output = ProcessInfo.processInfo.environment["PASEO_ISLAND_QA_IMAGE"],
-   let content = panel.contentView {
-  RunLoop.main.run(until: Date().addingTimeInterval(0.8))
-  content.layoutSubtreeIfNeeded()
-  if let bitmap = content.bitmapImageRepForCachingDisplay(in: content.bounds) {
-    content.cacheDisplay(in: content.bounds, to: bitmap)
-    try! bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: output))
+  if let directory = ProcessInfo.processInfo.environment["PASEO_MENU_BAR_QA_DIR"] {
+    for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", NSAppearance.Name.darkAqua)] {
+      controller.popover.appearance = NSAppearance(named: appearance)
+      RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+      let view = controller.popover.contentViewController!.view
+      if let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        try! bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "\(directory)/\(name).png"))
+      }
+    }
+    let image = controller.statusItem.button!.image!
+    let bitmap = NSBitmapImageRep(data: image.tiffRepresentation!)!
+    try! bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "\(directory)/icon.png"))
   }
+
+  controller.handleAction(["type": "focus-session", "sessionId": "test"])
+  RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+  precondition(!controller.popover.isShown, "Navigation leaves popover open")
+  precondition(events.last?["type"] as? String == "focus-session", "Task navigation not forwarded")
+  controller.apply(state: state)
+  precondition(!controller.popover.isShown, "Later update reopens popover")
+  controller.togglePopover()
+  controller.togglePopover()
+  RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+  precondition(!controller.popover.isShown, "Second click does not close popover")
+  precondition(!controller.model.open, "Closed popover keeps animations active")
+  controller.apply(state: .empty)
+  precondition(controller.statusItem.button?.image != nil, "Idle update removes entry")
+  controller.close()
+  precondition(!controller.popover.isShown, "Shutdown leaves popover open")
+  print("PASS: native status item, click-only popover, counts, navigation, permission errors, cleanup")
 }
-controller.close()
-print("PASS: menu bar clearance, mouse passthrough, detail interaction, focus, compact bounds")

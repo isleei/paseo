@@ -1,12 +1,11 @@
-import { app, type Rectangle } from "electron";
+import { app } from "electron";
 import { execFile, spawn, type ChildProcessByStdio } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { Readable, Writable } from "node:stream";
 
-import type { AgentIslandDisplayState, AgentIslandSoundChoice } from "./agent-island-shared.js";
-import type { AgentIslandLayoutPreference } from "./geometry.js";
+import type { AgentMenuBarState, AgentIslandSoundChoice } from "./agent-island-shared.js";
 import log from "electron-log/main";
 
 const MAC_AGENT_ISLAND_HELPER_RESOURCE = path.join(
@@ -45,28 +44,7 @@ const HELPER_RESTART_HEALTHY_RESET_MS = 30_000;
 
 type NativeProcess = ChildProcessByStdio<Writable, Readable, Readable>;
 
-export interface AgentIslandNativeFrame extends Rectangle {
-  displayId: number;
-  displayBounds: Rectangle;
-  contentWidth?: number | null;
-}
-
-export interface AgentIslandNativeScreenMetrics {
-  displayId: number;
-  frame: Rectangle;
-  hasNotch: boolean;
-  notchWidth: number;
-  topBarHeight: number;
-  menuBarHeight: number;
-  safeAreaTop: number;
-  isMain: boolean;
-  signature: string;
-}
-
 interface MacAgentIslandNativeHostOptions {
-  onPointerZones: (zones: { menuBar: boolean; panel: boolean; displayId?: number | null }) => void;
-  onExpand: (displayId?: number | null) => void;
-  onCollapse: (displayId?: number | null) => void;
   onFocusSession: (sessionId: string) => void;
   onDismissSession: (sessionId: string) => void;
   onOpenSettings: () => void;
@@ -76,80 +54,25 @@ interface MacAgentIslandNativeHostOptions {
     requestId: string;
     action: "allow" | "allowForSession" | "deny";
   }) => void;
-  onOutsideClick: () => void;
-  onLayoutDragActive: (active: boolean) => void;
-  onLayoutPreference: (preference: AgentIslandLayoutPreference) => void;
-  onContentHeight: (height: number) => void;
-  onScreenMetrics: (metrics: {
-    screens: AgentIslandNativeScreenMetrics[];
-    preferredDisplayId: number | null;
-    forceRefresh: boolean;
-  }) => void;
 }
 
 interface NativePayload {
   type?: unknown;
   message?: unknown;
-  event?: unknown;
-  forceRefresh?: unknown;
-  hit?: unknown;
-  mode?: unknown;
-  fromMode?: unknown;
-  toMode?: unknown;
-  notchStatus?: unknown;
-  fromNotchStatus?: unknown;
-  toNotchStatus?: unknown;
-  displayPolicy?: unknown;
-  fromDisplayPolicy?: unknown;
-  toDisplayPolicy?: unknown;
-  side?: unknown;
-  x?: unknown;
-  y?: unknown;
-  centerX?: unknown;
-  startCenterX?: unknown;
-  centerDelta?: unknown;
-  frameX?: unknown;
-  left?: unknown;
-  right?: unknown;
-  top?: unknown;
-  bottom?: unknown;
-  width?: unknown;
-  height?: unknown;
-  leftMouseDown?: unknown;
-  menuBar?: unknown;
-  panel?: unknown;
   sessionId?: unknown;
   requestId?: unknown;
   action?: unknown;
-  active?: unknown;
-  centerXRatio?: unknown;
-  contentWidth?: unknown;
-  expanded?: unknown;
-  layoutWidth?: unknown;
-  carrierWidth?: unknown;
-  incomingCenterX?: unknown;
-  panelCenterX?: unknown;
-  panelFrameX?: unknown;
-  panelWidth?: unknown;
-  displayId?: unknown;
-  soundId?: unknown;
-  soundPath?: unknown;
-  screens?: unknown;
-  preferredDisplayId?: unknown;
 }
 
 interface NativeUpdate {
   type: "update";
-  state: AgentIslandDisplayState;
-  frame?: AgentIslandNativeFrame;
-  frames?: AgentIslandNativeFrame[];
-  statesByDisplayId?: Record<string, AgentIslandDisplayState>;
+  state: AgentMenuBarState;
 }
 
 /**
  * Spawns the macOS Swift/AppKit island renderer and speaks a newline-delimited
  * JSON protocol over stdio. Product state stays in TypeScript; the helper owns
- * the NSPanel, SwiftUI path, shadow and native hover tracking.
+ * one NSStatusItem and its click-open NSPopover.
  */
 export class MacAgentIslandNativeHost {
   private child: NativeProcess | null = null;
@@ -165,7 +88,6 @@ export class MacAgentIslandNativeHost {
   private lifecycleToken = 0;
   private helperBinaryPath: string | null = null;
   private helperBinaryPromise: Promise<string> | null = null;
-  private readonly hoverZonesByDisplayId = new Map<number, { menuBar: boolean; panel: boolean }>();
 
   constructor(private readonly options: MacAgentIslandNativeHostOptions) {}
 
@@ -173,20 +95,9 @@ export class MacAgentIslandNativeHost {
     return this.permanentlyFailed;
   }
 
-  publish(
-    state: AgentIslandDisplayState,
-    frameOrFrames: AgentIslandNativeFrame | AgentIslandNativeFrame[],
-    statesByDisplayId?: Record<string, AgentIslandDisplayState>,
-  ): boolean {
+  publish(state: AgentMenuBarState): boolean {
     if (this.permanentlyFailed) return false;
-    const frames = Array.isArray(frameOrFrames) ? frameOrFrames : [frameOrFrames];
-    this.pendingUpdate = {
-      type: "update",
-      state,
-      frame: frames[0],
-      frames,
-      statesByDisplayId,
-    };
+    this.pendingUpdate = { type: "update", state };
     if (this.ready && this.child) {
       this.flushPendingUpdate();
       return true;
@@ -208,6 +119,11 @@ export class MacAgentIslandNativeHost {
     return true;
   }
 
+  permissionResult(requestId: string, error: string | null): void {
+    if (!this.ready || !this.child) return;
+    this.child.stdin.write(`${JSON.stringify({ type: "permission-result", requestId, error })}\n`);
+  }
+
   prepare(): void {
     if (this.permanentlyFailed) return;
     void this.resolveHelperBinary().catch((error) => {
@@ -223,7 +139,7 @@ export class MacAgentIslandNativeHost {
   }
 
   /**
-   * Temporarily tears down the helper when Agent Island is disabled.
+   * Temporarily tears down the helper when Menu bar is disabled.
    * Unlike stop(), this keeps the host reusable so a later publish can respawn.
    */
   suspend(): void {
@@ -234,7 +150,6 @@ export class MacAgentIslandNativeHost {
     this.pendingUpdate = null;
     this.pendingSounds.splice(0, this.pendingSounds.length);
     this.stdoutBuffer = "";
-    this.clearPointerZones();
     const child = this.child;
     this.child = null;
     this.ready = false;
@@ -264,7 +179,7 @@ export class MacAgentIslandNativeHost {
       binary = await this.resolveHelperBinary();
     } catch (error) {
       this.permanentlyFailed = true;
-      log.warn("native helper could not be prepared; Agent Island will remain hidden", {
+      log.warn("native helper could not be prepared; Menu bar will remain hidden", {
         error: error instanceof Error ? error.message : String(error),
       });
       return false;
@@ -292,7 +207,6 @@ export class MacAgentIslandNativeHost {
       this.child = child;
       this.ready = false;
       this.stdoutBuffer = "";
-      this.clearPointerZones();
 
       let startTimer: ReturnType<typeof setTimeout> | null = null;
       const settle = (ok: boolean): void => {
@@ -343,7 +257,6 @@ export class MacAgentIslandNativeHost {
           this.child = null;
           this.ready = false;
           this.clearRestartHealthyTimer();
-          this.clearPointerZones();
           if (!child.killed) child.kill();
         }
         log.warn("native helper stdin error", { error: error.message });
@@ -361,7 +274,6 @@ export class MacAgentIslandNativeHost {
           this.child = null;
           this.ready = false;
           this.clearRestartHealthyTimer();
-          this.clearPointerZones();
         }
         log.warn("native helper process error", { error: error.message });
         if (!settled) {
@@ -378,7 +290,6 @@ export class MacAgentIslandNativeHost {
           this.child = null;
           this.ready = false;
           this.clearRestartHealthyTimer();
-          this.clearPointerZones();
         }
         if (!settled) {
           settle(false);
@@ -438,88 +349,9 @@ export class MacAgentIslandNativeHost {
 
     if (payload.type === "error") {
       const message =
-        typeof payload.message === "string"
-          ? payload.message
-          : "Native agent island helper failed.";
+        typeof payload.message === "string" ? payload.message : "Native menu bar helper failed.";
       log.warn("native helper error", { message });
       if (!this.ready) settle(false);
-      return;
-    }
-
-    if (payload.type === "debug" && this.child === child) {
-      log.debug("native helper debug", {
-        event: typeof payload.event === "string" ? payload.event : undefined,
-        hit: typeof payload.hit === "string" ? payload.hit : undefined,
-        mode: typeof payload.mode === "string" ? payload.mode : undefined,
-        fromMode: typeof payload.fromMode === "string" ? payload.fromMode : undefined,
-        toMode: typeof payload.toMode === "string" ? payload.toMode : undefined,
-        notchStatus: typeof payload.notchStatus === "string" ? payload.notchStatus : undefined,
-        fromNotchStatus:
-          typeof payload.fromNotchStatus === "string" ? payload.fromNotchStatus : undefined,
-        toNotchStatus:
-          typeof payload.toNotchStatus === "string" ? payload.toNotchStatus : undefined,
-        displayPolicy:
-          typeof payload.displayPolicy === "string" ? payload.displayPolicy : undefined,
-        fromDisplayPolicy:
-          typeof payload.fromDisplayPolicy === "string" ? payload.fromDisplayPolicy : undefined,
-        toDisplayPolicy:
-          typeof payload.toDisplayPolicy === "string" ? payload.toDisplayPolicy : undefined,
-        side: typeof payload.side === "string" ? payload.side : undefined,
-        x: typeof payload.x === "number" ? payload.x : undefined,
-        y: typeof payload.y === "number" ? payload.y : undefined,
-        centerX: typeof payload.centerX === "number" ? payload.centerX : undefined,
-        startCenterX: typeof payload.startCenterX === "number" ? payload.startCenterX : undefined,
-        centerDelta: typeof payload.centerDelta === "number" ? payload.centerDelta : undefined,
-        frameX: typeof payload.frameX === "number" ? payload.frameX : undefined,
-        left: typeof payload.left === "number" ? payload.left : undefined,
-        right: typeof payload.right === "number" ? payload.right : undefined,
-        top: typeof payload.top === "number" ? payload.top : undefined,
-        bottom: typeof payload.bottom === "number" ? payload.bottom : undefined,
-        width: typeof payload.width === "number" ? payload.width : undefined,
-        height: typeof payload.height === "number" ? payload.height : undefined,
-        contentWidth: typeof payload.contentWidth === "number" ? payload.contentWidth : undefined,
-        expanded: typeof payload.expanded === "boolean" ? payload.expanded : undefined,
-        layoutWidth: typeof payload.layoutWidth === "number" ? payload.layoutWidth : undefined,
-        carrierWidth: typeof payload.carrierWidth === "number" ? payload.carrierWidth : undefined,
-        incomingCenterX:
-          typeof payload.incomingCenterX === "number" ? payload.incomingCenterX : undefined,
-        panelCenterX: typeof payload.panelCenterX === "number" ? payload.panelCenterX : undefined,
-        panelFrameX: typeof payload.panelFrameX === "number" ? payload.panelFrameX : undefined,
-        panelWidth: typeof payload.panelWidth === "number" ? payload.panelWidth : undefined,
-        leftMouseDown:
-          typeof payload.leftMouseDown === "boolean" ? payload.leftMouseDown : undefined,
-        displayId: typeof payload.displayId === "number" ? payload.displayId : undefined,
-      });
-      return;
-    }
-
-    if (payload.type === "hover" && this.child === child) {
-      const zones = {
-        menuBar: payload.menuBar === true,
-        panel: payload.panel === true,
-      };
-      if (typeof payload.displayId === "number" && Number.isFinite(payload.displayId)) {
-        this.hoverZonesByDisplayId.set(payload.displayId, zones);
-        this.options.onPointerZones(this.aggregatePointerZones());
-      } else {
-        this.options.onPointerZones(zones);
-      }
-      return;
-    }
-
-    if (payload.type === "expand" && this.child === child) {
-      log.info("native helper expand", {
-        displayId: typeof payload.displayId === "number" ? payload.displayId : null,
-      });
-      this.options.onExpand(typeof payload.displayId === "number" ? payload.displayId : null);
-      return;
-    }
-
-    if (payload.type === "collapse" && this.child === child) {
-      log.info("native helper collapse", {
-        displayId: typeof payload.displayId === "number" ? payload.displayId : null,
-      });
-      this.options.onCollapse(typeof payload.displayId === "number" ? payload.displayId : null);
       return;
     }
 
@@ -577,52 +409,6 @@ export class MacAgentIslandNativeHost {
       this.options.onToggleSound();
       return;
     }
-
-    if (payload.type === "outside-click" && this.child === child) {
-      log.info("native helper outside-click");
-      this.options.onOutsideClick();
-      return;
-    }
-
-    if (payload.type === "drag" && this.child === child && typeof payload.active === "boolean") {
-      this.options.onLayoutDragActive(payload.active);
-      return;
-    }
-
-    if (payload.type === "layout" && this.child === child) {
-      const preference: AgentIslandLayoutPreference = {};
-      if (typeof payload.displayId === "number" && Number.isFinite(payload.displayId)) {
-        preference.displayId = payload.displayId;
-      }
-      if (typeof payload.centerXRatio === "number" && Number.isFinite(payload.centerXRatio)) {
-        preference.centerXRatio = payload.centerXRatio;
-      }
-      if (typeof payload.contentWidth === "number" && Number.isFinite(payload.contentWidth)) {
-        if (payload.expanded === true) {
-          preference.expandedContentWidth = payload.contentWidth;
-        } else {
-          preference.compactContentWidth = payload.contentWidth;
-        }
-      }
-      this.options.onLayoutPreference(preference);
-      return;
-    }
-
-    if (payload.type === "content-height" && this.child === child) {
-      if (typeof payload.height === "number" && Number.isFinite(payload.height)) {
-        this.options.onContentHeight(payload.height);
-      }
-      return;
-    }
-
-    if (payload.type === "screen-metrics" && this.child === child) {
-      this.options.onScreenMetrics({
-        screens: parseNativeScreenMetrics(payload.screens),
-        preferredDisplayId:
-          typeof payload.preferredDisplayId === "number" ? payload.preferredDisplayId : null,
-        forceRefresh: payload.forceRefresh === true,
-      });
-    }
   }
 
   private flushPendingUpdate(): void {
@@ -664,7 +450,7 @@ export class MacAgentIslandNativeHost {
     if (this.restartTimer || this.permanentlyFailed) return;
     if (this.restartAttempts >= HELPER_RESTART_MAX_ATTEMPTS) {
       this.permanentlyFailed = true;
-      log.warn("native helper restart limit reached; Agent Island will remain hidden", {
+      log.warn("native helper restart limit reached; Menu bar will remain hidden", {
         code,
         signal,
       });
@@ -708,102 +494,12 @@ export class MacAgentIslandNativeHost {
     clearTimeout(this.restartHealthyTimer);
     this.restartHealthyTimer = null;
   }
-
-  private clearPointerZones(): void {
-    if (this.hoverZonesByDisplayId.size > 0) {
-      this.hoverZonesByDisplayId.clear();
-    }
-    this.options.onPointerZones({ menuBar: false, panel: false, displayId: null });
-  }
-
-  private aggregatePointerZones(): { menuBar: boolean; panel: boolean; displayId: number | null } {
-    let menuBar = false;
-    let panel = false;
-    let displayId: number | null = null;
-    for (const zones of this.hoverZonesByDisplayId.values()) {
-      menuBar = menuBar || zones.menuBar;
-      panel = panel || zones.panel;
-    }
-    for (const [candidateDisplayId, zones] of this.hoverZonesByDisplayId.entries()) {
-      if (zones.panel) {
-        displayId = candidateDisplayId;
-        break;
-      }
-      if (displayId === null && zones.menuBar) {
-        displayId = candidateDisplayId;
-      }
-    }
-    return { menuBar, panel, displayId };
-  }
-}
-
-function parseNativeScreenMetrics(input: unknown): AgentIslandNativeScreenMetrics[] {
-  if (!Array.isArray(input)) return [];
-  const metrics: AgentIslandNativeScreenMetrics[] = [];
-  for (const item of input) {
-    if (!item || typeof item !== "object") continue;
-    const record = item as Record<string, unknown>;
-    const frame = parseNativeRectangle(record.frame);
-    if (
-      typeof record.displayId !== "number" ||
-      !Number.isFinite(record.displayId) ||
-      !frame ||
-      typeof record.hasNotch !== "boolean" ||
-      typeof record.notchWidth !== "number" ||
-      !Number.isFinite(record.notchWidth) ||
-      typeof record.topBarHeight !== "number" ||
-      !Number.isFinite(record.topBarHeight) ||
-      typeof record.menuBarHeight !== "number" ||
-      !Number.isFinite(record.menuBarHeight) ||
-      typeof record.safeAreaTop !== "number" ||
-      !Number.isFinite(record.safeAreaTop) ||
-      typeof record.isMain !== "boolean" ||
-      typeof record.signature !== "string"
-    ) {
-      continue;
-    }
-    metrics.push({
-      displayId: record.displayId,
-      frame,
-      hasNotch: record.hasNotch,
-      notchWidth: record.notchWidth,
-      topBarHeight: record.topBarHeight,
-      menuBarHeight: record.menuBarHeight,
-      safeAreaTop: record.safeAreaTop,
-      isMain: record.isMain,
-      signature: record.signature,
-    });
-  }
-  return metrics;
 }
 
 function isAgentIslandPermissionAction(
   value: unknown,
 ): value is "allow" | "allowForSession" | "deny" {
   return value === "allow" || value === "allowForSession" || value === "deny";
-}
-
-function parseNativeRectangle(input: unknown): Rectangle | null {
-  if (!input || typeof input !== "object") return null;
-  const record = input as Record<string, unknown>;
-  if (
-    typeof record.x !== "number" ||
-    !Number.isFinite(record.x) ||
-    typeof record.y !== "number" ||
-    !Number.isFinite(record.y) ||
-    typeof record.width !== "number" ||
-    !Number.isFinite(record.width) ||
-    typeof record.height !== "number" ||
-    !Number.isFinite(record.height)
-  ) {
-    return null;
-  }
-  return {
-    x: record.x,
-    y: record.y,
-    width: record.width,
-    height: record.height,
-  };
 }
 
 async function resolveMacAgentIslandHelperBinary(): Promise<string> {
@@ -818,7 +514,7 @@ async function buildDevMacAgentIslandHelper(): Promise<void> {
   const source = resolveDevMacAgentIslandHelperSource();
   const binary = getMacAgentIslandHelperDevBinary();
   if (!fs.existsSync(source)) {
-    throw new Error(`Agent Island helper source missing at ${source}`);
+    throw new Error(`Menu bar helper source missing at ${source}`);
   }
   const sourceHash = fileSha256(source);
   const hashFile = getMacAgentIslandHelperDevHashFile();
@@ -836,7 +532,7 @@ async function buildDevMacAgentIslandHelper(): Promise<void> {
   await execFilePromise("swiftc", [source, "-O", "-o", binary], 120_000);
   fs.chmodSync(binary, 0o755);
   fs.writeFileSync(hashFile, `${sourceHash}\n`, "utf8");
-  log.info("built dev macOS agent island helper", { path: binary });
+  log.info("built dev macOS menu bar helper", { path: binary });
 }
 
 function resolveDevSourceCandidate(relative: string): string {
@@ -879,7 +575,7 @@ function fileSha256(filePath: string): string {
 function copyDevMacAgentIslandAssets(): void {
   const source = resolveDevMacAgentIslandRunningGifSource();
   if (!fs.existsSync(source)) {
-    throw new Error(`Agent Island running GIF missing at ${source}`);
+    throw new Error(`Menu bar running GIF missing at ${source}`);
   }
   const dest = path.join(
     path.dirname(getMacAgentIslandHelperDevBinary()),
@@ -898,7 +594,7 @@ function copyDevMacAgentIslandAssets(): void {
 
 function copyDirectory(sourceDir: string, destDir: string): void {
   if (!fs.existsSync(sourceDir)) {
-    throw new Error(`Agent Island asset directory missing at ${sourceDir}`);
+    throw new Error(`Menu bar asset directory missing at ${sourceDir}`);
   }
   fs.mkdirSync(destDir, { recursive: true });
   for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {

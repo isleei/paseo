@@ -2089,12 +2089,12 @@ export const ja: TranslationResources = {
       sendFailedTitle: "テスト通知を送信できません",
     },
     island: {
-      title: "Agent Island",
-      enabled: "Agent Island を表示",
-      enabledHint: "Mac のメニューバーに Agent ステータスピルを表示します。",
-      dismissHint: "島カードを消す",
+      title: "メニューバー",
+      enabled: "メニューバーアイコンを表示",
+      enabledHint: "Mac のメニューバーにマスコットとタスク状態の点を表示します。",
+      dismissHint: "タスクを表示",
       dismissHintDetail:
-        "Agent を開くとそのカードが消えます。完了・エラーカードは自動的に消えます。",
+        "アイコンをクリックしてタスクと権限要求を確認します。更新時にパネルは自動で開きません。",
       mascot: "マスコット",
     },
     hostSections: {

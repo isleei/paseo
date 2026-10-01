@@ -2117,12 +2117,12 @@ export const es: TranslationResources = {
       sendFailedTitle: "No se pudo enviar la notificación de prueba",
     },
     island: {
-      title: "Agent Island",
-      enabled: "Mostrar Agent Island",
-      enabledHint: "Muestra una píldora flotante con el estado del agente en la barra de menús.",
-      dismissHint: "Descartar tarjetas",
+      title: "Barra de menús",
+      enabled: "Mostrar icono en la barra de menús",
+      enabledHint: "Muestra la mascota y un punto de estado en la barra de menús del Mac.",
+      dismissHint: "Ver tareas",
       dismissHintDetail:
-        "Abre un agente para descartar su tarjeta. Las tarjetas de finalización y error desaparecen solas.",
+        "Haz clic en el icono para ver tareas y permisos. Las actualizaciones no abren el panel automáticamente.",
       mascot: "Mascota",
     },
     hostSections: {

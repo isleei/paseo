@@ -17,7 +17,7 @@ vi.mock("electron-log/main", () => ({
   default: { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() },
 }));
 
-const published: Array<{ state: TestDisplayState; frame: unknown }> = [];
+const published: Array<{ state: TestDisplayState }> = [];
 let hostOptions: TestHostOptions | null = null;
 
 vi.mock("./native-host.js", () => ({
@@ -26,14 +26,16 @@ vi.mock("./native-host.js", () => ({
       hostOptions = options;
     }
 
-    publish(state: TestDisplayState, frame: unknown) {
-      published.push({ state, frame });
+    publish(state: TestDisplayState) {
+      published.push({ state });
       return true;
     }
 
     playSound() {
       return true;
     }
+
+    permissionResult() {}
 
     suspend() {}
 
@@ -48,12 +50,6 @@ interface TestDisplayState {
     title: string;
     permissionAction: { requestId: string } | null;
   }>;
-  pillSnapshot: {
-    activeSessionCount: number;
-    sessionCount: number;
-    unreadCompletedCount: number;
-    attentionCount: number;
-  };
   mascotSkin: string;
 }
 
@@ -107,7 +103,7 @@ describe("PaseoIslandService", () => {
     expect(latest?.mascotSkin).toBe("paimon");
     expect(latest?.sessions).toHaveLength(1);
     expect(latest?.sessions[0]).toMatchObject({ sessionId: "a1", phase: "running" });
-    expect(latest?.pillSnapshot.activeSessionCount).toBe(1);
+    expect(latest?.sessions).toHaveLength(1);
     service.shutdown();
   });
 
@@ -196,8 +192,6 @@ describe("PaseoIslandService", () => {
     service.pushAgents([{ ...base, status: "idle" }]);
     const latest = published[published.length - 1]?.state;
     expect(latest?.sessions).toHaveLength(0);
-    expect(latest?.pillSnapshot.unreadCompletedCount).toBe(0);
-    expect(latest?.pillSnapshot.attentionCount).toBe(0);
     service.shutdown();
   });
 
@@ -246,7 +240,6 @@ describe("PaseoIslandService", () => {
     hostOptions?.onDismissSession?.("a1");
     const latest = published[published.length - 1]?.state;
     expect(latest?.sessions).toHaveLength(0);
-    expect(latest?.pillSnapshot.attentionCount).toBe(0);
     service.shutdown();
   });
 });
