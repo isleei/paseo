@@ -107,6 +107,37 @@ function createBinaryMessageHandler(
   };
 }
 
+test("onlyIfIdle shutdown reports AGENTS_BUSY and does not emit a lifecycle intent", async () => {
+  const messages: SessionOutboundMessage[] = [];
+  const intents: string[] = [];
+  const session = createSessionForTest({
+    messages,
+    onLifecycleIntent: (intent) => {
+      intents.push(intent.type);
+    },
+    agentManager: {
+      tryClaimIdleShutdown: vi.fn(() => false),
+    },
+  });
+
+  await session.handleMessage({
+    type: "shutdown_server_request",
+    requestId: "req-busy",
+    onlyIfIdle: true,
+  });
+
+  expect(intents).toEqual([]);
+  expect(messages).toContainEqual({
+    type: "rpc_error",
+    payload: {
+      requestId: "req-busy",
+      requestType: "shutdown_server_request",
+      error: "Agents are busy",
+      code: "AGENTS_BUSY",
+    },
+  });
+});
+
 test("interruptAgentIfRunning rejects when graceful cancellation is refused", async () => {
   const agentId = "11111111-1111-4111-8111-111111111111";
   const session = createSessionForTest({
@@ -332,6 +363,11 @@ interface SessionForTestOptions {
   pluginRuntime?: SessionOptions["pluginRuntime"];
   orchestrationSkills?: SessionOptions["orchestrationSkills"];
   workspaceLabelService?: WorkspaceLabelService;
+  onLifecycleIntent?: SessionOptions["onLifecycleIntent"];
+}
+
+async function runTestAdmission<T>(work: (ticket: symbol) => Promise<T>): Promise<T> {
+  return work(Symbol("test-admission"));
 }
 
 function createSessionForTest(options: SessionForTestOptions = {}): Session {
@@ -370,6 +406,7 @@ function createSessionForTest(options: SessionForTestOptions = {}): Session {
     messageReceipts: createMessageReceiptsStub(),
     creationService: createTestCreationService(),
     clientId: options.clientId ?? "test-client",
+    onLifecycleIntent: options.onLifecycleIntent,
     onMessage: (message) => messages.push(message),
     ...(options.targetedMessages
       ? {
@@ -386,6 +423,12 @@ function createSessionForTest(options: SessionForTestOptions = {}): Session {
     pushNotifications: options.pushNotifications ?? asPushNotifications(),
     paseoHome: options.paseoHome ?? "/tmp/paseo-home",
     agentManager: asAgentManager({
+      runAdmittedAgentWork: runTestAdmission,
+      runPromptAdmission: runTestAdmission,
+      isDraining: vi.fn(() => false),
+      beginAdmission: vi.fn(() => Symbol("test-admission")),
+      endAdmission: vi.fn(),
+      assertAcceptingPrompts: vi.fn(),
       listAgents: vi.fn(() => []),
       listProviderSubagentActivity: vi.fn(() => []),
       subscribe: vi.fn(() => () => {}),
@@ -475,7 +518,7 @@ test("routes host-scoped agent skills requests through the daemon owner", async 
 
   expect(orchestrationSkills.saveSelection).toHaveBeenCalledWith(
     { mode: "custom", skills: ["paseo"] },
-    ["paseo-loop"],
+    { confirmedRemovals: ["paseo-loop"] },
   );
   expect(messages).toContainEqual({
     type: "agent.skills.save_selection.response",
