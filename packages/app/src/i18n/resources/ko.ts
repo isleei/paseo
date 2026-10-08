@@ -1277,6 +1277,22 @@ export const ko: TranslationResources = {
         project: "프로젝트",
         status: "상태",
         labels: "레이블",
+        emptyProjects: "빈 프로젝트를 별도로 그룹화",
+      },
+      sorting: {
+        label: "프로젝트 정렬",
+        workspaces: "작업 공간 정렬",
+        workspaceName: "작업 공간 이름",
+        project: "프로젝트 이름",
+        status: "상태",
+        custom: "사용자 지정 순서",
+        emptyProjects: "빈 프로젝트 정렬",
+      },
+      projectVisibility: {
+        label: "필터",
+        all: "모든 프로젝트",
+        unarchived: "빈 프로젝트 숨기기",
+        emptyGroup: "빈 프로젝트",
       },
       titleSource: {
         label: "제목",
@@ -1316,6 +1332,19 @@ export const ko: TranslationResources = {
     },
     pinned: {
       title: "고정됨",
+    },
+    folder: {
+      title: "폴더",
+      none: "없음",
+      newFolder: "새 폴더",
+      name: "폴더 이름",
+      create: "만들기",
+      save: "저장",
+      menu: "폴더 작업",
+      rename: "이름 변경",
+      moveUp: "위로 이동",
+      moveDown: "아래로 이동",
+      delete: "폴더 삭제",
     },
     host: {
       noHost: "호스트 없음",

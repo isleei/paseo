@@ -1299,6 +1299,22 @@ export const ptBR: TranslationResources = {
         project: "Projeto",
         status: "Status",
         labels: "Etiquetas",
+        emptyProjects: "Agrupar projetos vazios separadamente",
+      },
+      sorting: {
+        label: "Ordenar projetos",
+        workspaces: "Ordenar espaços de trabalho",
+        workspaceName: "Nome do espaço de trabalho",
+        project: "Nome do projeto",
+        status: "Status",
+        custom: "Ordem personalizada",
+        emptyProjects: "Ordenar projetos vazios",
+      },
+      projectVisibility: {
+        label: "Filtro",
+        all: "Todos os projetos",
+        unarchived: "Ocultar projetos vazios",
+        emptyGroup: "Projetos vazios",
       },
       titleSource: {
         label: "Título",
@@ -1338,6 +1354,19 @@ export const ptBR: TranslationResources = {
     },
     pinned: {
       title: "Fixados",
+    },
+    folder: {
+      title: "Pasta",
+      none: "Nenhuma",
+      newFolder: "Nova pasta",
+      name: "Nome da pasta",
+      create: "Criar",
+      save: "Salvar",
+      menu: "Ações da pasta",
+      rename: "Renomear",
+      moveUp: "Mover para cima",
+      moveDown: "Mover para baixo",
+      delete: "Excluir pasta",
     },
     host: {
       noHost: "Nenhum host",

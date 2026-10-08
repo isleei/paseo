@@ -6,6 +6,8 @@ import { createValidatedPersistStorage } from "@/storage/validated-persist-stora
 
 interface SidebarOrderStoreState {
   projectOrder: string[];
+  statusWorkspaceOrder: string[];
+  setStatusWorkspaceOrder: (keys: string[]) => void;
   pinnedWorkspaceOrder: string[];
   workspaceOrderByProject: Record<string, string[]>;
   pinnedAtByConversationKey: Record<string, string>;
@@ -19,6 +21,7 @@ interface SidebarOrderStoreState {
 }
 
 interface SidebarOrderPersistedState {
+  statusWorkspaceOrder?: string[];
   projectOrder?: string[];
   pinnedWorkspaceOrder?: string[];
   workspaceOrderByProject?: Record<string, string[]>;
@@ -29,6 +32,7 @@ interface SidebarOrderPersistedState {
 
 const StringArrayRecordSchema = z.record(z.string(), z.array(z.string()));
 const SidebarOrderPersistedStateSchema = z.strictObject({
+  statusWorkspaceOrder: z.array(z.string()).optional(),
   projectOrder: z.array(z.string()).optional(),
   pinnedWorkspaceOrder: z.array(z.string()).optional(),
   workspaceOrderByProject: StringArrayRecordSchema.optional(),
@@ -127,6 +131,7 @@ export function migrateSidebarOrderState(
   persistedState: unknown,
   fromVersion = 0,
 ): {
+  statusWorkspaceOrder: string[];
   projectOrder: string[];
   pinnedWorkspaceOrder: string[];
   workspaceOrderByProject: Record<string, string[]>;
@@ -139,6 +144,7 @@ export function migrateSidebarOrderState(
       pinnedWorkspaceOrder: [],
       workspaceOrderByProject: {},
       pinnedAtByConversationKey: {},
+      statusWorkspaceOrder: [],
     };
   }
   const state: SidebarOrderPersistedState = result.data;
@@ -173,6 +179,7 @@ export function migrateSidebarOrderState(
     // Before v3, merely viewing projects persisted their first-seen order. It cannot
     // be distinguished from a drag, so reset it once to enable addition-time sorting.
     projectOrder: fromVersion < 3 ? [] : projectOrder,
+    statusWorkspaceOrder: normalizeKeys(state.statusWorkspaceOrder ?? []),
     pinnedWorkspaceOrder: normalizeKeys(state.pinnedWorkspaceOrder ?? []),
     // v1 auto-wrote first-seen (alphabetical) workspace order. Recency is live,
     // so drop that freeze; drag still writes workspaceOrderByProject after v2.
@@ -184,6 +191,8 @@ export function migrateSidebarOrderState(
 export const useSidebarOrderStore = create<SidebarOrderStoreState>()(
   persist(
     (set, get) => ({
+      statusWorkspaceOrder: [],
+      setStatusWorkspaceOrder: (keys) => set({ statusWorkspaceOrder: dedupeKeys(keys) }),
       projectOrder: [],
       pinnedWorkspaceOrder: [],
       workspaceOrderByProject: {},
@@ -238,6 +247,7 @@ export const useSidebarOrderStore = create<SidebarOrderStoreState>()(
       name: "sidebar-project-workspace-order",
       storage: createValidatedPersistStorage(AsyncStorage, SidebarOrderPersistedStateSchema),
       partialize: (state) => ({
+        statusWorkspaceOrder: state.statusWorkspaceOrder,
         projectOrder: state.projectOrder,
         pinnedWorkspaceOrder: state.pinnedWorkspaceOrder,
         workspaceOrderByProject: state.workspaceOrderByProject,

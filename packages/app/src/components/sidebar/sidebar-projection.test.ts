@@ -5,6 +5,11 @@ import type {
   SidebarWorkspaceEntry,
   SidebarWorkspacePlacement,
 } from "@/hooks/use-sidebar-workspaces-list";
+import {
+  filterSidebarProjects,
+  arrangeSidebarProjects,
+  sortSidebarProjectsByName,
+} from "./sidebar-arrangement";
 import { buildSidebarProjection } from "./sidebar-projection";
 
 function makeWorkspace(
@@ -77,6 +82,9 @@ function projectionInput(options?: {
       pinnedAtByKey: { [pinned.placement.workspaceKey]: "2026-07-12T12:00:00.000Z" },
     },
     pinnedWorkspaceOrder: [],
+    workspaceSortMode: options?.groupMode === "status" ? ("status" as const) : ("custom" as const),
+    workspaceTitleSource: "title" as const,
+    statusWorkspaceOrder: [],
     workspaceEntriesByKey: new Map([
       [pinned.entry.workspaceKey, pinned.entry],
       [unpinned.entry.workspaceKey, unpinned.entry],
@@ -87,6 +95,9 @@ function projectionInput(options?: {
     collapsedProjectKeys: new Set<string>(),
     collapsedWorkspaceGroupKeys: new Set<string>(),
     t: i18n.t,
+    folders: [] as { id: string; name: string }[],
+    projectAssignments: [] as { folderId: string; refs: string[] }[],
+    collapsedFolderIds: [] as string[],
   };
 }
 
@@ -100,7 +111,7 @@ function twoProjectInput(groupMode: "project" | "status") {
   return {
     ...projectionInput({ groupMode }),
     projects: [makeProject([first.placement]), makeProject([second.placement], "other-project")],
-    pinnedKeys: { pinnedWorkspaceKeys: [], pinnedAtByKey: {} },
+    pinnedKeys: { pinnedWorkspaceKeys: [] as string[], pinnedAtByKey: {} },
     workspaceEntriesByKey: new Map([
       [first.entry.workspaceKey, first.entry],
       [second.entry.workspaceKey, second.entry],
@@ -113,6 +124,213 @@ function twoProjectInput(groupMode: "project" | "status") {
 }
 
 describe("buildSidebarProjection", () => {
+  it("sorts workspace rows without changing pins, groups, or saved custom order", () => {
+    const input = projectionInput();
+    const zeta = makeWorkspace("Zeta", "done");
+    const alpha = makeWorkspace("Alpha", "running");
+    input.projects[0].workspaces.push(zeta.placement, alpha.placement);
+    input.workspaceEntriesByKey.set(zeta.entry.workspaceKey, zeta.entry);
+    input.workspaceEntriesByKey.set(alpha.entry.workspaceKey, alpha.entry);
+    const named = buildSidebarProjection({ ...input, workspaceSortMode: "name" });
+    expect(named.pinnedGroups.unpinnedProjects[0].workspaces.map((row) => row.name)).toEqual([
+      "pinned",
+      "Alpha",
+      "unpinned",
+      "Zeta",
+    ]);
+    expect(named.pinnedGroups.pinnedChats.map((row) => row.name)).toEqual([]);
+    const status = buildSidebarProjection({ ...input, workspaceSortMode: "status" });
+    expect(status.pinnedGroups.unpinnedProjects[0].workspaces.map((row) => row.name)).toEqual([
+      "pinned",
+      "unpinned",
+      "Alpha",
+      "Zeta",
+    ]);
+    const custom = buildSidebarProjection({ ...input, workspaceSortMode: "custom" });
+    expect(custom.pinnedGroups.unpinnedProjects[0].workspaces.map((row) => row.name)).toEqual([
+      "pinned",
+      "unpinned",
+      "Zeta",
+      "Alpha",
+    ]);
+    expect(input.projects[0].workspaces.map((row) => row.name)).toEqual([
+      "pinned",
+      "unpinned",
+      "Zeta",
+      "Alpha",
+    ]);
+    zeta.entry.title = "Aardvark";
+    const renamed = buildSidebarProjection({ ...input, workspaceSortMode: "name" });
+    expect(renamed.pinnedGroups.unpinnedProjects[0].workspaces.map((row) => row.name)).toEqual([
+      "pinned",
+      "Alpha",
+      "unpinned",
+      "Zeta",
+    ]);
+    expect([...renamed.shortcutModel.shortcutIndexByWorkspaceKey.keys()]).toEqual([
+      "srv:pinned",
+      "srv:Alpha",
+      "srv:unpinned",
+      "srv:Zeta",
+    ]);
+  });
+
+  for (const groupMode of ["project", "status"] as const) {
+    it(`sorts by visible branches with name fallback in ${groupMode} grouping`, () => {
+      const alpha = makeWorkspace("Alpha");
+      const zeta = makeWorkspace("Zeta");
+      const fallback = makeWorkspace("Middle");
+      alpha.entry.currentBranch = "zeta-branch";
+      zeta.entry.currentBranch = "alpha-branch";
+      zeta.entry.title = "Hidden title";
+      const workspaces = [alpha, fallback, zeta];
+      const projection = buildSidebarProjection({
+        ...projectionInput({ groupMode }),
+        projects: [makeProject(workspaces.map((workspace) => workspace.placement))],
+        workspaceEntriesByKey: new Map(workspaces.map(({ entry }) => [entry.workspaceKey, entry])),
+        workspaceSortMode: "name",
+        workspaceTitleSource: "branch",
+      });
+      expect(projection.shortcutModel.shortcutTargets.map((target) => target.workspaceId)).toEqual([
+        "Zeta",
+        "Middle",
+        "Alpha",
+      ]);
+    });
+  }
+
+  it("sorts within status groups and restores custom order across projects", () => {
+    const input = twoProjectInput("status");
+    const zeta = makeWorkspace("Zeta", "running", [], "other-project");
+    const alpha = makeWorkspace("Alpha", "running");
+    input.projects[0].workspaces.push(alpha.placement);
+    input.projects[1].workspaces.push(zeta.placement);
+    input.workspaceEntriesByKey.set(zeta.entry.workspaceKey, zeta.entry);
+    input.workspaceEntriesByKey.set(alpha.entry.workspaceKey, alpha.entry);
+    const named = buildSidebarProjection({ ...input, workspaceSortMode: "name" });
+    expect(named.workspaceGroups.map((group) => group.key)).toEqual(["needs_input", "running"]);
+    expect(named.workspaceGroups[1].rows.map((row) => row.name)).toEqual([
+      "Alpha",
+      "first",
+      "Zeta",
+    ]);
+    const custom = buildSidebarProjection({
+      ...input,
+      workspaceSortMode: "custom",
+      statusWorkspaceOrder: ["srv:Zeta", "srv:first", "srv:Alpha"],
+    });
+    expect(custom.workspaceGroups[1].rows.map((row) => row.name)).toEqual([
+      "Zeta",
+      "first",
+      "Alpha",
+    ]);
+  });
+
+  it("filters projects by unarchived workspace membership before splitting pins", () => {
+    const input = projectionInput();
+    const empty = makeProject([], "empty");
+    input.projects.push(empty);
+    for (const groupMode of ["project", "status"] as const) {
+      const projects = filterSidebarProjects(input.projects, "unarchived");
+      const projection = buildSidebarProjection({ ...input, projects, groupMode });
+      expect(projects.map((project) => project.viewKey)).toEqual(["project"]);
+      const pinnedChats = groupMode === "project" ? [] : ["pinned"];
+      expect(projection.pinnedGroups.pinnedChats.map((row) => row.workspaceId)).toEqual(
+        pinnedChats,
+      );
+    }
+    expect(filterSidebarProjects(input.projects, "all").map((project) => project.viewKey)).toEqual([
+      "project",
+      "empty",
+    ]);
+  });
+
+  it("keeps empty projects available in status mode without treating all-pinned projects as empty", () => {
+    const input = projectionInput({ groupMode: "status" });
+    input.projects = [makeProject([input.projects[0]!.workspaces[0]!]), makeProject([], "empty")];
+    const projection = buildSidebarProjection(input);
+    const emptyProjects = input.projects.filter((project) => project.workspaces.length === 0);
+    expect(emptyProjects.map((project) => project.viewKey)).toEqual(["empty"]);
+    expect(projection.projectIconTargets.map((target) => target.projectViewKey)).toEqual([
+      "project",
+      "empty",
+    ]);
+  });
+
+  it("alphabetizes empty project headers while retaining their custom order and stable ties", () => {
+    const zeta = { ...makeProject([], "zeta"), projectName: "Zeta" };
+    const alpha = { ...makeProject([], "alpha"), projectName: "Alpha" };
+    const alphaOtherHost = { ...makeProject([], "alpha-other-host"), projectName: "Alpha" };
+    const emptyProjects = [zeta, alpha, alphaOtherHost];
+    expect(sortSidebarProjectsByName({ projects: emptyProjects })).toEqual([
+      alpha,
+      alphaOtherHost,
+      zeta,
+    ]);
+    expect(emptyProjects).toEqual([zeta, alpha, alphaOtherHost]);
+  });
+
+  it("sorts project headers by name without changing their workspace order", () => {
+    const input = twoProjectInput("project");
+    const extra = makeWorkspace("extra", "needs_input");
+    input.projects[0]!.workspaces.push(extra.placement);
+    input.workspaceEntriesByKey.set(extra.entry.workspaceKey, extra.entry);
+    const projects = arrangeSidebarProjects({
+      projects: input.projects,
+      mode: "project",
+      entries: input.workspaceEntriesByKey,
+      projectNames: input.projectNamesByViewKey,
+    });
+    expect(projects.map((project) => project.viewKey)).toEqual(["other-project", "project"]);
+    expect(projects[1]).toBe(input.projects[0]);
+    expect(projects[1]!.workspaces.map((row) => row.workspaceId)).toEqual(["first", "extra"]);
+    const projection = buildSidebarProjection({ ...input, projects });
+    expect(projection.shortcutModel.shortcutTargets.map((target) => target.workspaceId)).toEqual([
+      "second",
+      "first",
+      "extra",
+    ]);
+    expect(input.projects.map((project) => project.viewKey)).toEqual(["project", "other-project"]);
+  });
+
+  it("sorts projects by aggregate status, including pinned workspaces, and keeps ties stable", () => {
+    const input = twoProjectInput("project");
+    const urgent = makeWorkspace("urgent", "needs_input");
+    input.projects[0]!.workspaces.push(urgent.placement);
+    input.workspaceEntriesByKey.set(urgent.entry.workspaceKey, urgent.entry);
+    input.pinnedKeys = { pinnedWorkspaceKeys: [urgent.placement.workspaceKey], pinnedAtByKey: {} };
+    input.projects.push(makeProject([], "empty"));
+    const projects = arrangeSidebarProjects({
+      projects: input.projects,
+      mode: "status",
+      entries: input.workspaceEntriesByKey,
+      projectNames: input.projectNamesByViewKey,
+    });
+    expect(projects.map((project) => project.viewKey)).toEqual([
+      "project",
+      "other-project",
+      "empty",
+    ]);
+    expect(projects[0]!.workspaces.map((row) => row.workspaceId)).toEqual(["first", "urgent"]);
+    input.workspaceEntriesByKey.get("srv:urgent")!.statusBucket = "done";
+    expect(
+      arrangeSidebarProjects({
+        projects: input.projects,
+        mode: "status",
+        entries: input.workspaceEntriesByKey,
+        projectNames: input.projectNamesByViewKey,
+      }).map((project) => project.viewKey),
+    ).toEqual(["other-project", "project", "empty"]);
+    expect(
+      arrangeSidebarProjects({
+        projects: input.projects,
+        mode: "custom",
+        entries: input.workspaceEntriesByKey,
+        projectNames: input.projectNamesByViewKey,
+      }),
+    ).toBe(input.projects);
+  });
+
   // The rule that outlived the bug it was written for: a project icon is fetched per project, so
   // whatever a mode groups by, the rows it produces can only reference projects already covered.
   for (const groupMode of ["project", "status"] as const) {
@@ -164,6 +382,60 @@ describe("buildSidebarProjection", () => {
     expect(projection.shortcutModel.shortcutTargets).toEqual([
       { serverId: "srv", workspaceId: "pinned" },
       { serverId: "srv", workspaceId: "unpinned" },
+    ]);
+  });
+
+  it("puts foldered projects first and numbers shortcuts in that order", () => {
+    const projection = buildSidebarProjection({
+      ...twoProjectInput("project"),
+      folders: [
+        { id: "work", name: "Work" },
+        { id: "empty", name: "Empty" },
+      ],
+      projectAssignments: [
+        { folderId: "work", refs: ["srv:other-project"] },
+        { folderId: "missing-folder", refs: ["srv:project"] },
+      ],
+    });
+
+    const { folderGroups, rootProjects } = projection.projectFolderGroups;
+    expect(folderGroups.map((group) => group.folder.id)).toEqual(["work", "empty"]);
+    expect(folderGroups[0]?.projects.map((project) => project.viewKey)).toEqual(["other-project"]);
+    expect(folderGroups[1]?.projects).toEqual([]);
+    expect(rootProjects.map((project) => project.viewKey)).toEqual(["project"]);
+    expect(projection.shortcutModel.shortcutTargets).toEqual([
+      { serverId: "srv", workspaceId: "second" },
+      { serverId: "srv", workspaceId: "first" },
+    ]);
+  });
+
+  it("keeps a project in its folder when its view key changes", () => {
+    const input = twoProjectInput("project");
+    // Same host-local project id, new grouping key, as after a git remote change.
+    const renamed = { ...input.projects[1]!, viewKey: "remote-changed" };
+    const projection = buildSidebarProjection({
+      ...input,
+      projects: [input.projects[0]!, renamed],
+      folders: [{ id: "work", name: "Work" }],
+      projectAssignments: [{ folderId: "work", refs: ["srv:other-project"] }],
+    });
+
+    expect(
+      projection.projectFolderGroups.folderGroups[0]?.projects.map((project) => project.viewKey),
+    ).toEqual(["remote-changed"]);
+  });
+
+  it("skips shortcuts for projects inside a collapsed folder", () => {
+    const projection = buildSidebarProjection({
+      ...twoProjectInput("project"),
+      folders: [{ id: "work", name: "Work" }],
+      projectAssignments: [{ folderId: "work", refs: ["srv:other-project"] }],
+      collapsedFolderIds: ["work"],
+    });
+
+    expect(projection.projectFolderGroups.folderGroups[0]?.collapsed).toBe(true);
+    expect(projection.shortcutModel.shortcutTargets).toEqual([
+      { serverId: "srv", workspaceId: "first" },
     ]);
   });
 

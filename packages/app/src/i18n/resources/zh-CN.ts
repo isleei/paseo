@@ -1259,6 +1259,22 @@ export const zhCN: TranslationResources = {
         project: "项目",
         status: "状态",
         labels: "标签",
+        emptyProjects: "单独分组空项目",
+      },
+      sorting: {
+        label: "项目排序",
+        workspaces: "工作区排序",
+        workspaceName: "工作区名称",
+        project: "项目名称",
+        status: "状态",
+        custom: "自定义顺序",
+        emptyProjects: "空项目排序",
+      },
+      projectVisibility: {
+        label: "筛选",
+        all: "所有项目",
+        unarchived: "隐藏空项目",
+        emptyGroup: "空项目",
       },
       titleSource: {
         label: "标题",
@@ -1298,6 +1314,19 @@ export const zhCN: TranslationResources = {
     },
     pinned: {
       title: "已置顶",
+    },
+    folder: {
+      title: "文件夹",
+      none: "无",
+      newFolder: "新建文件夹",
+      name: "文件夹名称",
+      create: "创建",
+      save: "保存",
+      menu: "文件夹操作",
+      rename: "重命名",
+      moveUp: "上移",
+      moveDown: "下移",
+      delete: "删除文件夹",
     },
     host: {
       noHost: "没有主机",

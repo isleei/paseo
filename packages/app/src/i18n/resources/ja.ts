@@ -1284,6 +1284,22 @@ export const ja: TranslationResources = {
         project: "プロジェクト",
         status: "ステータス",
         labels: "ラベル",
+        emptyProjects: "空のプロジェクトを別にグループ化",
+      },
+      sorting: {
+        label: "プロジェクトを並べ替え",
+        workspaces: "ワークスペースを並べ替え",
+        workspaceName: "ワークスペース名",
+        project: "プロジェクト名",
+        status: "ステータス",
+        custom: "カスタム順",
+        emptyProjects: "空のプロジェクトを並べ替え",
+      },
+      projectVisibility: {
+        label: "フィルター",
+        all: "すべてのプロジェクト",
+        unarchived: "空のプロジェクトを非表示",
+        emptyGroup: "空のプロジェクト",
       },
       titleSource: {
         label: "タイトル",
@@ -1324,6 +1340,19 @@ export const ja: TranslationResources = {
     },
     pinned: {
       title: "固定済み",
+    },
+    folder: {
+      title: "フォルダー",
+      none: "なし",
+      newFolder: "新しいフォルダー",
+      name: "フォルダー名",
+      create: "作成",
+      save: "保存",
+      menu: "フォルダーの操作",
+      rename: "名前を変更",
+      moveUp: "上へ移動",
+      moveDown: "下へ移動",
+      delete: "フォルダーを削除",
     },
     host: {
       noHost: "ホストなし",

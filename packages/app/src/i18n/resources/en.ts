@@ -1277,6 +1277,22 @@ export const en = {
         project: "Project",
         status: "Status",
         labels: "Labels",
+        emptyProjects: "Group empty projects separately",
+      },
+      sorting: {
+        label: "Sort projects",
+        workspaces: "Sort workspaces",
+        workspaceName: "Workspace name",
+        project: "Project name",
+        status: "Status",
+        custom: "Custom order",
+        emptyProjects: "Sort empty projects",
+      },
+      projectVisibility: {
+        label: "Filter",
+        all: "All projects",
+        unarchived: "Hide empty projects",
+        emptyGroup: "Empty projects",
       },
       titleSource: {
         label: "Title",
@@ -1316,6 +1332,19 @@ export const en = {
     },
     pinned: {
       title: "Pinned",
+    },
+    folder: {
+      title: "Folder",
+      none: "None",
+      newFolder: "New folder",
+      name: "Folder name",
+      create: "Create",
+      save: "Save",
+      menu: "Folder actions",
+      rename: "Rename",
+      moveUp: "Move up",
+      moveDown: "Move down",
+      delete: "Delete folder",
     },
     host: {
       noHost: "No host",

@@ -1309,6 +1309,22 @@ export const es: TranslationResources = {
         project: "Proyecto",
         status: "Estado",
         labels: "Etiquetas",
+        emptyProjects: "Agrupar los proyectos vacíos por separado",
+      },
+      sorting: {
+        label: "Ordenar proyectos",
+        workspaces: "Ordenar espacios de trabajo",
+        workspaceName: "Nombre del espacio de trabajo",
+        project: "Nombre del proyecto",
+        status: "Estado",
+        custom: "Orden personalizado",
+        emptyProjects: "Ordenar proyectos vacíos",
+      },
+      projectVisibility: {
+        label: "Filtro",
+        all: "Todos los proyectos",
+        unarchived: "Ocultar proyectos vacíos",
+        emptyGroup: "Proyectos vacíos",
       },
       titleSource: {
         label: "Título",
@@ -1348,6 +1364,19 @@ export const es: TranslationResources = {
     },
     pinned: {
       title: "Anclados",
+    },
+    folder: {
+      title: "Carpeta",
+      none: "Ninguna",
+      newFolder: "Nueva carpeta",
+      name: "Nombre de la carpeta",
+      create: "Crear",
+      save: "Guardar",
+      menu: "Acciones de carpeta",
+      rename: "Renombrar",
+      moveUp: "Mover arriba",
+      moveDown: "Mover abajo",
+      delete: "Eliminar carpeta",
     },
     host: {
       noHost: "Sin anfitrión",

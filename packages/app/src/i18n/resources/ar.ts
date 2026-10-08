@@ -1270,6 +1270,22 @@ export const ar: TranslationResources = {
         project: "المشروع",
         status: "الحالة",
         labels: "التسميات",
+        emptyProjects: "تجميع المشاريع الفارغة بشكل منفصل",
+      },
+      sorting: {
+        label: "ترتيب المشاريع",
+        workspaces: "ترتيب مساحات العمل",
+        workspaceName: "اسم مساحة العمل",
+        project: "اسم المشروع",
+        status: "الحالة",
+        custom: "ترتيب مخصص",
+        emptyProjects: "ترتيب المشاريع الفارغة",
+      },
+      projectVisibility: {
+        label: "التصفية",
+        all: "كل المشاريع",
+        unarchived: "إخفاء المشاريع الفارغة",
+        emptyGroup: "المشاريع الفارغة",
       },
       titleSource: {
         label: "العنوان",
@@ -1309,6 +1325,19 @@ export const ar: TranslationResources = {
     },
     pinned: {
       title: "المثبتة",
+    },
+    folder: {
+      title: "المجلد",
+      none: "بلا",
+      newFolder: "مجلد جديد",
+      name: "اسم المجلد",
+      create: "إنشاء",
+      save: "حفظ",
+      menu: "إجراءات المجلد",
+      rename: "إعادة التسمية",
+      moveUp: "نقل لأعلى",
+      moveDown: "نقل لأسفل",
+      delete: "حذف المجلد",
     },
     host: {
       noHost: "لا مضيف",

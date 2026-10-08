@@ -19,6 +19,7 @@ describe("migrateSidebarOrderState", () => {
 
     expect(migrated).toEqual({
       projectOrder: [],
+      statusWorkspaceOrder: [],
       pinnedWorkspaceOrder: [],
       workspaceOrderByProject: {
         "project-a": ["host-a:main", "host-a:feature", "host-b:main"],
@@ -47,6 +48,16 @@ describe("migrateSidebarOrderState", () => {
     );
 
     expect(migrated.projectOrder).toEqual(["project-b", "project-a"]);
+  });
+
+  it("preserves and normalizes status-group custom order during migration", () => {
+    expect(
+      migrateSidebarOrderState({ statusWorkspaceOrder: [" srv:one ", "srv:one", "", "srv:two"] })
+        .statusWorkspaceOrder,
+    ).toEqual(["srv:one", "srv:two"]);
+    const store = useSidebarOrderStore.getState();
+    store.setStatusWorkspaceOrder(["srv:two", "srv:two", "", "srv:one"]);
+    expect(useSidebarOrderStore.getState().statusWorkspaceOrder).toEqual(["srv:two", "srv:one"]);
   });
 
   it("normalizes pinned workspace order", () => {

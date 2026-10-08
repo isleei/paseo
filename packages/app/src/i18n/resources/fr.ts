@@ -1298,6 +1298,22 @@ export const fr: TranslationResources = {
         project: "Projet",
         status: "Statut",
         labels: "Libellés",
+        emptyProjects: "Regrouper les projets vides séparément",
+      },
+      sorting: {
+        label: "Trier les projets",
+        workspaces: "Trier les espaces de travail",
+        workspaceName: "Nom de l’espace de travail",
+        project: "Nom du projet",
+        status: "Statut",
+        custom: "Ordre personnalisé",
+        emptyProjects: "Trier les projets vides",
+      },
+      projectVisibility: {
+        label: "Filtre",
+        all: "Tous les projets",
+        unarchived: "Masquer les projets vides",
+        emptyGroup: "Projets vides",
       },
       titleSource: {
         label: "Titre",
@@ -1338,6 +1354,19 @@ export const fr: TranslationResources = {
     },
     pinned: {
       title: "Épinglés",
+    },
+    folder: {
+      title: "Dossier",
+      none: "Aucun",
+      newFolder: "Nouveau dossier",
+      name: "Nom du dossier",
+      create: "Créer",
+      save: "Enregistrer",
+      menu: "Actions du dossier",
+      rename: "Renommer",
+      moveUp: "Monter",
+      moveDown: "Descendre",
+      delete: "Supprimer le dossier",
     },
     host: {
       noHost: "Aucun hôte",
