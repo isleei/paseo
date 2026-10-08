@@ -27,6 +27,7 @@ import {
   expectPinnedUsage,
   expectSummaryInSidebar,
   expectUnpinnableRows,
+  expectUsageHidden,
   openCompactSidebar,
   openUsageFromIcon,
   openUsageFromItem,
@@ -73,20 +74,25 @@ async function footerClip(page: Page) {
 
 test.describe("Usage item", () => {
   test("both compact footer entry points open Usage as a sheet", async ({ page }) => {
-    await page.setViewportSize(COMPACT);
     await installUsageReportsFixture(page, { lists: [() => claudeAndCodexReports()] });
     await seedSidebarFooterPreferences(page, [{ key: "usage", visible: false }]);
+    // Fork hides the footer icon while the preference is off: enable it on
+    // desktop first, where the Settings sidebar section renders inline.
+    await page.setViewportSize(WIDE);
+    await gotoAppShell(page);
+    await openSidebarNavSettings(page);
+    await setFooterItemVisible(page, "usage", true);
+    await leaveSettings(page);
+    await page.setViewportSize(COMPACT);
     await gotoAppShell(page);
     await openCompactSidebar(page);
     const startingUrl = page.url();
-    await expectNoUsageItem(page);
 
     await test.step("the icon opens a sheet without leaving the current screen", async () => {
       await openUsageFromIcon(page);
       await expect(usageModal(page).getByText("Claude", { exact: true })).toBeVisible();
       await expect(page).toHaveURL(startingUrl);
       await qaScreenshot(page, "compact-usage-icon-sheet");
-      await setSummaryInSidebar(page, true);
       await expectPinnedUsage(page, ["31% 5h", "54% wk", "7% 5h", "12% wk"]);
       await closeUsageFromBackdrop(page);
     });
@@ -185,8 +191,9 @@ test.describe("Usage item", () => {
     const screen = page.getByTestId(`usage-host-${serverId}`);
 
     await test.step("a fresh device shows default windows once the Usage item is on", async () => {
-      // The Usage item starts off on every layout; turning it on stores the choice.
-      await expectNoUsageItem(page);
+      // The Usage item starts off on every layout; fork hides its icon too
+      // until the preference is on. Turning it on stores the choice.
+      await expectUsageHidden(page);
       await openSidebarNavSettings(page);
       await expectFooterItemSetting(page, "usage", false);
       await setFooterItemVisible(page, "usage", true);
@@ -381,7 +388,13 @@ test("the Usage Settings switch turns on the sidebar summary and the pins with i
   const claude = screen.getByTestId("usage-report-claude:default");
 
   await test.step("off by default: no Usage item, and rows that do not pin", async () => {
+    // Fork hides the footer icon while the preference is off, so enable it
+    // in Settings first, then switch the summary itself off in the modal.
+    await openSidebarNavSettings(page);
+    await setFooterItemVisible(page, "usage", true);
+    await leaveSettings(page);
     await openUsageFromIcon(page);
+    await setSummaryInSidebar(page, false);
     await expectNoUsageItem(page);
     await expect(claude.getByText("Session", { exact: true })).toBeVisible({ timeout: 10_000 });
     await expectUnpinnableRows(claude);

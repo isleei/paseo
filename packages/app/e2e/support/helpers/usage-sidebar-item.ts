@@ -159,6 +159,12 @@ export async function expectNoUsageItem(page: Page): Promise<void> {
   await expect(page.locator('[data-testid="sidebar-usage-icon"]:visible')).toBeVisible();
 }
 
+/** Footer preference off: neither Usage item nor Usage icon. */
+export async function expectUsageHidden(page: Page): Promise<void> {
+  await expect(page.locator('[data-testid="sidebar-usage"]:visible')).toHaveCount(0);
+  await expect(page.locator('[data-testid="sidebar-usage-icon"]:visible')).toHaveCount(0);
+}
+
 /** A window row, which is itself the pin toggle: "Claude", "Session". */
 export function pinRow(scope: Locator, source: string, window: string): Locator {
   // The row's label goes on with its percent and reset: "Pin Claude Session, 31% · resets in 2h".
@@ -186,11 +192,12 @@ export async function togglePin(scope: Locator, source: string, window: string) 
 }
 
 /**
- * The footer's Usage icon, which is there whether or not the Usage item is on. On a phone the
- * sidebar drawer has to be open.
+ * The footer's Usage icon (present only while the footer preference is on).
+ * On a phone the sidebar drawer has to be open. Scoped to the footer icon so
+ * a hidden icon fails here instead of clicking some other "Usage" button.
  */
 export async function openUsageFromIcon(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Usage", exact: true }).click({ timeout: 30_000 });
+  await page.locator('[data-testid="sidebar-usage-icon"]:visible').click({ timeout: 30_000 });
   await expect(usageModal(page)).toBeVisible();
 }
 

@@ -563,14 +563,17 @@ function SidebarFooterRows({ onBeforeNavigate }: { onBeforeNavigate?: () => void
 }
 
 /**
- * Usage stays a footer icon opening the Usage modal; the icon is always
- * present as the entry point. Only the percent summary above follows the
- * sidebar footer preference.
+ * Usage stays a footer icon opening the Usage modal; the icon follows the
+ * sidebar footer preference like the summary row does. The percent summary
+ * lives above.
  */
 function SidebarUsageButton() {
   const { t } = useTranslation();
   const { theme } = useUnistyles();
+  const { items } = useSidebarNavItems("footer");
+  const usage = items.find((item) => item.kind === "builtin" && item.id === "usage");
   const handlePress = useOpenSidebarUsage();
+  if (!usage?.visible) return null;
   return (
     <FooterIconButton
       onPress={handlePress}

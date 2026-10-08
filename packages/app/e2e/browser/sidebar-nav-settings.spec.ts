@@ -11,6 +11,7 @@ import { SHOWCASE_PLUGIN_ID, installSidebarPlugins } from "../support/helpers/pl
 import {
   expectFooterIconRow,
   expectFooterSeparator,
+  FOOTER_ICON_TEST_IDS,
   hoverFooterAddProject,
   footerScreenshot,
   expectFooterItemHidden,
@@ -34,6 +35,8 @@ import {
 
 test("fixed footer line keeps its six icons, Help and Settings at the end", async ({ page }) => {
   test.setTimeout(120_000);
+  // Hiding Usage in settings removes its footer icon too.
+  const withoutUsage = FOOTER_ICON_TEST_IDS.filter((testID) => testID !== "sidebar-usage-icon");
   await installUsageReportsFixture(page, { lists: [() => claudeAndCodexReports()] });
   await seedSidebarFooterPreferences(page, [
     { key: "add-project", visible: false },
@@ -57,12 +60,12 @@ test("fixed footer line keeps its six icons, Help and Settings at the end", asyn
   await setFooterItemVisible(page, "usage", false);
   await leaveSettings(page);
   await expectFooterSeparator(page, false);
-  await expectFooterIconRow(page);
+  await expectFooterIconRow(page, withoutUsage);
   await footerScreenshot(page, "footer-desktop-without-rows");
   await page.setViewportSize({ width: 390, height: 844 });
   await openCompactSidebar(page);
   await expectFooterSeparator(page, false);
-  await expectFooterIconRow(page);
+  await expectFooterIconRow(page, withoutUsage);
   await footerScreenshot(page, "footer-compact-without-rows");
   await page.locator('[data-testid="sidebar-add-project"]:visible').hover();
   await expect(page.getByTestId("sidebar-add-project-tooltip")).toHaveCount(0);
@@ -192,6 +195,8 @@ test.describe("Sidebar footer rows in Appearance settings", () => {
 
   test("owner reorders and hides footer rows; the icon row stays fixed", async ({ page }) => {
     test.setTimeout(120_000);
+    // Hiding Usage in settings removes its footer icon too.
+    const withoutUsage = FOOTER_ICON_TEST_IDS.filter((testID) => testID !== "sidebar-usage-icon");
     // The Usage item shows only with summary data.
     await installUsageReportsFixture(page, { lists: [() => claudeAndCodexReports()] });
     // Keys for the fixed footer icon buttons are ignored.
@@ -225,7 +230,7 @@ test.describe("Sidebar footer rows in Appearance settings", () => {
       await expect(
         page.locator(`[data-testid="plugin-sidebar-footer-${SHOWCASE_PLUGIN_ID}-sync"]:visible`),
       ).toBeVisible();
-      await expectFooterIconRow(page);
+      await expectFooterIconRow(page, withoutUsage);
       await expectFooterSeparator(page, true);
     });
 
@@ -235,7 +240,7 @@ test.describe("Sidebar footer rows in Appearance settings", () => {
         page.locator(`[data-testid="plugin-sidebar-footer-${SHOWCASE_PLUGIN_ID}-sync"]:visible`),
       ).toBeVisible({ timeout: 30_000 });
       await expectFooterItemHidden(page, "usage");
-      await expectFooterIconRow(page);
+      await expectFooterIconRow(page, withoutUsage);
       await expectFooterSeparator(page, true);
       await openSidebarNavSettings(page);
       await expectFooterSettingsKeys(page, [syncKey, "usage", brokenKey]);
