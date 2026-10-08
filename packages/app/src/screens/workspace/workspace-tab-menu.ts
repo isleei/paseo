@@ -2,6 +2,7 @@ import type { WorkspaceTabDescriptor } from "@/screens/workspace/workspace-tabs-
 import { i18n } from "@/i18n/i18next";
 import { encodeFilePathForPathSegment, encodeWorkspaceIdForPathSegment } from "@/utils/host-routes";
 import { buildDeterministicWorkspaceTabId } from "@/workspace-tabs/identity";
+import { insertMoveToWorkspaceMenuEntry } from "@/screens/workspace/workspace-tab-move";
 
 export type WorkspaceTabMenuSurface = "desktop" | "mobile";
 
@@ -32,6 +33,7 @@ export interface WorkspaceTabMenuLabels {
   closeLeft: string;
   closeRight: string;
   closeOthers: string;
+  moveToWorkspace: string;
   reloadAgent: string;
   reloadAgentTooltip: string;
   close: string;
@@ -48,6 +50,7 @@ export const DEFAULT_WORKSPACE_TAB_MENU_LABELS: WorkspaceTabMenuLabels = {
   closeLeft: i18n.t("workspace.tabs.menu.closeLeft"),
   closeRight: i18n.t("workspace.tabs.menu.closeRight"),
   closeOthers: i18n.t("workspace.tabs.menu.closeOthers"),
+  moveToWorkspace: i18n.t("workspace.tabs.menu.moveToWorkspace"),
   reloadAgent: i18n.t("workspace.tabs.menu.reloadAgent"),
   reloadAgentTooltip: i18n.t("workspace.tabs.menu.reloadAgentTooltip"),
   close: i18n.t("workspace.tabs.menu.close"),
@@ -98,6 +101,8 @@ interface BuildWorkspaceTabMenuEntriesInput {
   onCloseOtherTabs: (tabId: string) => Promise<void> | void;
   /** Provided by surfaces backed by a local desktop host. */
   fileActions?: WorkspaceTabFileActions;
+  /** Provided by surfaces that can move an agent tab into another workspace. */
+  onMoveToWorkspace?: (tab: WorkspaceTabDescriptor) => void;
   labels?: WorkspaceTabMenuLabels;
 }
 
@@ -116,6 +121,7 @@ interface BuildWorkspaceDesktopTabActionsInput {
   onCloseTabsToRight: (tabId: string) => Promise<void> | void;
   onCloseOtherTabs: (tabId: string) => Promise<void> | void;
   fileActions?: WorkspaceTabFileActions;
+  onMoveToWorkspace?: (tab: WorkspaceTabDescriptor) => void;
   labels?: WorkspaceTabMenuLabels;
 }
 
@@ -203,6 +209,7 @@ export function buildWorkspaceTabMenuEntries(
     onCloseTabsBefore,
     onCloseTabsAfter,
     onCloseOtherTabs,
+    onMoveToWorkspace,
   } = input;
   const fileActions = input.fileActions;
   const labels = input.labels ?? DEFAULT_WORKSPACE_TAB_MENU_LABELS;
@@ -362,6 +369,14 @@ export function buildWorkspaceTabMenuEntries(
     },
   });
 
+  if (onMoveToWorkspace) {
+    return insertMoveToWorkspaceMenuEntry({
+      entries,
+      tab,
+      onSelect: onMoveToWorkspace,
+      strings: { menuLabel: labels.moveToWorkspace },
+    });
+  }
   return entries;
 }
 
@@ -388,6 +403,7 @@ export function buildWorkspaceDesktopTabActions(
       onCloseTabsAfter: input.onCloseTabsToRight,
       onCloseOtherTabs: input.onCloseOtherTabs,
       fileActions: input.fileActions,
+      onMoveToWorkspace: input.onMoveToWorkspace,
       labels: input.labels,
     }),
     closeButtonTestId: getCloseButtonTestId(input.tab),
