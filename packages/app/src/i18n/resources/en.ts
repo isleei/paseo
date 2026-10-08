@@ -2371,11 +2371,23 @@ export const en = {
             "When the agent is running, Enter steers the active turn. Command/Ctrl+Enter queues.",
           queue: "When the agent is running, Enter queues. Command/Ctrl+Enter submits.",
         },
+        commandEnterDescriptions: {
+          interrupt:
+            "When the agent is running, {{modifier}}+Enter interrupts. Enter inserts a new line.",
+          steer:
+            "When the agent is running, {{modifier}}+Enter steers the active turn. Enter inserts a new line.",
+          queue: "When the agent is running, {{modifier}}+Enter queues. Enter inserts a new line.",
+        },
         options: {
           interrupt: "Interrupt",
           steer: "Steer",
           queue: "Queue",
         },
+      },
+      commandEnterToSend: {
+        label: "Send with {{modifier}}+Enter",
+        description:
+          "Enter and Shift+Enter insert a new line. {{modifier}}+Enter sends the message.",
       },
       serviceUrls: {
         options: {
@@ -2550,6 +2562,11 @@ export const en = {
       dialogTitle: "Shortcuts",
       searchPlaceholder: "Search shortcuts",
       unavailableOnMobile: "Keyboard shortcuts are only available on desktop",
+      paneFocusInTextFields: "Use pane focus shortcuts in text fields",
+      paneFocusInTextFieldsHint:
+        "Moves focus between panes instead of extending the text selection",
+      paneFocusSettingFailed: "Could not save this preference. Retry to keep it after restarting.",
+      saving: "Saving...",
       capturePrompt: "Press shortcut...",
       unassigned: "Not set",
       actions: {
@@ -2570,6 +2587,7 @@ export const en = {
         agentInput: "Agent Input",
       },
       help: {
+        renameCurrentTab: "Rename current tab",
         openProject: "Open project",
         newWorkspace: "New workspace",
         newWorktree: "New worktree",
@@ -2605,6 +2623,8 @@ export const en = {
         cycleTheme: "Cycle theme",
         focusMessageInput: "Focus message input",
         cycleAgentMode: "Cycle agent mode",
+        decreaseThinkingEffort: "Decrease thinking effort",
+        increaseThinkingEffort: "Increase thinking effort",
         toggleVoiceMode: "Toggle voice mode",
         startStopDictation: "Start/stop dictation",
         interruptAgent: "Interrupt agent",

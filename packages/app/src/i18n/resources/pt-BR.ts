@@ -2285,11 +2285,24 @@ export const ptBR: TranslationResources = {
             "Quando o agente está em execução, Enter orienta o turno ativo. Command/Ctrl+Enter enfileira.",
           queue: "Quando o agente está em execução, Enter enfileira. Command/Ctrl+Enter envia.",
         },
+        commandEnterDescriptions: {
+          interrupt:
+            "Quando o agente está em execução, {{modifier}}+Enter interrompe. Enter insere uma nova linha.",
+          steer:
+            "Quando o agente está em execução, {{modifier}}+Enter orienta o turno ativo. Enter insere uma nova linha.",
+          queue:
+            "Quando o agente está em execução, {{modifier}}+Enter enfileira. Enter insere uma nova linha.",
+        },
         options: {
           interrupt: "Interromper",
           steer: "Orientar",
           queue: "Fila",
         },
+      },
+      commandEnterToSend: {
+        label: "Enviar com {{modifier}}+Enter",
+        description:
+          "Enter e Shift+Enter inserem uma nova linha. {{modifier}}+Enter envia a mensagem.",
       },
       serviceUrls: {
         options: {
@@ -2466,6 +2479,11 @@ export const ptBR: TranslationResources = {
       dialogTitle: "Atalhos",
       searchPlaceholder: "Pesquisar atalhos",
       unavailableOnMobile: "Atalhos de teclado estão disponíveis apenas no desktop",
+      paneFocusInTextFields: "Usar atalhos de foco de painel em campos de texto",
+      paneFocusInTextFieldsHint: "Move o foco entre painéis em vez de ampliar a seleção de texto",
+      paneFocusSettingFailed:
+        "Não foi possível salvar esta preferência. Tente novamente para mantê-la após reiniciar.",
+      saving: "Salvando...",
       capturePrompt: "Pressione o atalho...",
       unassigned: "Não definido",
       actions: {
@@ -2486,6 +2504,7 @@ export const ptBR: TranslationResources = {
         agentInput: "Entrada do agente",
       },
       help: {
+        renameCurrentTab: "Renomear aba atual",
         openProject: "Abrir projeto",
         newWorkspace: "Novo workspace",
         newWorktree: "Novo worktree",
@@ -2521,6 +2540,8 @@ export const ptBR: TranslationResources = {
         cycleTheme: "Alternar tema",
         focusMessageInput: "Focar entrada de mensagem",
         cycleAgentMode: "Alternar modo do agente",
+        decreaseThinkingEffort: "Diminuir o esforço de raciocínio",
+        increaseThinkingEffort: "Aumentar o esforço de raciocínio",
         toggleVoiceMode: "Alternar modo de voz",
         startStopDictation: "Iniciar/parar ditado",
         interruptAgent: "Interromper agente",

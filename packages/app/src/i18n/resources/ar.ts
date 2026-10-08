@@ -2248,11 +2248,21 @@ export const ar: TranslationResources = {
             "عند تشغيل الوكيل، يوجّه Enter الجولة النشطة. يضيف Command/Ctrl+Enter إلى قائمة الانتظار.",
           queue: "عند تشغيل الوكيل، يضيف Enter إلى قائمة الانتظار. Command/Ctrl+Enter يرسل.",
         },
+        commandEnterDescriptions: {
+          interrupt: "عند تشغيل الوكيل، يوقف {{modifier}}+Enter التشغيل. يُدرج Enter سطرًا جديدًا.",
+          steer: "عند تشغيل الوكيل، يوجّه {{modifier}}+Enter الجولة النشطة. يُدرج Enter سطرًا جديدًا.",
+          queue:
+            "عند تشغيل الوكيل، يضيف {{modifier}}+Enter إلى قائمة الانتظار. يُدرج Enter سطرًا جديدًا.",
+        },
         options: {
           interrupt: "مقاطعة",
           steer: "توجيه",
           queue: "طابور",
         },
+      },
+      commandEnterToSend: {
+        label: "الإرسال باستخدام {{modifier}}+Enter",
+        description: "يُدرج Enter وShift+Enter سطرًا جديدًا. يرسل {{modifier}}+Enter الرسالة.",
       },
       serviceUrls: {
         options: {
@@ -2428,6 +2438,10 @@ export const ar: TranslationResources = {
       dialogTitle: "الاختصارات",
       searchPlaceholder: "البحث في الاختصارات",
       unavailableOnMobile: "اختصارات لوحة المفاتيح متاحة فقط على سطح المكتب",
+      paneFocusInTextFields: "استخدام اختصارات تركيز اللوحات في حقول النص",
+      paneFocusInTextFieldsHint: "ينقل التركيز بين اللوحات بدلاً من توسيع تحديد النص",
+      paneFocusSettingFailed: "تعذّر حفظ هذا التفضيل. أعد المحاولة للاحتفاظ به بعد إعادة التشغيل.",
+      saving: "جارٍ الحفظ...",
       capturePrompt: "اضغط على الاختصار...",
       unassigned: "غير معين",
       actions: {
@@ -2448,6 +2462,7 @@ export const ar: TranslationResources = {
         agentInput: "إدخال Agent",
       },
       help: {
+        renameCurrentTab: "إعادة تسمية علامة التبويب الحالية",
         openProject: "مشروع مفتوح",
         newWorkspace: "مساحة عمل جديدة",
         newWorktree: "شجرة عمل جديدة",
@@ -2483,6 +2498,8 @@ export const ar: TranslationResources = {
         cycleTheme: "موضوع الدورة",
         focusMessageInput: "التركيز على إدخال الرسالة",
         cycleAgentMode: "تبديل وضع الوكيل",
+        decreaseThinkingEffort: "تقليل مستوى التفكير",
+        increaseThinkingEffort: "زيادة مستوى التفكير",
         toggleVoiceMode: "تبديل الوضع الصوتي",
         startStopDictation: "بدء إملاء /stop",
         interruptAgent: "عامل المقاطعة",

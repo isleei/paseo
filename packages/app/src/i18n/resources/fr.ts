@@ -2296,11 +2296,24 @@ export const fr: TranslationResources = {
           queue:
             "Quand l’agent est en cours d’exécution, Entrée met en file d’attente. Cmd/Ctrl+Entrée envoie.",
         },
+        commandEnterDescriptions: {
+          interrupt:
+            "Lorsque l'agent est en cours d'exécution, {{modifier}}+Entrée interrompt. Entrée insère une nouvelle ligne.",
+          steer:
+            "Lorsque l'agent est en cours d'exécution, {{modifier}}+Entrée oriente le tour actif. Entrée insère une nouvelle ligne.",
+          queue:
+            "Lorsque l'agent est en cours d'exécution, {{modifier}}+Entrée met en file d'attente. Entrée insère une nouvelle ligne.",
+        },
         options: {
           interrupt: "Interrompre",
           steer: "Réorienter",
           queue: "File d’attente",
         },
+      },
+      commandEnterToSend: {
+        label: "Envoyer avec {{modifier}}+Entrée",
+        description:
+          "Entrée et Maj+Entrée insèrent une nouvelle ligne. {{modifier}}+Entrée envoie le message.",
       },
       serviceUrls: {
         options: {
@@ -2482,6 +2495,12 @@ export const fr: TranslationResources = {
       dialogTitle: "Raccourcis",
       searchPlaceholder: "Rechercher des raccourcis",
       unavailableOnMobile: "Les raccourcis clavier ne sont disponibles que sur l’app de bureau",
+      paneFocusInTextFields: "Utiliser les raccourcis de panneau dans les champs de texte",
+      paneFocusInTextFieldsHint:
+        "Déplace le focus entre les panneaux au lieu d’étendre la sélection de texte",
+      paneFocusSettingFailed:
+        "Impossible d’enregistrer cette préférence. Réessayez pour la conserver après le redémarrage.",
+      saving: "Enregistrement...",
       capturePrompt: "Appuyez sur le raccourci…",
       unassigned: "Non attribué",
       actions: {
@@ -2502,6 +2521,7 @@ export const fr: TranslationResources = {
         agentInput: "Zone de saisie",
       },
       help: {
+        renameCurrentTab: "Renommer l’onglet actuel",
         openProject: "Ouvrir un projet",
         newWorkspace: "Nouvel espace de travail",
         newWorktree: "Nouveau worktree",
@@ -2537,6 +2557,8 @@ export const fr: TranslationResources = {
         cycleTheme: "Parcourir les thèmes",
         focusMessageInput: "Aller à la zone de saisie",
         cycleAgentMode: "Parcourir les modes de l’agent",
+        decreaseThinkingEffort: "Réduire l’effort de réflexion",
+        increaseThinkingEffort: "Augmenter l’effort de réflexion",
         toggleVoiceMode: "Activer/désactiver le mode vocal",
         startStopDictation: "Démarrer/arrêter la dictée",
         interruptAgent: "Interrompre l’agent",

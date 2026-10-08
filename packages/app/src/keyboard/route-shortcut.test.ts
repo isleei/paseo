@@ -35,6 +35,8 @@ describe("routeKeyboardShortcut — dispatch passthroughs", () => {
     ["workspace.tab.target.browser", { id: "workspace.tab.target.browser", scope: "workspace" }],
     ["workspace.tab.target.changes", { id: "workspace.tab.target.changes", scope: "workspace" }],
     ["workspace.tab.target.files", { id: "workspace.tab.target.files", scope: "workspace" }],
+    ["workspace.rename", { id: "workspace.rename", scope: "workspace" }],
+    ["workspace.tab.rename-current", { id: "workspace.tab.rename-current", scope: "workspace" }],
     ["workspace.new", { id: "workspace.new", scope: "sidebar" }],
     ["workspace.project.pick", { id: "workspace.project.pick", scope: "workspace" }],
     ["workspace.archive", { id: "workspace.archive", scope: "sidebar" }],
@@ -307,6 +309,8 @@ describe("routeKeyboardShortcut — message-input.action", () => {
     ["voice-toggle", "message-input.voice-toggle"],
     ["voice-mute-toggle", "message-input.voice-mute-toggle"],
     ["mode-cycle", "message-input.mode-cycle"],
+    ["thinking-decrease", "message-input.thinking-decrease"],
+    ["thinking-increase", "message-input.thinking-increase"],
   ] as const)("kind=%s → dispatch %s", (kind, id) => {
     expect(
       routeKeyboardShortcut({ action: "message-input.action", payload: { kind } }, makeCtx()),

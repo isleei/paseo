@@ -2284,11 +2284,24 @@ export const ru: TranslationResources = {
           queue:
             "Когда агент работает, Enter ставит сообщение в очередь, а Command/Ctrl+Enter отправляет его.",
         },
+        commandEnterDescriptions: {
+          interrupt:
+            "Когда агент работает, {{modifier}}+Enter прерывает его работу, а Enter вставляет новую строку.",
+          steer:
+            "Когда агент работает, {{modifier}}+Enter дополняет текущий ответ новым указанием, а Enter вставляет новую строку.",
+          queue:
+            "Когда агент работает, {{modifier}}+Enter ставит сообщение в очередь, а Enter вставляет новую строку.",
+        },
         options: {
           interrupt: "Прерывать",
           steer: "Направить",
           queue: "Поставить в очередь",
         },
+      },
+      commandEnterToSend: {
+        label: "Отправка по {{modifier}}+Enter",
+        description:
+          "Enter и Shift+Enter вставляют новую строку. {{modifier}}+Enter отправляет сообщение.",
       },
       serviceUrls: {
         options: {
@@ -2470,6 +2483,12 @@ export const ru: TranslationResources = {
       dialogTitle: "Сочетания клавиш",
       searchPlaceholder: "Поиск сочетаний клавиш",
       unavailableOnMobile: "Сочетания клавиш доступны только на рабочем столе.",
+      paneFocusInTextFields: "Использовать сочетания перехода между панелями в текстовых полях",
+      paneFocusInTextFieldsHint:
+        "Перемещает фокус между панелями вместо расширения выделения текста",
+      paneFocusSettingFailed:
+        "Не удалось сохранить настройку. Повторите попытку, чтобы она сохранилась после перезапуска.",
+      saving: "Сохранение...",
       capturePrompt: "Нажмите сочетание клавиш...",
       unassigned: "Не задано",
       actions: {
@@ -2490,6 +2509,7 @@ export const ru: TranslationResources = {
         agentInput: "Ввод для агента",
       },
       help: {
+        renameCurrentTab: "Переименовать текущую вкладку",
         openProject: "Открыть проект",
         newWorkspace: "Новое рабочее пространство",
         newWorktree: "Новый worktree",
@@ -2525,6 +2545,8 @@ export const ru: TranslationResources = {
         cycleTheme: "Переключить тему",
         focusMessageInput: "Перейти к полю ввода сообщения",
         cycleAgentMode: "Переключить режим агента",
+        decreaseThinkingEffort: "Уменьшить глубину рассуждений",
+        increaseThinkingEffort: "Увеличить глубину рассуждений",
         toggleVoiceMode: "Переключить голосовой режим",
         startStopDictation: "Начать/остановить диктовку",
         interruptAgent: "Прервать агента",

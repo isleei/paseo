@@ -2220,11 +2220,20 @@ export const zhCN: TranslationResources = {
           steer: "Agent 运行时，Enter 会引导当前回合。Command/Ctrl+Enter 会排队。",
           queue: "Agent 运行时，Enter 会排队。Command/Ctrl+Enter 会提交。",
         },
+        commandEnterDescriptions: {
+          interrupt: "Agent 运行时，{{modifier}}+Enter 会中断。Enter 会插入换行。",
+          steer: "Agent 运行时，{{modifier}}+Enter 会引导当前回合。Enter 会插入换行。",
+          queue: "Agent 运行时，{{modifier}}+Enter 会排队。Enter 会插入换行。",
+        },
         options: {
           interrupt: "中断",
           steer: "引导",
           queue: "排队",
         },
+      },
+      commandEnterToSend: {
+        label: "使用 {{modifier}}+Enter 发送",
+        description: "Enter 和 Shift+Enter 插入换行。{{modifier}}+Enter 发送消息。",
       },
       serviceUrls: {
         options: {
@@ -2398,6 +2407,10 @@ export const zhCN: TranslationResources = {
       dialogTitle: "快捷键",
       searchPlaceholder: "搜索快捷键",
       unavailableOnMobile: "键盘快捷键仅在桌面端可用",
+      paneFocusInTextFields: "在文本框中使用面板焦点快捷键",
+      paneFocusInTextFieldsHint: "在面板之间移动焦点，而不是扩展文本选区",
+      paneFocusSettingFailed: "无法保存此设置。请重试，以便重启后保留。",
+      saving: "正在保存...",
       capturePrompt: "按下快捷键...",
       unassigned: "未设置",
       actions: {
@@ -2418,6 +2431,7 @@ export const zhCN: TranslationResources = {
         agentInput: "Agent 输入",
       },
       help: {
+        renameCurrentTab: "重命名当前标签页",
         openProject: "打开项目",
         newWorkspace: "新建 workspace",
         newWorktree: "新建 worktree",
@@ -2453,6 +2467,8 @@ export const zhCN: TranslationResources = {
         cycleTheme: "循环切换主题",
         focusMessageInput: "聚焦消息输入框",
         cycleAgentMode: "循环切换代理模式",
+        decreaseThinkingEffort: "下调思考强度",
+        increaseThinkingEffort: "上调思考强度",
         toggleVoiceMode: "切换语音模式",
         startStopDictation: "开始/停止听写",
         interruptAgent: "中断 Agent",

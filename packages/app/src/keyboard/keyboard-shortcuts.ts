@@ -169,6 +169,7 @@ export const SHORTCUT_HELP_ROW_ORDER: Record<ShortcutSectionId, readonly string[
     "workspace-next",
     "pin-workspace",
     "archive-workspace",
+    "workspace-rename",
   ],
   "tabs-panes": [
     "workspace-tab-new",
@@ -178,6 +179,7 @@ export const SHORTCUT_HELP_ROW_ORDER: Record<ShortcutSectionId, readonly string[
     "workspace-tab-target-changes",
     "workspace-tab-target-files",
     "workspace-tab-close-current",
+    "workspace-tab-rename-current",
     "workspace-tab-jump-index",
     "workspace-tab-prev",
     "workspace-tab-next",
@@ -197,6 +199,8 @@ export const SHORTCUT_HELP_ROW_ORDER: Record<ShortcutSectionId, readonly string[
   "agent-input": [
     "focus-message-input",
     "cycle-agent-mode",
+    "decrease-thinking-effort",
+    "increase-thinking-effort",
     "voice-toggle",
     "dictation-toggle",
     "agent-interrupt",
@@ -211,6 +215,8 @@ const SHORTCUT_HELP_LABEL_KEYS: Record<string, string> = {
   "new-workspace": "settings.shortcuts.help.newWorkspace",
   "switch-project": "settings.shortcuts.help.switchProject",
   "archive-workspace": "settings.shortcuts.help.archiveWorkspace",
+  "workspace-rename": "sidebar.workspace.actions.rename",
+  "workspace-tab-rename-current": "settings.shortcuts.help.renameCurrentTab",
   "workspace-tab-new": "settings.shortcuts.help.newTab",
   "workspace-tab-target-agent": "workspace.tabs.actions.newAgent",
   "workspace-tab-target-browser": "workspace.tabs.actions.newBrowser",
@@ -246,6 +252,8 @@ const SHORTCUT_HELP_LABEL_KEYS: Record<string, string> = {
   "cycle-theme": "settings.shortcuts.help.cycleTheme",
   "focus-message-input": "settings.shortcuts.help.focusMessageInput",
   "cycle-agent-mode": "settings.shortcuts.help.cycleAgentMode",
+  "decrease-thinking-effort": "settings.shortcuts.help.decreaseThinkingEffort",
+  "increase-thinking-effort": "settings.shortcuts.help.increaseThinkingEffort",
   "voice-toggle": "settings.shortcuts.help.toggleVoiceMode",
   "dictation-toggle": "settings.shortcuts.help.startStopDictation",
   "agent-interrupt": "settings.shortcuts.help.interruptAgent",
@@ -261,6 +269,26 @@ const SHORTCUT_HELP_NOTE_KEYS: Record<string, string> = {
 // --- Binding definitions ---
 
 const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
+  {
+    id: "workspace-rename",
+    action: "workspace.rename",
+    combo: "",
+    repeat: false,
+    when: { commandCenter: false },
+    help: { id: "workspace-rename", section: "workspaces", label: "Rename workspace" },
+  },
+  {
+    id: "workspace-tab-rename-current",
+    action: "workspace.tab.rename-current",
+    combo: "",
+    repeat: false,
+    when: { commandCenter: false },
+    help: {
+      id: "workspace-tab-rename-current",
+      section: "tabs-panes",
+      label: "Rename current tab",
+    },
+  },
   // --- Open project ---
   // Open project moved from Cmd+Shift+O to Cmd+O. The binding ids intentionally
   // keep their original "cmd-shift-o" / "ctrl-shift-o" names: user shortcut
@@ -1078,6 +1106,32 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
     },
   },
   {
+    id: "message-input-thinking-decrease",
+    action: "message-input.action",
+    combo: "Alt+,",
+    repeat: false,
+    when: { commandCenter: false, focusScope: "message-input" },
+    payload: { type: "message-input", kind: "thinking-decrease" },
+    help: {
+      id: "decrease-thinking-effort",
+      section: "agent-input",
+      label: "Decrease thinking effort",
+    },
+  },
+  {
+    id: "message-input-thinking-increase",
+    action: "message-input.action",
+    combo: "Alt+.",
+    repeat: false,
+    when: { commandCenter: false, focusScope: "message-input" },
+    payload: { type: "message-input", kind: "thinking-increase" },
+    help: {
+      id: "increase-thinking-effort",
+      section: "agent-input",
+      label: "Increase thinking effort",
+    },
+  },
+  {
     id: "message-input-mode-cycle-shift-tab",
     action: "message-input.action",
     combo: "Shift+Tab",
@@ -1260,8 +1314,27 @@ export const DEFAULT_BINDINGS: readonly ParsedShortcutBinding[] =
 
 export type ShortcutOverrides = Record<string, string | null>;
 
-export function buildEffectiveBindings(overrides: ShortcutOverrides): ParsedShortcutBinding[] {
-  return DEFAULT_BINDINGS.map(function (binding) {
+/** Keep number-group actions bound to all nine indices when recording a new modifier. */
+export function normalizeCapturedShortcutCombo(bindingId: string, combo: string): string {
+  const binding = DEFAULT_BINDINGS.find((candidate) => candidate.id === bindingId);
+  if (binding?.payload?.type !== "index") return combo;
+  return combo.replace(/(^|\+)[1-9]$/, "$1Digit");
+}
+
+export interface ShortcutBindingOptions {
+  paneFocusInTextFields?: boolean;
+}
+
+export function buildEffectiveBindings(
+  overrides: ShortcutOverrides,
+  options: ShortcutBindingOptions = {},
+): ParsedShortcutBinding[] {
+  return DEFAULT_BINDINGS.map(function (defaultBinding) {
+    const allowInTextFields =
+      options.paneFocusInTextFields && defaultBinding.action.startsWith("workspace.pane.focus.");
+    const binding = allowInTextFields
+      ? { ...defaultBinding, when: { ...defaultBinding.when, editable: undefined } }
+      : defaultBinding;
     const override = overrides[binding.id];
     if (override === UNASSIGNED_COMBO) {
       return { ...binding, combo: "", parsedChord: [] };

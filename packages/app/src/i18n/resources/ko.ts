@@ -2259,11 +2259,23 @@ export const ko: TranslationResources = {
           queue:
             "에이전트가 실행 중일 때 Enter는 대기열에 추가합니다. Command/Ctrl+Enter는 제출합니다.",
         },
+        commandEnterDescriptions: {
+          interrupt:
+            "에이전트가 실행 중일 때 {{modifier}}+Enter는 중단합니다. Enter는 줄바꿈합니다.",
+          steer:
+            "에이전트가 실행 중일 때 {{modifier}}+Enter는 현재 턴에 지시합니다. Enter는 줄바꿈합니다.",
+          queue:
+            "에이전트가 실행 중일 때 {{modifier}}+Enter는 대기열에 추가합니다. Enter는 줄바꿈합니다.",
+        },
         options: {
           interrupt: "중단",
           steer: "지시",
           queue: "대기열",
         },
+      },
+      commandEnterToSend: {
+        label: "{{modifier}}+Enter로 보내기",
+        description: "Enter와 Shift+Enter는 줄바꿈합니다. {{modifier}}+Enter로 메시지를 보냅니다.",
       },
       serviceUrls: {
         options: {
@@ -2438,6 +2450,11 @@ export const ko: TranslationResources = {
       dialogTitle: "단축키",
       searchPlaceholder: "검색 단축키",
       unavailableOnMobile: "키보드 단축키는 데스크톱에서만 사용할 수 있습니다",
+      paneFocusInTextFields: "입력창에서 패널 포커스 단축키 사용",
+      paneFocusInTextFieldsHint: "텍스트 선택 영역을 확장하는 대신 패널 사이로 포커스를 이동합니다",
+      paneFocusSettingFailed:
+        "설정을 저장하지 못했습니다. 재시작 후에도 유지하려면 다시 시도하세요.",
+      saving: "저장 중...",
       capturePrompt: "단축키를 누르세요...",
       unassigned: "설정되지 않음",
       actions: {
@@ -2458,6 +2475,7 @@ export const ko: TranslationResources = {
         agentInput: "에이전트 입력",
       },
       help: {
+        renameCurrentTab: "현재 탭 이름 변경",
         openProject: "프로젝트 열기",
         newWorkspace: "새 워크스페이스",
         newWorktree: "새 워크트리",
@@ -2493,6 +2511,8 @@ export const ko: TranslationResources = {
         cycleTheme: "테마 순환",
         focusMessageInput: "메시지 입력란에 포커스",
         cycleAgentMode: "에이전트 모드 전환",
+        decreaseThinkingEffort: "추론 강도 낮추기",
+        increaseThinkingEffort: "추론 강도 높이기",
         toggleVoiceMode: "음성 모드 토글",
         startStopDictation: "받아쓰기 시작/중지",
         interruptAgent: "에이전트 중단",

@@ -2302,11 +2302,24 @@ export const es: TranslationResources = {
           queue:
             "Cuando el agente se está ejecutando, Enter pone en cola. Command/Ctrl+Enter envía.",
         },
+        commandEnterDescriptions: {
+          interrupt:
+            "Cuando el agente se está ejecutando, {{modifier}}+Enter interrumpe. Enter inserta una línea nueva.",
+          steer:
+            "Cuando el agente se está ejecutando, {{modifier}}+Enter dirige el turno activo. Enter inserta una línea nueva.",
+          queue:
+            "Cuando el agente se está ejecutando, {{modifier}}+Enter pone en cola. Enter inserta una línea nueva.",
+        },
         options: {
           interrupt: "Interrumpir",
           steer: "Dirigir",
           queue: "Cola",
         },
+      },
+      commandEnterToSend: {
+        label: "Enviar con {{modifier}}+Enter",
+        description:
+          "Intro y Mayús+Intro insertan una línea nueva. {{modifier}}+Intro envía el mensaje.",
       },
       serviceUrls: {
         options: {
@@ -2485,6 +2498,12 @@ export const es: TranslationResources = {
       dialogTitle: "Atajos",
       searchPlaceholder: "Buscar atajos",
       unavailableOnMobile: "Los atajos de teclado solo están disponibles en el escritorio",
+      paneFocusInTextFields: "Usar atajos de foco de panel en campos de texto",
+      paneFocusInTextFieldsHint:
+        "Mueve el foco entre paneles en lugar de ampliar la selección de texto",
+      paneFocusSettingFailed:
+        "No se pudo guardar esta preferencia. Reintenta para conservarla al reiniciar.",
+      saving: "Guardando...",
       capturePrompt: "Presione el acceso directo...",
       unassigned: "Sin asignar",
       actions: {
@@ -2505,6 +2524,7 @@ export const es: TranslationResources = {
         agentInput: "EntradaAgent",
       },
       help: {
+        renameCurrentTab: "Renombrar la pestaña actual",
         openProject: "Abrir proyecto",
         newWorkspace: "Nuevo espacio de trabajo",
         newWorktree: "Nuevo árbol de trabajo",
@@ -2540,6 +2560,8 @@ export const es: TranslationResources = {
         cycleTheme: "Tema del ciclo",
         focusMessageInput: "Entrada de mensaje de enfoque",
         cycleAgentMode: "Alternar modo del agente",
+        decreaseThinkingEffort: "Reducir el esfuerzo de razonamiento",
+        increaseThinkingEffort: "Aumentar el esfuerzo de razonamiento",
         toggleVoiceMode: "Alternar modo de voz",
         startStopDictation: "Iniciar dictado/stop",
         interruptAgent: "agente de interrupción",

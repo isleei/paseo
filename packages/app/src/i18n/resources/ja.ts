@@ -2268,11 +2268,22 @@ export const ja: TranslationResources = {
             "エージェント実行中、Enterで現在のターンに指示を送ります。Command/Ctrl+Enterでキューに追加。",
           queue: "エージェント実行中、Enterでキューに追加します。Command/Ctrl+Enterで送信。",
         },
+        commandEnterDescriptions: {
+          interrupt: "エージェント実行中、{{modifier}}+Enterで中断します。Enterで改行します。",
+          steer:
+            "エージェント実行中、{{modifier}}+Enterで現在のターンに指示を送ります。Enterで改行します。",
+          queue: "エージェント実行中、{{modifier}}+Enterでキューに追加します。Enterで改行します。",
+        },
         options: {
           interrupt: "中断",
           steer: "指示",
           queue: "キュー",
         },
+      },
+      commandEnterToSend: {
+        label: "{{modifier}}+Enter で送信",
+        description:
+          "Enter と Shift+Enter は改行します。{{modifier}}+Enter でメッセージを送信します。",
       },
       serviceUrls: {
         options: {
@@ -2449,6 +2460,12 @@ export const ja: TranslationResources = {
       dialogTitle: "ショートカット",
       searchPlaceholder: "ショートカットを検索",
       unavailableOnMobile: "キーボードショートカットはデスクトップでのみ利用できます",
+      paneFocusInTextFields: "テキスト入力欄でペイン移動のショートカットを使う",
+      paneFocusInTextFieldsHint:
+        "テキストの選択範囲を広げる代わりにペイン間でフォーカスを移動します",
+      paneFocusSettingFailed:
+        "この設定を保存できませんでした。再起動後も保持するには再試行してください。",
+      saving: "保存中...",
       capturePrompt: "ショートカットを押してください...",
       unassigned: "未設定",
       actions: {
@@ -2469,6 +2486,7 @@ export const ja: TranslationResources = {
         agentInput: "エージェント入力",
       },
       help: {
+        renameCurrentTab: "現在のタブの名前を変更",
         openProject: "プロジェクトを開く",
         newWorkspace: "新しいワークスペース",
         newWorktree: "新しいワークツリー",
@@ -2504,6 +2522,8 @@ export const ja: TranslationResources = {
         cycleTheme: "テーマを順に切り替え",
         focusMessageInput: "メッセージ入力にフォーカス",
         cycleAgentMode: "エージェントモードを順に切り替え",
+        decreaseThinkingEffort: "思考の強度を下げる",
+        increaseThinkingEffort: "思考の強度を上げる",
         toggleVoiceMode: "音声モードを切り替え",
         startStopDictation: "音声入力を開始/停止",
         interruptAgent: "エージェントを中断",

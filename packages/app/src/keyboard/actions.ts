@@ -14,7 +14,9 @@ export type MessageInputKeyboardActionKind =
   | "dictation-confirm"
   | "voice-toggle"
   | "voice-mute-toggle"
-  | "mode-cycle";
+  | "mode-cycle"
+  | "thinking-decrease"
+  | "thinking-increase";
 
 export type KeyboardActionId =
   | "agent.interrupt"
@@ -26,6 +28,8 @@ export type KeyboardActionId =
   | "workspace.tab.target.browser"
   | "workspace.tab.target.changes"
   | "workspace.tab.target.files"
+  | "workspace.tab.rename-current"
+  | "workspace.rename"
   | "workspace.tab.close.current"
   | "workspace.tab.navigate.index"
   | "workspace.tab.navigate.relative"
