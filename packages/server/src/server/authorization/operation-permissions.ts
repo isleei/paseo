@@ -313,6 +313,7 @@ const OUTBOUND_PERMISSION = {
   fetch_recent_provider_sessions_response: "workspace.read",
   fetch_workspaces_response: ["workspace.read", "hub.execute"],
   "file.upload.response": "workspace.write",
+  "file.upload.update": "workspace.write",
   file_download_token_response: "workspace.read",
   file_explorer_response: "workspace.read",
   "forge.search.response": "workspace.read",

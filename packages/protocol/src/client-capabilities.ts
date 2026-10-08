@@ -45,6 +45,11 @@ export const CLIENT_CAPS = {
   pluginTimelineItems: "plugin_timeline_items",
   // COMPAT(workspaceSetupBlocked): added in v0.8.0, remove after 2027-03-07 once client floor >= v0.8.0.
   workspaceSetupBlocked: "workspace_setup_blocked",
+  // COMPAT(fileUploadProgress): added in v0.11.1-fork. The daemon acknowledges written
+  // upload bytes only to clients that advertise this; older clients reject an
+  // unrecognized message that carries their upload's requestId.
+  // Remove the gate after 2027-04-09 once the supported client floor supports fileUploadProgress.
+  fileUploadProgress: "file_upload_progress",
   browserHost: "browser_host",
 } as const;
 

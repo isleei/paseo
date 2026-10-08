@@ -179,6 +179,7 @@ export const ar: TranslationResources = {
       openImage: "فتح مرفق الصورة",
       removeImage: "إزالة مرفق الصورة",
       removeFile: "Remove file attachment",
+      cancelUpload: "إلغاء الرفع",
       openGithub: "افتح {{kind}} {{number}}",
       removeGithub: "إزالة {{kind}} {{number}}",
       element: "عنصر",

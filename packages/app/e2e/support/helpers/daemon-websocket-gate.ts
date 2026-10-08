@@ -313,6 +313,12 @@ export async function installDaemonWebSocketGate(page: Page) {
   const heldServerMessages: HeldServerMessage[] = [];
   const heldServerMessageWaiters = new Set<() => void>();
   const suppressedServerMessageTypes = new Set<string>();
+  // From the first message a pause matches, every later message of its type
+  // queues behind it, in order, until the pause is released.
+  const serverMessagePauses = new Map<
+    string,
+    { from: (message: ClientRequest) => boolean; queued: Array<() => void> | null }
+  >();
   const suppressedAgentStreamEventTypes = new Set<string>();
   const suppressedAgentStreamItemTypes = new Set<string>();
   const activeSockets = new Set<WebSocketRoute>();
@@ -445,6 +451,18 @@ export async function installDaemonWebSocketGate(page: Page) {
     return true;
   };
 
+  function pauseServerMessage(input: {
+    browser: WebSocketRoute;
+    message: string | Buffer;
+    parsed: ClientRequest | null;
+  }): boolean {
+    if (typeof input.parsed?.type !== "string") return false;
+    const pause = serverMessagePauses.get(input.parsed.type);
+    if (!pause || (!pause.queued && !pause.from(input.parsed))) return false;
+    (pause.queued ??= []).push(() => input.browser.send(input.message));
+    return true;
+  }
+
   await page.routeWebSocket(daemonWsRoutePattern(), (ws) => {
     if (!acceptingConnections) {
       blockedConnectionCount += 1;
@@ -534,6 +552,8 @@ export async function installDaemonWebSocketGate(page: Page) {
           return;
         }
       }
+      if (pauseServerMessage({ browser: ws, message: outboundMessage, parsed: serverMessage }))
+        return;
       if (holdServerMessage({ browser: ws, message: outboundMessage, parsed: serverMessage }))
         return;
       if (holdReadyFileUpdate(ws, outboundMessage, fileMessage)) return;
@@ -644,6 +664,14 @@ export async function installDaemonWebSocketGate(page: Page) {
       heldClientRequest.server.send(heldClientRequest.message);
       heldClientRequest = null;
       heldClientRequestType = null;
+    },
+    pauseServerMessagesFrom(type: string, from: (message: ClientRequest) => boolean): void {
+      serverMessagePauses.set(type, { from, queued: null });
+    },
+    releaseServerMessagePause(type: string): void {
+      const pause = serverMessagePauses.get(type);
+      serverMessagePauses.delete(type);
+      for (const send of pause?.queued ?? []) send();
     },
     holdNextServerMessage(type: string): void {
       pendingServerMessageHolds.set(serverMessageKey(type), {
