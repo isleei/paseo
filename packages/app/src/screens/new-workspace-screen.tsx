@@ -15,6 +15,15 @@ import { StyleSheet, useUnistyles, withUnistyles } from "react-native-unistyles"
 import { createNameId } from "mnemonic-id";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Folder, FolderPlus, GitBranch, GitPullRequest } from "lucide-react-native";
+import {
+  useWorktreeOptions,
+  worktreePickerOptions,
+  useWorktreeBranchChoice,
+} from "./new-workspace/use-worktree-options";
+import {
+  WorktreeBranchPicker,
+  type WorktreeBranchPickerProps,
+} from "./new-workspace/worktree-branch-picker";
 import { Composer } from "@/composer";
 import { ComposerDock } from "@/composer/dock";
 import { FileDropZone } from "@/components/file-drop/file-drop-zone";
@@ -103,7 +112,6 @@ import {
   remapDraftCwdToWorkspace,
 } from "./new-workspace-fork-context";
 import {
-  buildPickerOptionData,
   defaultBasePickerItem,
   pickerItemLabel,
   pickerItemToCheckoutRequest,
@@ -747,10 +755,15 @@ function useWorkspaceIsolation(input: {
   };
 }
 
-function isolationLabel(t: TFunction, isolation: "local" | "worktree"): string {
-  return isolation === "worktree"
-    ? t("newWorkspace.isolation.worktree")
-    : t("newWorkspace.isolation.local");
+/** Labels Local with its live branch without changing the selected checkout. */
+function isolationLabel(
+  t: TFunction,
+  isolation: "local" | "worktree",
+  currentBranch?: string | null,
+): string {
+  if (isolation === "worktree") return t("newWorkspace.isolation.worktree");
+  const localLabel = t("newWorkspace.isolation.local");
+  return currentBranch ? `${localLabel} · ${currentBranch}` : localLabel;
 }
 
 function normalizeBranchDetails(
@@ -818,6 +831,7 @@ async function createMultiplicityWorkspace(input: {
   project: HostProjectListItem;
   sourceDirectory: string;
   checkoutRequest: PickerCheckoutRequest | undefined;
+  source?: CreateWorkspaceRequestOptions["source"];
   withInitialAgent: boolean;
   agent?: CreateWorkspaceRequestOptions["agent"];
   onEvent?: (snapshot: CreationSnapshot) => void;
@@ -841,19 +855,21 @@ async function createMultiplicityWorkspace(input: {
     idempotencyKey: input.idempotencyKey,
     agent: input.agent,
     onEvent: input.onEvent,
-    source: isWorktree
-      ? {
-          kind: "worktree",
-          cwd: input.sourceDirectory,
-          projectId,
-          worktreeSlug: input.worktreeSlug,
-          ...input.checkoutRequest,
-        }
-      : {
-          kind: "directory",
-          path: input.sourceDirectory,
-          projectId,
-        },
+    source:
+      input.source ??
+      (isWorktree
+        ? {
+            kind: "worktree",
+            cwd: input.sourceDirectory,
+            projectId,
+            worktreeSlug: input.worktreeSlug,
+            ...input.checkoutRequest,
+          }
+        : {
+            kind: "directory",
+            path: input.sourceDirectory,
+            projectId,
+          }),
     ...(firstAgentContext ? { firstAgentContext } : {}),
   });
   if (payload.error || !payload.workspace) {
@@ -1521,6 +1537,10 @@ interface NewWorkspaceFormStackInput {
   };
   isolation: FormPickerControl & {
     effectiveIsolation: "local" | "worktree";
+    selectedId: string;
+    selectedLabel: string;
+    footer?: ReactNode;
+    emptyText?: string;
     options: ComboboxOptionType[];
     onSelect: (id: string) => void;
     renderOption: RefPickerRenderOption;
@@ -1537,7 +1557,10 @@ interface NewWorkspaceFormStackInput {
     emptyText: string;
     renderOption: RefPickerRenderOption;
     showRefPicker: boolean;
+    refLabel: string | null;
+    refPrefix: string | null;
   };
+  branchChoice: WorktreeBranchPickerProps | null;
   launch: {
     serverId: string;
     target: LaunchTarget;
@@ -1577,6 +1600,7 @@ function renderNewWorkspaceFormStackLayout(input: {
   projectControl: ReactElement;
   hostControl: ReactElement | null;
   isolationControl: ReactElement | null;
+  branchModeControl: ReactElement | null;
   baseControl: ReactElement | null;
   launchControl: ReactElement;
 }): ReactElement {
@@ -1586,6 +1610,7 @@ function renderNewWorkspaceFormStackLayout(input: {
     projectControl,
     hostControl,
     isolationControl,
+    branchModeControl,
     baseControl,
     launchControl,
   } = input;
@@ -1595,6 +1620,7 @@ function renderNewWorkspaceFormStackLayout(input: {
         <FormRow>{projectControl}</FormRow>
         {hostControl ? <FormRow>{hostControl}</FormRow> : null}
         {!standalone && isolationControl ? <FormRow>{isolationControl}</FormRow> : null}
+        {!standalone && branchModeControl ? <FormRow>{branchModeControl}</FormRow> : null}
         {!standalone && baseControl ? <FormRow>{baseControl}</FormRow> : null}
         {!standalone ? <FormRow>{launchControl}</FormRow> : null}
         {standalone || isolationControl ? null : (
@@ -1614,6 +1640,7 @@ function renderNewWorkspaceFormStackLayout(input: {
       {projectControl}
       {hostControl}
       {standalone ? null : isolationControl}
+      {standalone ? null : branchModeControl}
       {standalone ? null : baseControl}
       {standalone ? null : <View style={styles.launchSpacer} pointerEvents="none" />}
       {standalone ? null : launchControl}
@@ -1629,7 +1656,7 @@ function useNewWorkspaceFormStack(input: NewWorkspaceFormStackInput): ReactEleme
   const selectedHostLabel =
     host.allHosts.find((h) => h.serverId === host.selectedServerId)?.label ?? "Host";
   const showHostControl = host.allHosts.length > 1;
-  const isolationTriggerLabel = isolationLabel(t, isolation.effectiveIsolation);
+  const isolationTriggerLabel = isolation.selectedLabel;
   const addProjectAction = useMemo(
     () => <AddProjectPickerAction onPress={project.onAddProject} />,
     [project.onAddProject],
@@ -1642,6 +1669,15 @@ function useNewWorkspaceFormStack(input: NewWorkspaceFormStackInput): ReactEleme
   );
 
   const desktopControlStyle = getDesktopControlStyle(isCompact);
+  const branchModeControl = input.branchChoice ? (
+    <View style={desktopControlStyle}>
+      <WorktreeBranchPicker
+        {...input.branchChoice}
+        disabled={isPending}
+        badgePressableStyle={badgePressableStyle}
+      />
+    </View>
+  ) : null;
 
   const projectControl = (
     <View style={desktopControlStyle}>
@@ -1734,7 +1770,7 @@ function useNewWorkspaceFormStack(input: NewWorkspaceFormStackInput): ReactEleme
       />
       <Combobox
         options={isolation.options}
-        value={isolation.effectiveIsolation}
+        value={isolation.selectedId}
         onSelect={isolation.onSelect}
         title={t("newWorkspace.isolation.label")}
         open={isolation.openState}
@@ -1742,6 +1778,10 @@ function useNewWorkspaceFormStack(input: NewWorkspaceFormStackInput): ReactEleme
         desktopPlacement="bottom-start"
         anchorRef={isolation.anchorRef}
         renderOption={isolation.renderOption}
+        searchable
+        searchPlaceholder="Search worktrees"
+        emptyText={isolation.emptyText}
+        footer={isolation.footer}
       />
     </View>
   ) : null;
@@ -1754,9 +1794,9 @@ function useNewWorkspaceFormStack(input: NewWorkspaceFormStackInput): ReactEleme
         disabled={isPending || !base.selectedSourceDirectory}
         badgePressableStyle={badgePressableStyle}
         selectedItem={base.selectedItem}
-        triggerLabel={base.triggerLabel}
-        accessibilityLabel={t("newWorkspace.refPicker.startingRef")}
-        tooltipLabel={t("newWorkspace.tooltips.startingRef")}
+        triggerLabel={base.refPrefix ? `${base.refPrefix} ${base.triggerLabel}` : base.triggerLabel}
+        accessibilityLabel={base.refLabel ?? t("newWorkspace.refPicker.startingRef")}
+        tooltipLabel={base.refLabel ?? t("newWorkspace.tooltips.startingRef")}
         iconColor={theme.colors.foregroundMuted}
         iconSize={theme.iconSize.sm}
       />
@@ -1765,8 +1805,12 @@ function useNewWorkspaceFormStack(input: NewWorkspaceFormStackInput): ReactEleme
         value={base.selectedOptionId}
         onSelect={base.onSelect}
         searchable
-        searchPlaceholder={t("newWorkspace.refPicker.searchPlaceholder")}
-        title={t("newWorkspace.refPicker.title")}
+        searchPlaceholder={
+          base.refLabel === "Branch to use"
+            ? "Search branches"
+            : t("newWorkspace.refPicker.searchPlaceholder")
+        }
+        title={base.refLabel ?? t("newWorkspace.refPicker.title")}
         open={base.openState}
         onOpenChange={base.onOpenChange}
         onSearchQueryChange={base.setSearchQuery}
@@ -1795,6 +1839,7 @@ function useNewWorkspaceFormStack(input: NewWorkspaceFormStackInput): ReactEleme
     projectControl,
     hostControl,
     isolationControl,
+    branchModeControl,
     baseControl,
     launchControl,
   });
@@ -1809,7 +1854,16 @@ function shouldShowTerminalComposer(isTerminalLaunch: boolean, standalone: boole
 }
 
 function renderErrorMessage(errorMessage: string | null): ReactElement | null {
-  return errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null;
+  return errorMessage ? (
+    <Text testID="new-workspace-create-error" style={styles.errorText}>
+      {errorMessage}
+    </Text>
+  ) : null;
+}
+
+/** Repository queries need an open picker, a connected host and a selected source directory. */
+function isPickerQueryEnabled(open: boolean, ready: boolean, hasSourceDirectory: boolean): boolean {
+  return open && ready && hasSourceDirectory;
 }
 
 export function NewWorkspaceScreen({
@@ -1850,6 +1904,8 @@ export function NewWorkspaceScreen({
   });
   // COMPAT(workspaceMultiplicity): added in v0.1.97, drop the gate when floor >= v0.1.97
   const supportsWorkspaceMultiplicity = useHostFeature(selectedServerId, "workspaceMultiplicity");
+  // COMPAT(workspaceWorktreeOptions): added in v0.11.1-fork, remove after 2027-04-09.
+  const supportsWorktreeOptions = useHostFeature(selectedServerId, "workspaceWorktreeOptions");
   const supportsForgeSearch = useHostFeature(selectedServerId, "forgeSearch");
   const [creationIdentity] = useState(() => ({
     draftId: draftId ?? generateDraftId(),
@@ -1861,6 +1917,7 @@ export function NewWorkspaceScreen({
   >({ workspace: null });
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [branchChoiceOpen, setBranchChoiceOpen] = useState(false);
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   const openAddProjectPicker = useOpenAddProject();
   const [isolationPickerOpen, setIsolationPickerOpen] = useState(false);
@@ -1993,12 +2050,22 @@ export function NewWorkspaceScreen({
 
   const clientReady = isConnected && Boolean(client);
   const hasSelectedSourceDirectory = selectedSourceDirectory !== null;
-  const pickerQueryEnabled = pickerOpen && clientReady && hasSelectedSourceDirectory;
+  const pickerQueryEnabled = isPickerQueryEnabled(
+    pickerOpen,
+    clientReady,
+    hasSelectedSourceDirectory,
+  );
+  const branchQueryEnabled = isPickerQueryEnabled(
+    pickerOpen || branchChoiceOpen,
+    clientReady,
+    hasSelectedSourceDirectory,
+  );
 
   const { status: checkoutStatus } = useCheckoutStatusQuery({
     serverId: selectedServerId,
     cwd: selectedSourceDirectory ?? "",
   });
+  const currentBranch = checkoutStatus?.currentBranch;
 
   const worktreeSupport = selectedProject
     ? getWorktreeSupportForHostProject({ project: selectedProject, serverId: selectedServerId })
@@ -2028,7 +2095,7 @@ export function NewWorkspaceScreen({
         limit: 20,
       });
     },
-    enabled: pickerQueryEnabled,
+    enabled: branchQueryEnabled,
     staleTime: 15_000,
   });
 
@@ -2053,18 +2120,40 @@ export function NewWorkspaceScreen({
     return githubPrSearchQuery.data?.items ?? [];
   }, [forgeSearchAuthenticated, githubPrSearchQuery.data?.items]);
 
-  const baseItem = useMemo(
+  const rawBaseItem = useMemo(
     () => selectedItem ?? (checkoutStatus ? defaultBasePickerItem(checkoutStatus) : null),
     [checkoutStatus, selectedItem],
   );
+  const worktreeOptions = useWorktreeOptions({
+    supported: supportsWorktreeOptions,
+    enabled: clientReady,
+    pickerOpen: isolationPickerOpen,
+    canCreateWorktree,
+    showRefPicker,
+    isolationLabel: isolationLabel(t, effectiveIsolation, currentBranch),
+    serverId: selectedServerId,
+    cwd: selectedSourceDirectory,
+    withClient: withConnectedClient,
+    item: rawBaseItem,
+    isolation: effectiveIsolation,
+    compact: isCompact,
+    pending: isPending,
+  });
+  const {
+    baseItem,
+    existing: existingWorktree,
+    select: selectWorktreeOption,
+    prepareSource,
+  } = worktreeOptions;
   const { options, itemById, selectedOptionId }: PickerOptionData = useMemo(
     () =>
-      buildPickerOptionData({
+      worktreePickerOptions({
         branchDetails,
         prItems,
         baseItem,
+        checkout: worktreeOptions.checkoutMode,
       }),
-    [baseItem, branchDetails, prItems],
+    [baseItem, branchDetails, prItems, worktreeOptions.checkoutMode],
   );
   const triggerLabel = useMemo(() => {
     const displayItem = itemById.get(selectedOptionId);
@@ -2093,6 +2182,15 @@ export function NewWorkspaceScreen({
     [itemById, selectPickerItem],
   );
 
+  const branchChoice = useWorktreeBranchChoice({
+    branchMode: worktreeOptions.branchMode,
+    branchDetails,
+    baseItem: rawBaseItem,
+    onSelectItem: selectPickerItem,
+    onSearchQueryChange: setPickerSearchQuery,
+    onOpenChange: setBranchChoiceOpen,
+  });
+
   const clearPickerSelectionForTargetChange = useCallback(
     (currentTargetId: string, nextTargetId: string) => {
       const nextAttachments = clearPickerPrAttachmentForTargetChange({
@@ -2100,9 +2198,10 @@ export function NewWorkspaceScreen({
         currentTargetId,
         nextTargetId,
       });
-      if (nextAttachments === chatDraft.attachments) return;
-      chatDraft.setAttachments(nextAttachments);
+      if (currentTargetId === nextTargetId) return;
+      // Branch selections belong to a repository even when no PR attachment needs clearing.
       dispatchPickerSelection({ type: "target-changed" });
+      if (nextAttachments !== chatDraft.attachments) chatDraft.setAttachments(nextAttachments);
     },
     [chatDraft],
   );
@@ -2167,17 +2266,22 @@ export function NewWorkspaceScreen({
   // "New worktree" is omitted entirely (not disabled) when the project isn't a
   // git checkout, since worktree isolation is impossible there.
   const isolationOptions = useMemo<ComboboxOptionType[]>(() => {
-    const localOption = { id: "local", label: isolationLabel(t, "local") };
+    const localOption = { id: "local", label: isolationLabel(t, "local", currentBranch) };
     if (!canCreateWorktree) return [localOption];
-    return [localOption, { id: "worktree", label: isolationLabel(t, "worktree") }];
-  }, [canCreateWorktree, t]);
+    return [
+      localOption,
+      { id: "worktree", label: isolationLabel(t, "worktree") },
+      ...worktreeOptions.options,
+    ];
+  }, [canCreateWorktree, worktreeOptions.options, currentBranch, t]);
 
   const handleSelectIsolationOption = useCallback(
     (id: string) => {
+      selectWorktreeOption(id);
       setIsolation(id === "worktree" ? "worktree" : "local");
       setIsolationPickerOpen(false);
     },
-    [setIsolation],
+    [setIsolation, selectWorktreeOption],
   );
 
   const renderIsolationOption = useCallback(
@@ -2242,7 +2346,8 @@ export function NewWorkspaceScreen({
         throw new Error("Choose a host for this project");
       }
       const connectedClient = withConnectedClient();
-      const createsWorktree = !supportsWorkspaceMultiplicity || effectiveIsolation === "worktree";
+      const createsWorktree =
+        !existingWorktree && (!supportsWorkspaceMultiplicity || effectiveIsolation === "worktree");
       const checkoutStatusForCreate = createsWorktree
         ? await ensureCheckoutStatus({
             queryClient,
@@ -2264,6 +2369,11 @@ export function NewWorkspaceScreen({
         project: selectedProject,
         sourceDirectory: selectedSourceDirectory,
         checkoutRequest,
+        source: await prepareSource({
+          createsWorktree,
+          projectId: getHostProjectId(selectedProject, selectedServerId)!,
+          refName: checkoutRequest?.refName,
+        }),
         withInitialAgent: input.withInitialAgent,
         prompt: input.prompt,
         attachments: input.attachments,
@@ -2279,6 +2389,8 @@ export function NewWorkspaceScreen({
     [
       creationIdentity,
       creationResult,
+      existingWorktree,
+      prepareSource,
       effectiveIsolation,
       mergeWorkspaces,
       queryClient,
@@ -2513,6 +2625,7 @@ export function NewWorkspaceScreen({
     isCompact,
     isPending,
     standalone,
+    branchChoice,
     project: {
       anchorRef: projectPickerAnchorRef,
       open: openProjectPicker,
@@ -2540,6 +2653,7 @@ export function NewWorkspaceScreen({
       anchorRef: isolationPickerAnchorRef,
       open: openIsolationPicker,
       effectiveIsolation,
+      ...worktreeOptions.isolationProps,
       options: isolationOptions,
       onSelect: handleSelectIsolationOption,
       openState: isolationPickerOpen,
@@ -2561,7 +2675,9 @@ export function NewWorkspaceScreen({
       setSearchQuery: setPickerSearchQuery,
       emptyText: pickerEmptyText,
       renderOption: renderPickerOption,
-      showRefPicker,
+      showRefPicker: worktreeOptions.showRefPicker,
+      refLabel: worktreeOptions.refLabel,
+      refPrefix: worktreeOptions.refPrefix,
     },
     launch: {
       serverId: selectedServerId,
@@ -2658,7 +2774,13 @@ export function NewWorkspaceScreen({
         <NewWorkspaceLayout
           isCompact={isCompact}
           title={t(screenTitleKey)}
-          formStack={formStack}
+          formStack={
+            <>
+              {formStack}
+              {standaloneVariant(standalone, null, worktreeOptions.fields)}
+              {standaloneVariant(standalone, null, worktreeOptions.error)}
+            </>
+          }
           onImportSession={importSession.open}
         >
           {composer}
@@ -2742,6 +2864,7 @@ const styles = StyleSheet.create((theme) => ({
   },
   formStackDesktop: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     // Matches the gap between the composer and the Import session pill below it.
     marginBottom: theme.spacing[4],
@@ -2755,7 +2878,8 @@ const styles = StyleSheet.create((theme) => ({
   },
   desktopControl: {
     minWidth: 0,
-    flexShrink: 1,
+    maxWidth: "100%",
+    flexShrink: 0,
   },
   // The row's left inset matches the heading's text x (composerTitleContainer
   // paddingLeft) so the control aligns with the "New workspace" glyph. The badge
