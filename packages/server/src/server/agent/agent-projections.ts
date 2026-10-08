@@ -113,6 +113,12 @@ export function toAgentPayload(
   });
 
   const payload: AgentSnapshotPayload = {
+    ...(agent.config.settingsProfile
+      ? {
+          settingsProfileId: agent.config.settingsProfile.id,
+          settingsProfileName: agent.config.settingsProfile.name,
+        }
+      : {}),
     id: agent.id,
     provider: agent.provider,
     cwd: agent.cwd,
@@ -212,6 +218,7 @@ export function buildStoredAgentPayload(
     supportsRewindBoth: false,
   } as const;
 
+  const settingsProfile = record.config?.settingsProfile;
   const createdAt = new Date(record.createdAt);
   const updatedAt = new Date(resolveStoredAgentUpdatedAt(record));
   const lastUserMessageAt = record.lastUserMessageAt ? new Date(record.lastUserMessageAt) : null;
@@ -223,6 +230,9 @@ export function buildStoredAgentPayload(
   );
 
   return {
+    ...(settingsProfile
+      ? { settingsProfileId: settingsProfile.id, settingsProfileName: settingsProfile.name }
+      : {}),
     id: record.id,
     provider: record.provider,
     cwd: record.cwd,
@@ -255,6 +265,12 @@ export function buildStoredAgentPayload(
 
 export function toAgentListItemPayload(agent: AgentSnapshotPayload): AgentListItemPayload {
   return {
+    ...(agent.settingsProfileId !== undefined
+      ? { settingsProfileId: agent.settingsProfileId }
+      : {}),
+    ...(agent.settingsProfileName !== undefined
+      ? { settingsProfileName: agent.settingsProfileName }
+      : {}),
     id: agent.id,
     shortId: agent.id.slice(0, 7),
     title: agent.title,
@@ -319,6 +335,9 @@ function buildSerializableConfig(config: AgentSessionConfig): SerializableAgentC
     serializable.toolPolicy = {
       preapproved: config.toolPolicy.preapproved.map((grant) => ({ ...grant })),
     };
+  }
+  if (config.settingsProfile) {
+    serializable.settingsProfile = config.settingsProfile;
   }
   if (config.systemPrompt) {
     serializable.systemPrompt = config.systemPrompt;

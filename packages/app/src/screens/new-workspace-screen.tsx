@@ -809,6 +809,7 @@ type NewWorkspaceComposerState = NonNullable<
 >;
 
 interface WorkspaceDraftSubmissionConfig {
+  settingsProfileId?: string;
   cwd: string;
   provider: AgentProvider;
   modeId: string | null;
@@ -1037,6 +1038,7 @@ function buildWorkspaceDraftSetupFromComposer(input: {
   composerState: NewWorkspaceComposerState;
 }): WorkspaceDraftTabSetup {
   return {
+    settingsProfileId: input.composerState.settingsProfileId,
     provider: input.provider,
     cwd: input.cwd,
     modeId: input.composerState.selectedMode || null,
@@ -1071,6 +1073,7 @@ function buildComposerInitialValues(input: {
 }): CreateAgentInitialValues | undefined {
   if (input.initialSetup) {
     return {
+      settingsProfileId: input.initialSetup.settingsProfileId,
       provider: input.initialSetup.provider,
       modeId: input.initialSetup.modeId,
       model: input.initialSetup.model,
@@ -1122,6 +1125,7 @@ async function createWorkspaceChatAgent(input: CreateChatAgentInput): Promise<Su
       modeId: composerState.selectedMode || undefined,
       model: composerState.effectiveModelId || undefined,
       thinkingOptionId: composerState.effectiveThinkingOptionId || undefined,
+      settingsProfileId: composerState.settingsProfileId,
       featureValues: composerState.featureValues,
     },
     initialPrompt: text,
@@ -1188,12 +1192,14 @@ function buildComposerConfig(input: {
   serverId: string;
   workspaceDirectory: string | null;
   sourceDirectory: string | null;
-  initialSetup?: WorkspaceDraftTabSetup | null;
+  pendingSetup?: PendingWorkspaceDraftSetup | null;
 }): Parameters<typeof useAgentInputDraft>[0]["composer"] {
-  const { serverId, workspaceDirectory, sourceDirectory, initialSetup } = input;
+  const { serverId, workspaceDirectory, sourceDirectory, pendingSetup } = input;
+  const initialSetup = pendingSetup?.setup;
   const workingDir = workspaceDirectory || sourceDirectory || undefined;
   return {
     initialServerId: serverId || null,
+    initialSettingsProfileServerId: pendingSetup?.serverId,
     initialValues: buildComposerInitialValues({ initialSetup }),
     initialFeatureValues: initialSetup?.featureValues,
     isVisible: true,
@@ -1224,17 +1230,23 @@ function resolveWorkspaceDraftSubmissionConfig(input: {
   if (initialSetup) {
     return {
       cwd: initialSetup.cwd,
+      settingsProfileId: composerState.settingsProfileId,
       provider: initialSetup.provider,
       modeId: initialSetup.modeId,
       model: initialSetup.model,
       thinkingOptionId: initialSetup.thinkingOptionId,
       featureValues: initialSetup.featureValues,
-      target: { kind: "draft", draftId, setup: initialSetup },
+      target: {
+        kind: "draft",
+        draftId,
+        setup: { ...initialSetup, settingsProfileId: composerState.settingsProfileId },
+      },
     };
   }
   return {
     cwd: workspaceDirectory,
     provider,
+    settingsProfileId: composerState.settingsProfileId,
     modeId: composerState.selectedMode || null,
     model: composerState.effectiveModelId || null,
     thinkingOptionId: composerState.effectiveThinkingOptionId || null,
@@ -1289,6 +1301,7 @@ function submitWorkspaceDraft(input: SubmitDraftInput): SubmitOutcome {
     draftId,
     text: text.trim(),
     attachments,
+    settingsProfileId: submission.settingsProfileId,
     cwd: submission.cwd,
     provider: submission.provider,
     clientMessageId,
@@ -2019,7 +2032,7 @@ export function NewWorkspaceScreen({
       serverId: selectedServerId,
       workspaceDirectory: workspace?.workspaceDirectory ?? null,
       sourceDirectory: selectedSourceDirectory,
-      initialSetup: forkDraftSetup?.setup,
+      pendingSetup: forkDraftSetup,
     }),
   });
   const composerState = chatDraft.composerState;

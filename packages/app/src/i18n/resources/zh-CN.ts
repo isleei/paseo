@@ -2763,6 +2763,12 @@ export const zhCN: TranslationResources = {
         save: "保存",
         emptyState: "暂无配置。添加配置后即可使用指定命令启动终端。",
       },
+      agentSettingsProfiles: {
+        promptHint: "使用此配置的新聊天的指令",
+        title: "设置配置",
+        defaultName: "默认",
+        manage: "管理配置",
+      },
       agentProfiles: {
         sectionTitle: "智能体配置",
         unavailable: "连接到这个主机以管理智能体配置",

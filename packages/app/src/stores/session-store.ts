@@ -71,6 +71,8 @@ export interface AgentRuntimeInfo {
 }
 
 export interface Agent {
+  settingsProfileId?: string;
+  settingsProfileName?: string;
   serverId: string;
   id: string;
   provider: AgentProvider;

@@ -1,4 +1,8 @@
 import { PluginRegistryIdentitySchema } from "./plugin-registry.js";
+import {
+  AgentSettingsProfilePatchSchema,
+  AgentSettingsProfilesSchema,
+} from "./agent-settings-profile.js";
 import { AgentProfileSchema, AgentSkillSelectionSchema } from "./agent-profile.js";
 export {
   AgentProfileSchema,
@@ -205,6 +209,7 @@ export const MutableDaemonConfigSchema = z
     appendSystemPrompt: z.string().default(""),
     terminalProfiles: z.array(TerminalProfileSchema).optional(),
     agentProfiles: z.array(AgentProfileSchema).optional(),
+    agentSettingsProfiles: AgentSettingsProfilesSchema.optional(),
     skills: z.object({ selection: AgentSkillSelectionSchema.optional() }).strict().optional(),
     pluginsEnabled: z.boolean().optional(),
     plugins: z.record(PluginIdSchema, PluginSourceSchema).optional(),
@@ -227,6 +232,9 @@ export const MutableDaemonConfigPatchSchema = z
     appendSystemPrompt: z.string().optional(),
     terminalProfiles: z.array(TerminalProfileSchema).optional(),
     agentProfiles: z.array(AgentProfileSchema).optional(),
+    agentSettingsProfiles: AgentSettingsProfilesSchema.optional(),
+    agentSettingsProfilePatch: AgentSettingsProfilePatchSchema.optional(),
+    expectedAgentSettingsProfiles: AgentSettingsProfilesSchema.nullable().optional(),
     pluginsEnabled: z.boolean().optional(),
     plugins: z.record(PluginIdSchema, PluginSourceSchema).optional(),
   })
@@ -448,6 +456,7 @@ const AgentSessionConfigSchema = z.object({
   providerOptions: ProviderOptionsSchema.optional(),
   toolPolicy: ToolPolicySchema.optional(),
   systemPrompt: z.string().optional(),
+  settingsProfileId: z.string().optional(),
   mcpServers: z.record(z.string(), McpServerConfigSchema).optional(),
 });
 
@@ -820,6 +829,8 @@ export const AgentRetryStateSchema = z.object({
 export type AgentRetryState = z.infer<typeof AgentRetryStateSchema>;
 
 export const AgentSnapshotPayloadSchema = z.object({
+  settingsProfileId: z.string().optional(),
+  settingsProfileName: z.string().optional(),
   id: z.string(),
   provider: AgentProviderSchema,
   cwd: z.string(),
@@ -854,6 +865,8 @@ export const AgentSnapshotPayloadSchema = z.object({
 export type AgentSnapshotPayload = z.infer<typeof AgentSnapshotPayloadSchema>;
 
 export const AgentListItemPayloadSchema = z.object({
+  settingsProfileId: z.string().optional(),
+  settingsProfileName: z.string().optional(),
   id: z.string(),
   shortId: z.string(),
   title: z.string().nullable(),
@@ -1591,7 +1604,7 @@ function agentSkillsRequest<const Type extends string>(type: Type) {
 
 export const AgentSkillsGetStatusRequestSchema = agentSkillsRequest(
   "agent.skills.get_status.request",
-);
+).extend({ profileId: z.string().min(1).optional() });
 export const AgentSkillsReconcileRequestSchema = agentSkillsRequest(
   "agent.skills.reconcile.request",
 );
@@ -1604,6 +1617,7 @@ export const AgentSkillsSaveSelectionRequestSchema = z
     requestId: z.string(),
     selection: AgentSkillSelectionSchema,
     confirmedRemovals: z.array(z.string()).optional(),
+    profileId: z.string().min(1).optional(),
   })
   .strict();
 export const AgentSkillsImportLegacySelectionRequestSchema = z
@@ -3795,6 +3809,9 @@ export const ServerInfoStatusPayloadSchema = z
         // agentProfiles to one is silently dropped. The client hides the feature
         // rather than letting a save appear to succeed.
         agentProfiles: z.boolean().optional(),
+        // COMPAT(agentSettingsProfiles): added in v0.11, remove after 2027-04-05.
+        // The not-yet-released capability includes scoped preset writes.
+        agentSettingsProfiles: z.boolean().optional(),
         // COMPAT(agentConfigApply): added in v0.3.2, remove gate after 2027-02-11.
         agentConfigApply: z.boolean().optional(),
       })
