@@ -237,6 +237,14 @@ export const zhCN: TranslationResources = {
     },
   },
   agentStream: {
+    linkMenu: {
+      openInPaseo: "在 Paseo 中打开",
+      openInBrowser: "在默认浏览器中打开",
+      copyFilePath: "复制文件路径",
+      openWithDefaultApp: "用默认软件打开",
+      revealIn: "在 {{target}} 中显示",
+      fileManagerFallback: "文件管理器",
+    },
     empty: "开始和这个 Agent 对话...",
     scrollToBottom: "滚动到底部",
     historyLoadFailed: "无法加载智能体历史记录",
@@ -289,6 +297,13 @@ export const zhCN: TranslationResources = {
     tooManyMatches: "匹配过多 — 请缩小搜索范围",
     hostLoadFailed: "{{host}}：无法加载历史",
     searchPlaceholder: "搜索历史",
+    projectFilter: {
+      label: "项目",
+      all: "全部项目",
+      title: "按项目筛选",
+      empty: "已加载的历史中没有项目",
+      emptyFiltered: "已加载的页面中没有「{{project}}」的会话",
+    },
     actions: {
       newStandalone: "新建独立会话",
       loadMore: "加载更多",
@@ -297,6 +312,7 @@ export const zhCN: TranslationResources = {
   },
   agentList: {
     fallbackTitle: "新会话",
+    filterByProject: "只看 {{project}} 的会话",
     dateSections: {
       recent: "最近",
       today: "今天",
@@ -644,6 +660,7 @@ export const zhCN: TranslationResources = {
         copyAgentId: "复制 Agent ID",
         copyTerminalId: "复制 Terminal ID",
         copyFilePath: "Copy file path",
+        openWithDefaultApp: "用默认应用打开",
         rename: "重命名",
         closeAbove: "关闭上方标签",
         closeBelow: "关闭下方标签",
@@ -2403,6 +2420,8 @@ export const zhCN: TranslationResources = {
         toggleVoiceMode: "切换语音模式",
         startStopDictation: "开始/停止听写",
         interruptAgent: "中断 Agent",
+        forkChatInNewTab: "将对话分叉到新标签页",
+        forkChatInNewWorkspace: "将对话分叉到新工作区",
         sendMessage: "发送消息",
         queueMessage: "消息排队",
         muteUnmuteVoiceMode: "静音/取消静音语音模式",

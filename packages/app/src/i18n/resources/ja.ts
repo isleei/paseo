@@ -239,6 +239,14 @@ export const ja: TranslationResources = {
     },
   },
   agentStream: {
+    linkMenu: {
+      openInPaseo: "Paseo で開く",
+      openInBrowser: "デフォルトのブラウザで開く",
+      copyFilePath: "ファイルパスをコピー",
+      openWithDefaultApp: "既定のアプリで開く",
+      revealIn: "{{target}} で表示",
+      fileManagerFallback: "ファイルマネージャー",
+    },
     empty: "このエージェントとチャットを始めましょう...",
     scrollToBottom: "下にスクロール",
     historyLoadFailed: "エージェントの履歴を読み込めませんでした",
@@ -294,6 +302,13 @@ export const ja: TranslationResources = {
     tooManyMatches: "一致が多すぎます — 検索条件を絞ってください",
     hostLoadFailed: "{{host}}: 履歴を読み込めませんでした",
     searchPlaceholder: "履歴を検索",
+    projectFilter: {
+      label: "プロジェクト",
+      all: "すべてのプロジェクト",
+      title: "プロジェクトで絞り込み",
+      empty: "読み込み済みの履歴にプロジェクトがありません",
+      emptyFiltered: "読み込み済みのページに {{project}} のセッションがありません",
+    },
     actions: {
       newStandalone: "新しいスタンドアロンセッション",
       loadMore: "さらに読み込む",
@@ -302,6 +317,7 @@ export const ja: TranslationResources = {
   },
   agentList: {
     fallbackTitle: "新しいセッション",
+    filterByProject: "{{project}} の履歴で絞り込み",
     dateSections: {
       recent: "最近",
       today: "今日",
@@ -650,6 +666,7 @@ export const ja: TranslationResources = {
         copyAgentId: "エージェントIDをコピー",
         copyTerminalId: "ターミナルIDをコピー",
         copyFilePath: "ファイルパスをコピー",
+        openWithDefaultApp: "既定のアプリで開く",
         rename: "名前を変更",
         closeAbove: "上のタブを閉じる",
         closeBelow: "下のタブを閉じる",
@@ -2452,6 +2469,8 @@ export const ja: TranslationResources = {
         toggleVoiceMode: "音声モードを切り替え",
         startStopDictation: "音声入力を開始/停止",
         interruptAgent: "エージェントを中断",
+        forkChatInNewTab: "チャットを新しいタブにフォーク",
+        forkChatInNewWorkspace: "チャットを新しいワークスペースにフォーク",
         sendMessage: "メッセージを送信",
         queueMessage: "メッセージをキューに追加",
         muteUnmuteVoiceMode: "音声モードのミュートを切り替え",

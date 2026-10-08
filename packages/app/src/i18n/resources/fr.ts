@@ -240,6 +240,14 @@ export const fr: TranslationResources = {
     },
   },
   agentStream: {
+    linkMenu: {
+      openInPaseo: "Ouvrir dans Paseo",
+      openInBrowser: "Ouvrir dans le navigateur par défaut",
+      copyFilePath: "Copier le chemin du fichier",
+      openWithDefaultApp: "Ouvrir avec l'application par défaut",
+      revealIn: "Afficher dans {{target}}",
+      fileManagerFallback: "gestionnaire de fichiers",
+    },
     empty: "Commencez à discuter avec cet agent…",
     scrollToBottom: "Faire défiler vers le bas",
     historyLoadFailed: "Impossible de charger l’historique de l’agent",
@@ -294,6 +302,13 @@ export const fr: TranslationResources = {
     tooManyMatches: "Trop de résultats — affinez la recherche",
     hostLoadFailed: "{{host}} : impossible de charger l’historique",
     searchPlaceholder: "Rechercher dans l’historique",
+    projectFilter: {
+      label: "Projet",
+      all: "Tous les projets",
+      title: "Filtrer par projet",
+      empty: "Aucun projet dans l'historique chargé",
+      emptyFiltered: "Aucune session pour {{project}} dans les pages chargées",
+    },
     actions: {
       newStandalone: "Nouvelle session autonome",
       loadMore: "Charger plus",
@@ -302,6 +317,7 @@ export const fr: TranslationResources = {
   },
   agentList: {
     fallbackTitle: "Nouvelle session",
+    filterByProject: "Filtrer l’historique par {{project}}",
     dateSections: {
       recent: "Récents",
       today: "Aujourd’hui",
@@ -649,6 +665,7 @@ export const fr: TranslationResources = {
         copyAgentId: "Copier l’ID de l’agent",
         copyTerminalId: "Copier l’ID du terminal",
         copyFilePath: "Copier le chemin du fichier",
+        openWithDefaultApp: "Ouvrir avec l’application par défaut",
         rename: "Renommer",
         closeAbove: "Fermer les onglets au-dessus",
         closeBelow: "Fermer les onglets en dessous",
@@ -2484,6 +2501,8 @@ export const fr: TranslationResources = {
         toggleVoiceMode: "Activer/désactiver le mode vocal",
         startStopDictation: "Démarrer/arrêter la dictée",
         interruptAgent: "Interrompre l’agent",
+        forkChatInNewTab: "Forker la discussion dans un nouvel onglet",
+        forkChatInNewWorkspace: "Forker la discussion dans un nouvel espace de travail",
         sendMessage: "Envoyer le message",
         queueMessage: "Mettre le message en file d’attente",
         muteUnmuteVoiceMode: "Couper/réactiver le micro en mode vocal",

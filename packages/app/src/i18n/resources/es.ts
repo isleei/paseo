@@ -239,6 +239,14 @@ export const es: TranslationResources = {
     },
   },
   agentStream: {
+    linkMenu: {
+      openInPaseo: "Abrir en Paseo",
+      openInBrowser: "Abrir en el navegador predeterminado",
+      copyFilePath: "Copiar ruta del archivo",
+      openWithDefaultApp: "Abrir con la aplicación predeterminada",
+      revealIn: "Mostrar en {{target}}",
+      fileManagerFallback: "gestor de archivos",
+    },
     empty: "Comience a chatear con este agente...",
     scrollToBottom: "Desplazarse hacia abajo",
     historyLoadFailed: "No se pudo cargar el historial del agente",
@@ -294,6 +302,13 @@ export const es: TranslationResources = {
     tooManyMatches: "Demasiadas coincidencias: acota la búsqueda",
     hostLoadFailed: "{{host}}: No se pudo cargar el historial",
     searchPlaceholder: "Buscar en el historial",
+    projectFilter: {
+      label: "Proyecto",
+      all: "Todos los proyectos",
+      title: "Filtrar por proyecto",
+      empty: "No hay proyectos en el historial cargado",
+      emptyFiltered: "No hay sesiones de {{project}} en las páginas cargadas",
+    },
     actions: {
       newStandalone: "Nueva sesión independiente",
       loadMore: "Cargar más",
@@ -302,6 +317,7 @@ export const es: TranslationResources = {
   },
   agentList: {
     fallbackTitle: "Nueva sesión",
+    filterByProject: "Filtrar el historial por {{project}}",
     dateSections: {
       recent: "Reciente",
       today: "Hoy",
@@ -650,6 +666,7 @@ export const es: TranslationResources = {
         copyAgentId: "Copiar ID del agente",
         copyTerminalId: "Copiar ID del terminal",
         copyFilePath: "Copy file path",
+        openWithDefaultApp: "Abrir con la aplicación predeterminada",
         rename: "Rebautizar",
         closeAbove: "Cerrar pestañas arriba",
         closeBelow: "Cerrar pestañas a continuación",
@@ -2486,6 +2503,8 @@ export const es: TranslationResources = {
         toggleVoiceMode: "Alternar modo de voz",
         startStopDictation: "Iniciar dictado/stop",
         interruptAgent: "agente de interrupción",
+        forkChatInNewTab: "Bifurcar el chat en una pestaña nueva",
+        forkChatInNewWorkspace: "Bifurcar el chat en un espacio de trabajo nuevo",
         sendMessage: "enviar mensaje",
         queueMessage: "mensaje de cola",
         muteUnmuteVoiceMode: "Silenciar el modo de voz/unmute",

@@ -138,6 +138,7 @@ import {
   buildWorkspaceTabMenuEntries,
   type WorkspaceTabMenuLabels,
 } from "@/screens/workspace/workspace-tab-menu";
+import { useWorkspaceTabFileActions } from "@/workspace/open-in-file-manager/tab-file-actions";
 import { useDesktopBrowserNewTabRequests } from "@/desktop/browser/new-tab-requests";
 import type { WorkspaceTabDescriptor } from "@/screens/workspace/workspace-tabs-types";
 import {
@@ -206,6 +207,7 @@ import { PluginHeaderButtons } from "@/plugins";
 import {
   createWorkspaceFileTabTarget,
   normalizeWorkspaceFileLocation,
+  resolveWorkspaceFilePaths,
   type WorkspaceFileLocation,
   type WorkspaceFileOpenRequest,
 } from "@/workspace/file-open";
@@ -578,6 +580,10 @@ function MobileWorkspaceTabOption({
     [t],
   );
   const menuTestIDBase = `workspace-tab-menu-${tab.tabId}`;
+  const fileActions = useWorkspaceTabFileActions({
+    serverId: normalizedServerId,
+    workspaceId: normalizedWorkspaceId,
+  });
   const menuEntries = buildWorkspaceTabMenuEntries({
     surface: "mobile",
     tab,
@@ -594,6 +600,7 @@ function MobileWorkspaceTabOption({
     onCloseTabsBefore: onCloseTabsAbove,
     onCloseTabsAfter: onCloseTabsBelow,
     onCloseOtherTabs,
+    fileActions: fileActions ?? undefined,
     labels: tabMenuLabels,
   });
 
@@ -2746,14 +2753,19 @@ function WorkspaceScreenContent({
   const handleCopyFilePath = useCallback(
     async (path: string) => {
       if (!path) return;
+      // Tab targets can be workspace-relative (files opened from the explorer);
+      // copy the absolute path so it can be pasted straight into a shell.
+      const resolved = workspaceDirectory
+        ? resolveWorkspaceFilePaths({ path, workspaceRoot: workspaceDirectory })
+        : null;
       try {
-        await Clipboard.setStringAsync(path);
+        await Clipboard.setStringAsync(resolved?.absolutePath ?? path);
         toast.copied(t("workspace.tabs.toasts.filePathCopiedLabel"));
       } catch {
         toast.error(t("workspace.tabs.toasts.copyFailed"));
       }
     },
-    [toast, t],
+    [toast, t, workspaceDirectory],
   );
 
   const handleCopyResumeCommand = useCallback(

@@ -233,6 +233,14 @@ export const en = {
     },
   },
   agentStream: {
+    linkMenu: {
+      openInPaseo: "Open in Paseo",
+      openInBrowser: "Open in default browser",
+      copyFilePath: "Copy file path",
+      openWithDefaultApp: "Open with default app",
+      revealIn: "Reveal in {{target}}",
+      fileManagerFallback: "file manager",
+    },
     empty: "Start chatting with this agent...",
     scrollToBottom: "Scroll to bottom",
     historyLoadFailed: "Couldn't load agent history",
@@ -286,6 +294,13 @@ export const en = {
     tooManyMatches: "Too many matches — narrow your search",
     hostLoadFailed: "{{host}}: Could not load history",
     searchPlaceholder: "Search history",
+    projectFilter: {
+      label: "Project",
+      all: "All projects",
+      title: "Filter by project",
+      empty: "No projects in the loaded history",
+      emptyFiltered: "No sessions for {{project}} in the loaded pages",
+    },
     actions: {
       newStandalone: "New standalone session",
       loadMore: "Load more",
@@ -294,6 +309,7 @@ export const en = {
   },
   agentList: {
     fallbackTitle: "New session",
+    filterByProject: "Filter history by {{project}}",
     dateSections: {
       recent: "Recent",
       today: "Today",
@@ -641,6 +657,7 @@ export const en = {
         copyAgentId: "Copy agent id",
         copyTerminalId: "Copy terminal id",
         copyFilePath: "Copy file path",
+        openWithDefaultApp: "Open with default app",
         rename: "Rename",
         closeAbove: "Close tabs above",
         closeBelow: "Close tabs below",
@@ -2554,6 +2571,8 @@ export const en = {
         toggleVoiceMode: "Toggle voice mode",
         startStopDictation: "Start/stop dictation",
         interruptAgent: "Interrupt agent",
+        forkChatInNewTab: "Fork chat in new tab",
+        forkChatInNewWorkspace: "Fork chat in new workspace",
         sendMessage: "Send message",
         queueMessage: "Queue message",
         muteUnmuteVoiceMode: "Mute/unmute voice mode",

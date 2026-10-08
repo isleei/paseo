@@ -237,6 +237,14 @@ export const ko: TranslationResources = {
     },
   },
   agentStream: {
+    linkMenu: {
+      openInPaseo: "Paseo에서 열기",
+      openInBrowser: "기본 브라우저에서 열기",
+      copyFilePath: "파일 경로 복사",
+      openWithDefaultApp: "기본 앱으로 열기",
+      revealIn: "{{target}}에서 보기",
+      fileManagerFallback: "파일 관리자",
+    },
     empty: "이 에이전트와 대화를 시작하세요...",
     scrollToBottom: "맨 아래로 스크롤",
     historyLoadFailed: "에이전트 기록을 로드할 수 없습니다.",
@@ -290,6 +298,13 @@ export const ko: TranslationResources = {
     tooManyMatches: "일치 항목이 너무 많습니다 — 검색 범위를 좁히세요",
     hostLoadFailed: "{{host}}: 기록을 불러오지 못했습니다",
     searchPlaceholder: "기록 검색",
+    projectFilter: {
+      label: "프로젝트",
+      all: "모든 프로젝트",
+      title: "프로젝트별 필터",
+      empty: "불러온 기록에 프로젝트가 없습니다",
+      emptyFiltered: "불러온 페이지에 {{project}} 세션이 없습니다",
+    },
     actions: {
       newStandalone: "새 독립 세션",
       loadMore: "더 불러오기",
@@ -298,6 +313,7 @@ export const ko: TranslationResources = {
   },
   agentList: {
     fallbackTitle: "새 세션",
+    filterByProject: "{{project}} 기록으로 필터",
     dateSections: {
       recent: "최근",
       today: "오늘",
@@ -645,6 +661,7 @@ export const ko: TranslationResources = {
         copyAgentId: "에이전트 ID 복사",
         copyTerminalId: "터미널 ID 복사",
         copyFilePath: "파일 경로 복사",
+        openWithDefaultApp: "기본 앱으로 열기",
         rename: "이름 변경",
         closeAbove: "위쪽 탭 닫기",
         closeBelow: "아래쪽 탭 닫기",
@@ -2442,6 +2459,8 @@ export const ko: TranslationResources = {
         toggleVoiceMode: "음성 모드 토글",
         startStopDictation: "받아쓰기 시작/중지",
         interruptAgent: "에이전트 중단",
+        forkChatInNewTab: "채팅을 새 탭으로 분기",
+        forkChatInNewWorkspace: "채팅을 새 워크스페이스로 분기",
         sendMessage: "메시지 보내기",
         queueMessage: "메시지 대기열에 추가",
         muteUnmuteVoiceMode: "음성 모드 음소거/해제",

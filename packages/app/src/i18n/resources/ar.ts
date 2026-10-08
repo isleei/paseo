@@ -237,6 +237,14 @@ export const ar: TranslationResources = {
     },
   },
   agentStream: {
+    linkMenu: {
+      openInPaseo: "الفتح في Paseo",
+      openInBrowser: "الفتح في المتصفح الافتراضي",
+      copyFilePath: "نسخ مسار الملف",
+      openWithDefaultApp: "الفتح بالتطبيق الافتراضي",
+      revealIn: "الإظهار في {{target}}",
+      fileManagerFallback: "مدير الملفات",
+    },
     empty: "ابدأ الدردشة مع هذا الوكيل...",
     scrollToBottom: "قم بالتمرير إلى الأسفل",
     historyLoadFailed: "تعذر تحميل سجل الوكيل",
@@ -289,6 +297,13 @@ export const ar: TranslationResources = {
     tooManyMatches: "نتائج كثيرة جدًا — ضيّق نطاق البحث",
     hostLoadFailed: "{{host}}: تعذر تحميل السجل",
     searchPlaceholder: "البحث في السجل",
+    projectFilter: {
+      label: "المشروع",
+      all: "كل المشاريع",
+      title: "التصفية حسب المشروع",
+      empty: "لا توجد مشاريع في السجل المحمّل",
+      emptyFiltered: "لا توجد جلسات لـ {{project}} في الصفحات المحمّلة",
+    },
     actions: {
       newStandalone: "جلسة مستقلة جديدة",
       loadMore: "تحميل المزيد",
@@ -297,6 +312,7 @@ export const ar: TranslationResources = {
   },
   agentList: {
     fallbackTitle: "جلسة جديدة",
+    filterByProject: "تصفية السجل حسب {{project}}",
     dateSections: {
       recent: "مؤخرًا",
       today: "اليوم",
@@ -644,6 +660,7 @@ export const ar: TranslationResources = {
         copyAgentId: "نسخ معرف الوكيل",
         copyTerminalId: "نسخ معرف المحطة",
         copyFilePath: "Copy file path",
+        openWithDefaultApp: "الفتح بالتطبيق الافتراضي",
         rename: "إعادة تسمية",
         closeAbove: "إغلاق علامات التبويب أعلاه",
         closeBelow: "إغلاق علامات التبويب أدناه",
@@ -2432,6 +2449,8 @@ export const ar: TranslationResources = {
         toggleVoiceMode: "تبديل الوضع الصوتي",
         startStopDictation: "بدء إملاء /stop",
         interruptAgent: "عامل المقاطعة",
+        forkChatInNewTab: "تفريع المحادثة في تبويب جديد",
+        forkChatInNewWorkspace: "تفريع المحادثة في مساحة عمل جديدة",
         sendMessage: "أرسل رسالة",
         queueMessage: "رسالة قائمة الانتظار",
         muteUnmuteVoiceMode: "كتم وضع الصوت /unmute",

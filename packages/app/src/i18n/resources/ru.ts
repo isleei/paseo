@@ -239,6 +239,14 @@ export const ru: TranslationResources = {
     },
   },
   agentStream: {
+    linkMenu: {
+      openInPaseo: "Открыть в Paseo",
+      openInBrowser: "Открыть в браузере по умолчанию",
+      copyFilePath: "Скопировать путь к файлу",
+      openWithDefaultApp: "Открыть в приложении по умолчанию",
+      revealIn: "Показать в {{target}}",
+      fileManagerFallback: "файловый менеджер",
+    },
     empty: "Начните общаться с этим агентом...",
     scrollToBottom: "Прокрутить вниз",
     historyLoadFailed: "Не удалось загрузить историю агента",
@@ -293,6 +301,13 @@ export const ru: TranslationResources = {
     tooManyMatches: "Слишком много совпадений — уточните запрос",
     hostLoadFailed: "{{host}}: не удалось загрузить историю",
     searchPlaceholder: "Поиск по истории",
+    projectFilter: {
+      label: "Проект",
+      all: "Все проекты",
+      title: "Фильтр по проекту",
+      empty: "Нет проектов в загруженной истории",
+      emptyFiltered: "Нет сессий для {{project}} в загруженных страницах",
+    },
     actions: {
       newStandalone: "Новая автономная сессия",
       loadMore: "Загрузить ещё",
@@ -301,6 +316,7 @@ export const ru: TranslationResources = {
   },
   agentList: {
     fallbackTitle: "Новая сессия",
+    filterByProject: "Фильтровать историю по {{project}}",
     dateSections: {
       recent: "Недавние",
       today: "Сегодня",
@@ -651,6 +667,7 @@ export const ru: TranslationResources = {
         copyAgentId: "Скопировать идентификатор агента",
         copyTerminalId: "Скопировать идентификатор терминала",
         copyFilePath: "Скопировать путь к файлу",
+        openWithDefaultApp: "Открыть в приложении по умолчанию",
         rename: "Переименовать",
         closeAbove: "Закрыть вкладки выше",
         closeBelow: "Закрыть вкладки ниже",
@@ -2473,6 +2490,8 @@ export const ru: TranslationResources = {
         toggleVoiceMode: "Переключить голосовой режим",
         startStopDictation: "Начать/остановить диктовку",
         interruptAgent: "Прервать агента",
+        forkChatInNewTab: "Создать форк чата в новой вкладке",
+        forkChatInNewWorkspace: "Создать форк чата в новом рабочем пространстве",
         sendMessage: "Отправить сообщение",
         queueMessage: "Поставить сообщение в очередь",
         muteUnmuteVoiceMode: "Выключить/включить звук в голосовом режиме",

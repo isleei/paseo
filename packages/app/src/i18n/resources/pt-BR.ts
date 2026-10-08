@@ -238,6 +238,14 @@ export const ptBR: TranslationResources = {
     },
   },
   agentStream: {
+    linkMenu: {
+      openInPaseo: "Abrir no Paseo",
+      openInBrowser: "Abrir no navegador padrão",
+      copyFilePath: "Copiar caminho do arquivo",
+      openWithDefaultApp: "Abrir com o aplicativo padrão",
+      revealIn: "Mostrar em {{target}}",
+      fileManagerFallback: "gerenciador de arquivos",
+    },
     empty: "Comece a conversar com este agente...",
     scrollToBottom: "Rolar para o fim",
     historyLoadFailed: "Não foi possível carregar o histórico do agente",
@@ -293,6 +301,13 @@ export const ptBR: TranslationResources = {
     tooManyMatches: "Muitos resultados — refine a busca",
     hostLoadFailed: "{{host}}: Não foi possível carregar o histórico",
     searchPlaceholder: "Buscar no histórico",
+    projectFilter: {
+      label: "Projeto",
+      all: "Todos os projetos",
+      title: "Filtrar por projeto",
+      empty: "Nenhum projeto no histórico carregado",
+      emptyFiltered: "Nenhuma sessão de {{project}} nas páginas carregadas",
+    },
     actions: {
       newStandalone: "Nova sessão independente",
       loadMore: "Carregar mais",
@@ -301,6 +316,7 @@ export const ptBR: TranslationResources = {
   },
   agentList: {
     fallbackTitle: "Nova sessão",
+    filterByProject: "Filtrar histórico por {{project}}",
     dateSections: {
       recent: "Recentes",
       today: "Hoje",
@@ -649,6 +665,7 @@ export const ptBR: TranslationResources = {
         copyAgentId: "Copiar ID do agente",
         copyTerminalId: "Copiar ID do terminal",
         copyFilePath: "Copiar caminho do arquivo",
+        openWithDefaultApp: "Abrir com o aplicativo padrão",
         rename: "Renomear",
         closeAbove: "Fechar abas acima",
         closeBelow: "Fechar abas abaixo",
@@ -2467,6 +2484,8 @@ export const ptBR: TranslationResources = {
         toggleVoiceMode: "Alternar modo de voz",
         startStopDictation: "Iniciar/parar ditado",
         interruptAgent: "Interromper agente",
+        forkChatInNewTab: "Bifurcar o chat em uma nova aba",
+        forkChatInNewWorkspace: "Bifurcar o chat em um novo workspace",
         sendMessage: "Enviar mensagem",
         queueMessage: "Enfileirar mensagem",
         muteUnmuteVoiceMode: "Silenciar/ativar modo de voz",
