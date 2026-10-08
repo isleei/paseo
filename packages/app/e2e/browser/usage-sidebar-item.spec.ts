@@ -14,6 +14,7 @@ import {
   expectFooterSeparator,
   leaveSettings,
   openSidebarNavSettings,
+  seedSidebarWidth,
   setFooterItemVisible,
 } from "../support/helpers/sidebar-nav-settings";
 import { installUsageReportsFixture } from "../support/helpers/usage-reports";
@@ -177,6 +178,8 @@ test.describe("Usage item", () => {
     test.setTimeout(180_000);
     const serverId = getServerId();
     await installUsageReportsFixture(page, { lists: [() => claudeAndCodexReports()] });
+    // Pinned usage labels only fit a wide sidebar; the fork default is narrow.
+    await seedSidebarWidth(page, 320);
     await page.setViewportSize(WIDE);
     await gotoAppShell(page);
     const screen = page.getByTestId(`usage-host-${serverId}`);
@@ -418,6 +421,8 @@ test("released hosts supply source logos through the client conversion", async (
     providerUsageListOnly: true,
   });
   await seedSidebarFooterPreferences(page, [{ key: "usage", visible: true }]);
+  // Pinned usage labels only fit a wide sidebar; the fork default is narrow.
+  await seedSidebarWidth(page, 320);
   await page.setViewportSize(WIDE);
   await gotoAppShell(page);
   await expectPinnedUsage(page, ["31% 5h", "54% wk", "7% 5h", "12% wk"]);

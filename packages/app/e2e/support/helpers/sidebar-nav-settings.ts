@@ -56,6 +56,24 @@ export async function seedSidebarNavPreferences(
   );
 }
 
+/** Seeds the persisted sidebar width once; the pinned usage labels need room. */
+export async function seedSidebarWidth(page: Page, width: number): Promise<void> {
+  await page.addInitScript((sidebarWidth) => {
+    const key = "panel-state";
+    try {
+      const raw = localStorage.getItem(key);
+      const parsed = raw ? JSON.parse(raw) : {};
+      const state = parsed.state ?? {};
+      localStorage.setItem(
+        key,
+        JSON.stringify({ ...parsed, state: { ...state, sidebarWidth }, version: 17 }),
+      );
+    } catch {
+      localStorage.setItem(key, JSON.stringify({ state: { sidebarWidth }, version: 17 }));
+    }
+  }, width);
+}
+
 /** Seeds stored footer rows once; a reload keeps whatever the app wrote since. */
 export async function seedSidebarFooterPreferences(
   page: Page,
@@ -228,7 +246,7 @@ export async function expectFooterItemHidden(page: Page, key: string): Promise<v
   await expect(page.locator(`[data-testid="${shellFooterTestID(key)}"]:visible`)).toHaveCount(0);
 }
 
-const FOOTER_ICON_TEST_IDS = [
+export const FOOTER_ICON_TEST_IDS = [
   "sidebar-hosts-trigger",
   "sidebar-add-project",
   "sidebar-import-session",
@@ -241,30 +259,42 @@ const FOOTER_ICON_TEST_IDS = [
 const FOOTER_GEOMETRY_TOLERANCE = 0.01;
 
 /**
- * One line of same-size icons: Add project, Usage and Hosts together on the left, Help and
- * Settings together at the end.
+ * Fork footer: host avatar on the left, then the fixed icon buttons in one
+ * row (Add project, Import session, Usage, Help, Settings). The avatar is
+ * larger than the icon buttons; the icon buttons share one size and one gap,
+ * separated from the avatar by the spacer. Hiding Usage in settings removes
+ * its icon too, so callers pass the icons they expect.
  */
-export async function expectFooterIconRow(page: Page): Promise<void> {
+export async function expectFooterIconRow(
+  page: Page,
+  expected: string[] = FOOTER_ICON_TEST_IDS,
+): Promise<void> {
   // Read one browser-frame snapshot: the compact drawer can translate between separate RPCs.
   const boxes = await page
-    .locator(FOOTER_ICON_TEST_IDS.map((testID) => `[data-testid="${testID}"]:visible`).join(","))
+    .locator(expected.map((testID) => `[data-testid="${testID}"]:visible`).join(","))
     .evaluateAll((elements) =>
       elements.map((element) => {
         const { x, y, width, height } = element.getBoundingClientRect();
         return { testID: element.getAttribute("data-testid"), x, y, width, height };
       }),
     );
-  expect(boxes.map((box) => box.testID)).toEqual(FOOTER_ICON_TEST_IDS);
-  const [first] = boxes;
+  expect(boxes.map((box) => box.testID)).toEqual(expected);
+  const [avatar, ...buttons] = boxes;
   for (const box of boxes) {
-    expect(Math.abs(box.y + box.height / 2 - first!.y - first!.height / 2)).toBeLessThan(2);
-    expect(Math.abs(box.width - first!.width)).toBeLessThan(FOOTER_GEOMETRY_TOLERANCE);
+    expect(Math.abs(box.y + box.height / 2 - avatar!.y - avatar!.height / 2)).toBeLessThan(2);
+  }
+  const [firstButton, ...restButtons] = buttons;
+  for (const box of restButtons) {
+    expect(Math.abs(box.width - firstButton!.width)).toBeLessThan(FOOTER_GEOMETRY_TOLERANCE);
   }
   const gaps = boxes.slice(1).map((box, index) => box.x - (boxes[index]!.x + boxes[index]!.width));
-  for (const index of [0, 1, 3]) {
-    expect(Math.abs(gaps[index]!)).toBeLessThan(FOOTER_GEOMETRY_TOLERANCE);
+  const [firstGap, ...restGaps] = gaps.slice(1);
+  // The spacer between the avatar and the icon buttons exceeds an icon gap.
+  // (Narrow sidebars leave it only a few pixels; wide ones leave most of the row.)
+  expect(gaps[0]).toBeGreaterThan(firstGap!);
+  for (const gap of restGaps) {
+    expect(Math.abs(gap - firstGap!)).toBeLessThan(1);
   }
-  expect(gaps[2]).toBeGreaterThan(first!.width);
 }
 
 export async function expectFooterSeparator(page: Page, shown: boolean): Promise<void> {

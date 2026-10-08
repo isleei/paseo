@@ -562,14 +562,15 @@ function SidebarFooterRows({ onBeforeNavigate }: { onBeforeNavigate?: () => void
   );
 }
 
-/** Usage stays a footer icon opening the Usage modal. The percent summary lives above. */
+/**
+ * Usage stays a footer icon opening the Usage modal; the icon is always
+ * present as the entry point. Only the percent summary above follows the
+ * sidebar footer preference.
+ */
 function SidebarUsageButton() {
   const { t } = useTranslation();
   const { theme } = useUnistyles();
-  const { items } = useSidebarNavItems("footer");
-  const usage = items.find((item) => item.kind === "builtin" && item.id === "usage");
   const handlePress = useOpenSidebarUsage();
-  if (!usage?.visible) return null;
   return (
     <FooterIconButton
       onPress={handlePress}
@@ -1136,12 +1137,13 @@ const styles = StyleSheet.create((theme) => ({
     borderTopColor: theme.colors.border,
   },
   // Buttons sit edge to edge; their own inset spaces the glyphs.
+  // Gaps and padding stay tight: six fixed icons must fit the default width.
   sidebarFooter: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: theme.spacing[2],
-    paddingHorizontal: theme.spacing[2],
+    gap: theme.spacing[1],
+    paddingHorizontal: theme.spacing[1.5],
     paddingTop: theme.spacing[3],
     paddingBottom: theme.spacing[3],
     borderTopWidth: 0,
@@ -1152,7 +1154,7 @@ const styles = StyleSheet.create((theme) => ({
   footerIconRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing[2],
+    gap: theme.spacing[1],
     flexShrink: 0,
   },
   // Plugin rows and the usage summary sit above the icon bar.

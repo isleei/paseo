@@ -8,7 +8,10 @@ import { gotoAppShell } from "../support/helpers/app";
 import { addConnectedHostAndReload } from "../support/helpers/hosts";
 import { startIsolatedHostDaemon } from "../support/helpers/isolated-host-daemon";
 import { getServerId } from "../support/helpers/server-id";
-import { seedSidebarFooterPreferences } from "../support/helpers/sidebar-nav-settings";
+import {
+  seedSidebarFooterPreferences,
+  seedSidebarWidth,
+} from "../support/helpers/sidebar-nav-settings";
 import {
   installUsageReportsFixture,
   type UsageListRequest,
@@ -323,12 +326,19 @@ test("expired login refreshes to windows with visible pin toggles", async ({ pag
     },
   });
   try {
+    // Pinned usage labels only fit a wide sidebar; the fork default is narrow.
+    await seedSidebarWidth(page, 320);
     await gotoAppShell(page);
     await openUsageFromIcon(page);
     await expect(
       page.getByText("Claude: Login expired 1h ago. Run claude to refresh it.", { exact: true }),
     ).toBeVisible();
-    await expect(page.getByText("Unavailable", { exact: true })).toBeVisible();
+    // The fork ships the Cline usage source too, so scope to the login card.
+    await expect(
+      page
+        .getByTestId("usage-report-login-journey:account")
+        .getByText("Unavailable", { exact: true }),
+    ).toBeVisible();
     await qaScreenshot(page, "usage-expired-login");
     await fixture.setReport(loginWindows);
     await refreshLoginUsage(page);

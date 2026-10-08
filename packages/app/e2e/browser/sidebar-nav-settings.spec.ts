@@ -27,22 +27,25 @@ import {
   openSidebarNavSettings,
   seedSidebarFooterPreferences,
   seedSidebarNavPreferences,
+  seedSidebarWidth,
   setFooterItemVisible,
   setSidebarNavItemVisible,
 } from "../support/helpers/sidebar-nav-settings";
 
-test("fixed footer line keeps its five icons, Help and Settings at the end", async ({ page }) => {
+test("fixed footer line keeps its six icons, Help and Settings at the end", async ({ page }) => {
   test.setTimeout(120_000);
   await installUsageReportsFixture(page, { lists: [() => claudeAndCodexReports()] });
   await seedSidebarFooterPreferences(page, [
     { key: "add-project", visible: false },
     { key: "usage", visible: true },
   ]);
+  // Pinned usage labels only fit a wide sidebar; the fork default is narrow.
+  await seedSidebarWidth(page, 320);
   await page.setViewportSize({ width: 1440, height: 900 });
   await gotoAppShell(page);
   await expectPinnedUsage(page, ["31% 5h", "54% wk", "7% 5h", "12% wk"]);
   await expectFooterIconRow(page);
-  await expectFooterSeparator(page, false);
+  await expectFooterSeparator(page, true);
   await footerScreenshot(page, "footer-desktop-with-rows");
   await hoverFooterAddProject(page);
   await footerScreenshot(page, "footer-desktop-add-project-tooltip");
@@ -73,7 +76,7 @@ test("fixed footer line keeps its five icons, Help and Settings at the end", asy
   await leaveSettings(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await openCompactSidebar(page);
-  await expectFooterSeparator(page, false);
+  await expectFooterSeparator(page, true);
   await expectFooterIconRow(page);
   await footerScreenshot(page, "footer-compact-with-rows");
 });
@@ -83,7 +86,9 @@ test.describe("Sidebar items in Appearance settings", () => {
     await gotoAppShell(page);
 
     await test.step("the sidebar starts in the default order", async () => {
-      await expectSidebarOrder(page, ["new-workspace", "history", "search", "schedules"]);
+      // Search stays beside the Paimon title, so the header row list skips it.
+      await expectSidebarOrder(page, ["new-workspace", "history", "schedules"]);
+      await expect(page.getByTestId("sidebar-header-search")).toBeVisible();
     });
 
     await test.step("the Header section lists every item in the same order", async () => {
@@ -127,7 +132,7 @@ test.describe("Sidebar items in Appearance settings", () => {
       ]);
 
       await leaveSettings(page);
-      await expectSidebarOrder(page, ["new-workspace", "schedules", "history", "search"]);
+      await expectSidebarOrder(page, ["new-workspace", "schedules", "history"]);
     });
 
     await test.step("turning History off removes it from the sidebar", async () => {
@@ -142,13 +147,13 @@ test.describe("Sidebar items in Appearance settings", () => {
 
       await leaveSettings(page);
       await expectSidebarItemHidden(page, "history");
-      await expectSidebarOrder(page, ["new-workspace", "schedules", "search"]);
+      await expectSidebarOrder(page, ["new-workspace", "schedules"]);
     });
 
     await test.step("the sidebar keeps that shape across a reload", async () => {
       await page.reload();
       await expectSidebarItemHidden(page, "history");
-      await expectSidebarOrder(page, ["new-workspace", "schedules", "search"]);
+      await expectSidebarOrder(page, ["new-workspace", "schedules"]);
     });
   });
 
