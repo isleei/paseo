@@ -50,7 +50,7 @@ test("full file shows every line with changes in place and a minimap that scroll
 
   const scroll = panel.getByTestId("git-diff-scroll");
   await test.step("open the file at its first change", async () => {
-    await expect(panel.getByTestId("diff-file-0")).toHaveAccessibleName(/long-module\.ts/);
+    await expect(panel.getByTestId("diff-file-0-name")).toHaveText(/long-module\.ts/);
     // 240 unchanged-and-changed lines are far taller than the hunks alone.
     await expect.poll(() => scrollMetrics(scroll, "height")).toBeGreaterThan(LINE_COUNT * 15);
     await expect.poll(() => scrollMetrics(scroll, "top")).toBeGreaterThan(1000);
@@ -90,9 +90,9 @@ test("full file shows every line with changes in place and a minimap that scroll
 
   await test.step("step to the next changed file", async () => {
     await panel.getByTestId("changes-next-file").click();
-    await expect(panel.getByTestId("diff-file-0")).toHaveAccessibleName(/other\.ts/);
+    await expect(panel.getByTestId("diff-file-0-name")).toHaveText(/other\.ts/);
     await panel.getByTestId("changes-previous-file").click();
-    await expect(panel.getByTestId("diff-file-0")).toHaveAccessibleName(/long-module\.ts/);
+    await expect(panel.getByTestId("diff-file-0-name")).toHaveText(/long-module\.ts/);
   });
 
   await test.step("split layout keeps the full file", async () => {
@@ -105,14 +105,14 @@ test("full file shows every line with changes in place and a minimap that scroll
     const viewedAction = panel.getByTestId("diff-file-0-mark-as-viewed");
     await panel.getByTestId("diff-file-0").hover();
     await viewedAction.click();
-    await expect(viewedAction).toHaveAttribute("aria-selected", "true");
+    await expect(viewedAction).toHaveAttribute("aria-pressed", "true");
     await panel.getByTestId("changes-next-file").click();
     await panel.getByTestId("changes-previous-file").click();
-    await expect(viewedAction).toHaveAttribute("aria-selected", "true");
+    await expect(viewedAction).toHaveAttribute("aria-pressed", "true");
     await panel.getByTestId("changes-toggle-full-file").click();
     await expect(panel.getByTestId("full-file-diff")).toHaveCount(0);
     await expect(panel.getByTestId("git-diff-minimap")).toHaveCount(0);
-    await expect(viewedAction).toHaveAttribute("aria-selected", "true");
+    await expect(viewedAction).toHaveAttribute("aria-pressed", "true");
   });
 });
 
