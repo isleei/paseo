@@ -26,6 +26,12 @@ export const ja: TranslationResources = {
     position: "{{current}} / {{total}}",
     total: "{{total}} 件の一致",
   },
+  diffFind: {
+    title: "差分内を検索",
+    searching: "検索中...",
+    scope: "現在の差分テキストのみ",
+    skipped: "バイナリまたは大きすぎるファイル {{count}} 件を除外",
+  },
   common: {
     bottomSheetBackdrop: "ボトムシートの背景",
     back: "戻る",
@@ -1022,6 +1028,18 @@ export const ja: TranslationResources = {
         showWhitespace: "空白を表示",
         scrollLongLines: "長い行をスクロール",
         wrapLongLines: "長い行を折り返す",
+        showFullFile: "ファイル全体を表示",
+        showChangesOnly: "変更のみを表示",
+        previousFile: "前のファイル",
+        nextFile: "次のファイル",
+        minimap: "ミニマップ",
+        fullFileUnavailable: {
+          outOfSync: "差分の計算後にこのファイルが変更されました。変更のみを表示しています。",
+          missing: "このファイルを読み込めませんでした。変更のみを表示しています。",
+          tooLarge: "このファイルは大きすぎるため全体を表示できません。変更のみを表示しています。",
+          uncommitted:
+            "このファイルには未コミットの編集があるため、コミット済みの内容を全体表示できません。変更のみを表示しています。",
+        },
         collapseAllFolders: "すべてのフォルダを折りたたむ",
         expandAllFolders: "すべてのフォルダを展開",
         collapseAllFiles: "すべてのファイルを折りたたむ",
@@ -1042,6 +1060,10 @@ export const ja: TranslationResources = {
         newFile: "新規",
         deletedFile: "削除済み",
         modifiedFile: "変更済み",
+        markAsViewed: "確認済みにする",
+        viewed: "確認済み",
+        viewedStateFailed:
+          "確認済みファイルを保存または読み込めませんでした。もう一度お試しください。",
         commits: {
           title: "コミット",
           countLabel: "ワークスペースのコミット数: {{count}}",

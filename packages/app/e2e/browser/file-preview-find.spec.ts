@@ -1,12 +1,9 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test, type Page } from "../support/fixtures";
-import {
-  openFileExplorer,
-  openFileFromExplorer,
-  expectFileTabOpen,
-} from "../support/helpers/file-explorer";
-import { gotoWorkspace } from "../support/helpers/launcher";
+import { openFileExplorer, openFileFromExplorer } from "../support/helpers/file-explorer";
+import { buildHostWorkspaceRoute } from "../../src/utils/host-routes";
+import { getServerId } from "../support/helpers/server-id";
 import { seedWorkspace, type SeededWorkspace } from "../support/helpers/seed-client";
 
 const FILE_NAME = "note.md";
@@ -45,10 +42,10 @@ function marks(page: Page) {
 }
 
 async function openMarkdownPreview(page: Page) {
-  await gotoWorkspace(page, workspace.workspaceId);
+  await page.goto(buildHostWorkspaceRoute(getServerId(), workspace.workspaceId));
+  await expect(page.getByTestId("workspace-rail")).toBeVisible({ timeout: 30_000 });
   await openFileExplorer(page);
   await openFileFromExplorer(page, FILE_NAME);
-  await expectFileTabOpen(page, FILE_NAME);
   // The rendered preview, not Source mode, must own the content.
   await expect(filePane(page).getByText("middle tail phrase", { exact: false })).toBeVisible({
     timeout: 30_000,

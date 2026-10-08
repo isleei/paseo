@@ -21,6 +21,12 @@ export const en = {
     position: "{{current}} of {{total}}",
     total: "{{total}} matches",
   },
+  diffFind: {
+    title: "Find in diff",
+    searching: "Searching...",
+    scope: "Current diff text only",
+    skipped: "{{count}} binary or oversized files excluded",
+  },
   common: {
     bottomSheetBackdrop: "Bottom sheet backdrop",
     back: "Back",
@@ -1016,6 +1022,18 @@ export const en = {
         showWhitespace: "Show whitespace",
         scrollLongLines: "Scroll long lines",
         wrapLongLines: "Wrap long lines",
+        showFullFile: "Show full file",
+        showChangesOnly: "Show changes only",
+        previousFile: "Previous file",
+        nextFile: "Next file",
+        minimap: "Minimap",
+        fullFileUnavailable: {
+          outOfSync: "This file changed since the diff was computed. Showing changes only.",
+          missing: "This file could not be read. Showing changes only.",
+          tooLarge: "This file is too large to show in full. Showing changes only.",
+          uncommitted:
+            "This file has uncommitted edits, so its committed version can't be shown in full. Showing changes only.",
+        },
         collapseAllFolders: "Collapse all folders",
         expandAllFolders: "Expand all folders",
         collapseAllFiles: "Collapse all files",
@@ -1036,6 +1054,9 @@ export const en = {
         newFile: "New",
         deletedFile: "Deleted",
         modifiedFile: "Modified",
+        markAsViewed: "Mark as viewed",
+        viewed: "Viewed",
+        viewedStateFailed: "Could not save or load the viewed files. Retry the action.",
         commits: {
           title: "Commits",
           countLabel: "{{count}} workspace commits",

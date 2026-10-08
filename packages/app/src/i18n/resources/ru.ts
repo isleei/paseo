@@ -26,6 +26,12 @@ export const ru: TranslationResources = {
     position: "{{current}} из {{total}}",
     total: "Совпадений: {{total}}",
   },
+  diffFind: {
+    title: "Найти в изменениях",
+    searching: "Поиск...",
+    scope: "Только текст текущих изменений",
+    skipped: "Исключено двоичных или слишком больших файлов: {{count}}",
+  },
   common: {
     bottomSheetBackdrop: "Фон нижней панели",
     back: "Назад",
@@ -1026,6 +1032,18 @@ export const ru: TranslationResources = {
         showWhitespace: "Показать пробельные изменения",
         scrollLongLines: "Прокручивать длинные строки",
         wrapLongLines: "Перенос длинных строк",
+        showFullFile: "Показать весь файл",
+        showChangesOnly: "Показать только изменения",
+        previousFile: "Предыдущий файл",
+        nextFile: "Следующий файл",
+        minimap: "Миникарта",
+        fullFileUnavailable: {
+          outOfSync: "Файл изменился после вычисления диффа. Показаны только изменения.",
+          missing: "Не удалось прочитать файл. Показаны только изменения.",
+          tooLarge: "Файл слишком большой, чтобы показать его целиком. Показаны только изменения.",
+          uncommitted:
+            "В файле есть незакоммиченные правки, поэтому закоммиченную версию нельзя показать целиком. Показаны только изменения.",
+        },
         collapseAllFolders: "Свернуть все папки",
         expandAllFolders: "Развернуть все папки",
         collapseAllFiles: "Свернуть все файлы",
@@ -1046,6 +1064,10 @@ export const ru: TranslationResources = {
         newFile: "Новый",
         deletedFile: "Файл удалён",
         modifiedFile: "Файл изменён",
+        markAsViewed: "Отметить как просмотренное",
+        viewed: "Просмотрено",
+        viewedStateFailed:
+          "Не удалось сохранить или загрузить просмотренные файлы. Повторите попытку.",
         commits: {
           title: "Коммиты",
           countLabel: "Коммитов в рабочем пространстве: {{count}}",

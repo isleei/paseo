@@ -25,6 +25,12 @@ export const ko: TranslationResources = {
     position: "{{current}} / {{total}}",
     total: "일치 항목 {{total}}개",
   },
+  diffFind: {
+    title: "차이점에서 찾기",
+    searching: "검색 중...",
+    scope: "현재 차이점 텍스트만 검색",
+    skipped: "바이너리 또는 너무 큰 파일 {{count}}개 제외",
+  },
   common: {
     bottomSheetBackdrop: "하단 시트 배경",
     back: "뒤로",
@@ -1016,6 +1022,18 @@ export const ko: TranslationResources = {
         showWhitespace: "공백 표시",
         scrollLongLines: "긴 줄 스크롤",
         wrapLongLines: "긴 줄 줄바꿈",
+        showFullFile: "전체 파일 보기",
+        showChangesOnly: "변경 사항만 보기",
+        previousFile: "이전 파일",
+        nextFile: "다음 파일",
+        minimap: "미니맵",
+        fullFileUnavailable: {
+          outOfSync: "diff를 계산한 뒤 이 파일이 변경되었습니다. 변경 사항만 표시합니다.",
+          missing: "이 파일을 읽을 수 없습니다. 변경 사항만 표시합니다.",
+          tooLarge: "이 파일은 너무 커서 전체를 표시할 수 없습니다. 변경 사항만 표시합니다.",
+          uncommitted:
+            "이 파일에 커밋되지 않은 편집이 있어 커밋된 버전을 전체로 표시할 수 없습니다. 변경 사항만 표시합니다.",
+        },
         collapseAllFolders: "모든 폴더 축소",
         expandAllFolders: "모든 폴더 확장",
         collapseAllFiles: "모든 파일 축소",
@@ -1036,6 +1054,9 @@ export const ko: TranslationResources = {
         newFile: "신규",
         deletedFile: "삭제됨",
         modifiedFile: "수정됨",
+        markAsViewed: "확인함으로 표시",
+        viewed: "확인됨",
+        viewedStateFailed: "확인한 파일을 저장하거나 불러오지 못했습니다. 다시 시도하세요.",
         commits: {
           title: "커밋",
           countLabel: "워크스페이스 커밋 {{count}}개",

@@ -26,6 +26,12 @@ export const es: TranslationResources = {
     position: "{{current}} de {{total}}",
     total: "{{total}} coincidencias",
   },
+  diffFind: {
+    title: "Buscar en el diff",
+    searching: "Buscando...",
+    scope: "Solo el texto del diff actual",
+    skipped: "{{count}} archivos binarios o demasiado grandes excluidos",
+  },
   common: {
     bottomSheetBackdrop: "Fondo del panel inferior",
     back: "Atrás",
@@ -1042,6 +1048,20 @@ export const es: TranslationResources = {
         showWhitespace: "Mostrar espacios en blanco",
         scrollLongLines: "Desplazarse por largas filas",
         wrapLongLines: "Envolver largas filas",
+        showFullFile: "Mostrar archivo completo",
+        showChangesOnly: "Mostrar solo los cambios",
+        previousFile: "Archivo anterior",
+        nextFile: "Archivo siguiente",
+        minimap: "Minimapa",
+        fullFileUnavailable: {
+          outOfSync:
+            "Este archivo cambió desde que se calculó la diferencia. Se muestran solo los cambios.",
+          missing: "No se pudo leer este archivo. Se muestran solo los cambios.",
+          tooLarge:
+            "Este archivo es demasiado grande para mostrarlo completo. Se muestran solo los cambios.",
+          uncommitted:
+            "Este archivo tiene ediciones sin confirmar, así que su versión confirmada no se puede mostrar completa. Se muestran solo los cambios.",
+        },
         collapseAllFolders: "Contraer todas las carpetas",
         expandAllFolders: "Expandir todas las carpetas",
         collapseAllFiles: "Contraer todos los archivos",
@@ -1062,6 +1082,10 @@ export const es: TranslationResources = {
         newFile: "Nuevo",
         deletedFile: "Eliminado",
         modifiedFile: "Modificado",
+        markAsViewed: "Marcar como visto",
+        viewed: "Visto",
+        viewedStateFailed:
+          "No se pudieron guardar o cargar los archivos vistos. Inténtalo de nuevo.",
         commits: {
           title: "Commits",
           countLabel: "{{count}} commits del espacio de trabajo",

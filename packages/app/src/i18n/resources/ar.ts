@@ -25,6 +25,12 @@ export const ar: TranslationResources = {
     position: "{{current}} من {{total}}",
     total: "{{total}} تطابقات",
   },
+  diffFind: {
+    title: "البحث في الفروق",
+    searching: "جارٍ البحث...",
+    scope: "نص الفروق الحالية فقط",
+    skipped: "تم استبعاد {{count}} ملفات ثنائية أو كبيرة جدًا",
+  },
   common: {
     bottomSheetBackdrop: "خلفية اللوحة السفلية",
     back: "خلف",
@@ -1009,6 +1015,18 @@ export const ar: TranslationResources = {
         showWhitespace: "إظهار المسافة البيضاء",
         scrollLongLines: "قم بتمرير الخطوط الطويلة",
         wrapLongLines: "لف الخطوط الطويلة",
+        showFullFile: "عرض الملف كاملًا",
+        showChangesOnly: "عرض التغييرات فقط",
+        previousFile: "الملف السابق",
+        nextFile: "الملف التالي",
+        minimap: "الخريطة المصغّرة",
+        fullFileUnavailable: {
+          outOfSync: "تغيّر هذا الملف منذ حساب الفرق. يتم عرض التغييرات فقط.",
+          missing: "تعذّرت قراءة هذا الملف. يتم عرض التغييرات فقط.",
+          tooLarge: "هذا الملف أكبر من أن يُعرض كاملًا. يتم عرض التغييرات فقط.",
+          uncommitted:
+            "يحتوي هذا الملف على تعديلات غير مُثبتة، لذا لا يمكن عرض نسخته المُثبتة كاملة. يتم عرض التغييرات فقط.",
+        },
         collapseAllFolders: "طي كافة المجلدات",
         expandAllFolders: "توسيع كافة المجلدات",
         collapseAllFiles: "طي كافة الملفات",
@@ -1029,6 +1047,9 @@ export const ar: TranslationResources = {
         newFile: "جديد",
         deletedFile: "تم الحذف",
         modifiedFile: "معدّل",
+        markAsViewed: "وضع علامة تمت المشاهدة",
+        viewed: "تمت المشاهدة",
+        viewedStateFailed: "تعذر حفظ الملفات التي تمت مشاهدتها أو تحميلها. أعد المحاولة.",
         commits: {
           title: "الإيداعات",
           countLabel: "{{count}} من إيداعات مساحة العمل",

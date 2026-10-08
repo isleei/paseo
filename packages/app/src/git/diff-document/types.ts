@@ -4,6 +4,8 @@ import type { ReviewableDiffTarget } from "@/utils/diff-layout";
 
 interface DiffDocumentBaseProps {
   files: ParsedDiffFile[];
+  /** Original comparison files when rendering expanded full-file context. */
+  reviewFiles?: readonly ParsedDiffFile[];
   /** Scrollable space kept below the last line so a floating control never traps content. */
   contentInsetBottom?: number;
   displayPreferences: {
@@ -12,10 +14,15 @@ interface DiffDocumentBaseProps {
     codeFontSize: number;
     monoFontFamily: string;
   };
+  /** Web: a scaled overview of the document beside the diff that scrolls on press and drag. */
+  minimap?: boolean;
+  /** Web: scroll to the first changed line once the document first lays out. */
+  revealFirstChange?: boolean;
 }
 
 export interface WorkingDiffMode {
   kind: "working";
+  viewedFilesStorageKey: string;
   reviewActions?: InlineReviewActions;
   onFilePress?: (path: string) => void;
   focusPath?: string;
@@ -226,6 +233,10 @@ export type DiffSurfaceProps = DiffDocumentProps & {
   headerTypography: DiffHeaderTypography;
   collapsedFilePaths: ReadonlySet<string>;
   onToggleFile: (path: string) => void;
+  viewedFiles: ReadonlyMap<string, ParsedDiffFile>;
+  viewedActionDisabled: boolean;
+  viewedFilePendingPath: string | null;
+  onToggleFileViewed: (file: ParsedDiffFile) => void;
   selectedPath: string | null;
   onSelectPath: (path: string) => void;
 };

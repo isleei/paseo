@@ -30,6 +30,7 @@ import { retainHorizontalOffsetMapForPaths } from "./horizontal-offsets";
 import { HorizontalScroll } from "./horizontal-scroll.web";
 import { buildDiffDocumentModel, FILE_HEADER_HEIGHT, resolveRelayoutScrollTop } from "./model";
 import { paintWebFileHeader, paintWebViewport } from "./paint.web";
+import { DiffMinimap } from "./minimap.web";
 import { hasPointerDragStarted } from "./pointer-gesture";
 import { createMeasuredAdvances } from "./text-measurement";
 import { retainDiffViewport } from "./viewport";
@@ -42,6 +43,9 @@ import type {
   TextMeasurer,
 } from "./types";
 import { useDiffDocumentWorkspaceCache } from "./workspace-cache";
+import { DiffFindOverlay, useDiffFind } from "./find/view.web";
+import { diffMatchRectangles, locateDiffMatch, planDiffMatchReveal } from "./find/geometry";
+import type { DiffFindSnapshot } from "./find/model";
 
 const DEFAULT_MONO_STACK = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
 const RESIZE_SETTLE_DELAY_MS = 120;
@@ -82,9 +86,19 @@ export function DiffSurface(props: DiffSurfaceProps) {
   ]);
   const canvasScratchRef = useRef<HTMLCanvasElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const find = useDiffFind(props.files, rootRef);
+  const visibleFind =
+    find.snapshot.phase === "ready" && find.snapshot.files === props.files
+      ? find.snapshot
+      : undefined;
+  const findPaintRef = useRef(visibleFind);
+  findPaintRef.current = visibleFind;
+  const revealedFindRef = useRef<{ snapshot: DiffFindSnapshot; layout: string } | null>(null);
+  const [findPlacement, setFindPlacement] = useState<"top" | "bottom">("top");
   const modelRef = useRef<ReturnType<typeof buildDiffDocumentModel> | null>(null);
   const previousModelRef = useRef<ReturnType<typeof buildDiffDocumentModel> | null>(null);
   const consumedFocusRef = useRef<string | null>(null);
+  const revealedFirstChangeRef = useRef<string | null>(null);
   const scrollTopRef = useRef(0);
   const horizontalOffsetsRef = useRef(new Map<string, number>());
   const selectionRef = useRef<DiffSelection | null>(null);
@@ -338,6 +352,7 @@ export function DiffSurface(props: DiffSurfaceProps) {
       viewportHeight: canvasHeight,
       horizontalOffsets: horizontalOffsetsRef.current,
       selection: selectionRef.current,
+      find: findPaintRef.current,
       activeHeaderPath: activeHeaderPathRef.current,
       devicePixelRatio: ratio,
       paintTop,
@@ -472,6 +487,69 @@ export function DiffSurface(props: DiffSurfaceProps) {
   const mode = props.mode;
   const collapsedFilePaths = props.collapsedFilePaths;
   const onToggleFile = props.onToggleFile;
+  useLayoutEffect(() => {
+    schedulePaint();
+  }, [visibleFind, schedulePaint]);
+  useLayoutEffect(() => {
+    const match = visibleFind?.matches[visibleFind.current];
+    const scroll = scrollRef.current;
+    if (!match || !visibleFind) {
+      revealedFindRef.current = null;
+      return;
+    }
+    if (!scroll || viewport.width <= 0 || viewport.height <= 0) return;
+    const layout = `${model.layout}:${model.wrapLines}:${viewport.width}:${viewport.height}:${family}:${model.lineHeight}`;
+    const previous = revealedFindRef.current;
+    if (previous?.snapshot === visibleFind && previous.layout === layout) return;
+    if (collapsedFilePaths.has(match.file.path)) {
+      onToggleFile(match.file.path);
+      return;
+    }
+    const located = locateDiffMatch(model, match);
+    if (!located) return;
+    const rectangle = diffMatchRectangles(model, match)[0];
+    if (!rectangle) {
+      // Offscreen rows have cheap geometry but no shaped fragments yet.
+      scroll.scrollTop = Math.max(0, located.row.top - FILE_HEADER_HEIGHT);
+      scrollTopRef.current = scroll.scrollTop;
+      updateInteractionFiles(scroll.scrollTop);
+      return;
+    }
+    const widgetHeight = find.container.current?.getBoundingClientRect().height ?? 80;
+    const reveal = planDiffMatchReveal({
+      top: rectangle.y,
+      height: rectangle.height,
+      lineHeight: model.lineHeight,
+      viewportHeight: viewport.height,
+      widgetHeight,
+    });
+    setFindPlacement(reveal.placement);
+    scroll.scrollTop = reveal.scrollTop;
+    scrollTopRef.current = scroll.scrollTop;
+    updateInteractionFiles(scroll.scrollTop);
+    if (!model.wrapLines) {
+      const horizontal = rootRef.current?.querySelector<HTMLElement>(
+        `[data-testid="diff-file-${rectangle.fileIndex}-horizontal-scroll"]`,
+      );
+      if (!horizontal) return;
+      const margin = 16;
+      horizontal.scrollLeft = Math.max(0, rectangle.x - rectangle.clipX - margin);
+      horizontalOffsetsRef.current.set(match.file.path, horizontal.scrollLeft);
+    }
+    revealedFindRef.current = { snapshot: visibleFind, layout };
+    schedulePaint();
+  }, [
+    visibleFind,
+    model,
+    viewport,
+    family,
+    collapsedFilePaths,
+    onToggleFile,
+    find.container,
+    interactionFiles,
+    updateInteractionFiles,
+    schedulePaint,
+  ]);
   useEffect(() => {
     if (mode.kind !== "working") return;
     const focusPath = mode.focusPath;
@@ -485,6 +563,24 @@ export function DiffSurface(props: DiffSurfaceProps) {
       consumedFocusRef.current = requestKey;
     }
   }, [collapsedFilePaths, mode, model.files, onToggleFile]);
+  const revealFirstChange = props.revealFirstChange === true;
+  useEffect(() => {
+    const scroll = scrollRef.current;
+    if (!revealFirstChange || !scroll || viewport.height <= 0 || model.rows.length === 0) return;
+    const revealKey = model.files.map((file) => file.path).join("\0");
+    if (revealedFirstChangeRef.current === revealKey) return;
+    revealedFirstChangeRef.current = revealKey;
+    const firstChange = model.rows.find(
+      (row) =>
+        row.kind === "line" &&
+        row.cells.some((cell) => cell?.type === "add" || cell?.type === "remove"),
+    );
+    if (!firstChange) return;
+    // Leave a few lines of lead-in above the change, as an editor does when it jumps.
+    const nextScrollTop = Math.max(0, firstChange.top - viewport.height / 3);
+    scrollTopRef.current = nextScrollTop;
+    scroll.scrollTop = nextScrollTop;
+  }, [model.files, model.rows, revealFirstChange, viewport.height]);
 
   const handleVerticalScroll = useCallback(
     (scrollElement: HTMLDivElement) => {
@@ -772,7 +868,8 @@ export function DiffSurface(props: DiffSurfaceProps) {
     () => ({ ...ROOT_STYLE, background: props.palette.surface }),
     [props.palette.surface],
   );
-  const contentInsetBottom = props.contentInsetBottom ?? 0;
+  const contentInsetBottom =
+    (props.contentInsetBottom ?? 0) + (find.snapshot.phase === "closed" ? 0 : 120);
   const contentStyle = useMemo<React.CSSProperties>(
     () => ({
       ...CONTENT_STYLE,
@@ -827,9 +924,13 @@ export function DiffSurface(props: DiffSurfaceProps) {
             <WebFileHeaderSection key={file.path} file={file}>
               <DocumentFileHeader
                 file={file}
+                isViewed={props.viewedFiles.has(file.path)}
+                viewedActionDisabled={props.viewedActionDisabled}
+                viewedActionPending={props.viewedFilePendingPath === file.path}
                 selectedPath={props.selectedPath}
                 mode={props.mode}
                 onToggleFile={props.onToggleFile}
+                onToggleFileViewed={props.onToggleFileViewed}
                 onSelectPath={props.onSelectPath}
                 canvasRendered
               />
@@ -875,13 +976,14 @@ export function DiffSurface(props: DiffSurfaceProps) {
         </div>
       </div>
       <DomOverlayScrollbar scrollContainerRef={scrollRef} onUserScrollUp={noop} />
+      <DiffFindOverlay find={find} placement={findPlacement} scroll={scrollRef} />
       {hoveredAffordance?.hit.target && reviewActions ? (
         <InlineReviewAddButton onPress={addHoveredComment} style={affordanceStyle} />
       ) : null}
     </div>
   );
 
-  return (
+  const surfaceWithContextMenu = (
     <ContextMenu>
       <ContextMenuTrigger contextOnly style={CONTEXT_TRIGGER_STYLE}>
         {surface}
@@ -907,6 +1009,19 @@ export function DiffSurface(props: DiffSurfaceProps) {
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
+  );
+
+  if (!props.minimap) return surfaceWithContextMenu;
+  return (
+    <div style={MINIMAP_ROW_STYLE}>
+      {surfaceWithContextMenu}
+      <DiffMinimap
+        model={model}
+        palette={props.palette}
+        scrollRef={scrollRef}
+        viewportHeight={viewport.height}
+      />
+    </div>
   );
 }
 
@@ -1072,7 +1187,14 @@ const ROOT_STYLE: React.CSSProperties = {
   minHeight: 0,
   overflow: "hidden",
 };
-const CONTEXT_TRIGGER_STYLE: ViewStyle = { flex: 1, minHeight: 0 };
+const CONTEXT_TRIGGER_STYLE: ViewStyle = { flex: 1, minHeight: 0, minWidth: 0 };
+const MINIMAP_ROW_STYLE: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "row",
+  flex: 1,
+  minHeight: 0,
+  minWidth: 0,
+};
 const SCROLL_STYLE: React.CSSProperties = {
   position: "absolute",
   inset: 0,

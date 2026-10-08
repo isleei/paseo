@@ -26,6 +26,12 @@ export const fr: TranslationResources = {
     position: "{{current}} sur {{total}}",
     total: "{{total}} résultats",
   },
+  diffFind: {
+    title: "Rechercher dans le diff",
+    searching: "Recherche...",
+    scope: "Texte du diff actuel uniquement",
+    skipped: "{{count}} fichiers binaires ou trop volumineux exclus",
+  },
   common: {
     bottomSheetBackdrop: "Arrière-plan du panneau inférieur",
     back: "Retour",
@@ -1032,6 +1038,20 @@ export const fr: TranslationResources = {
         showWhitespace: "Afficher les espaces",
         scrollLongLines: "Faire défiler les longues lignes",
         wrapLongLines: "Renvoyer les longues lignes à la ligne",
+        showFullFile: "Afficher le fichier complet",
+        showChangesOnly: "Afficher uniquement les modifications",
+        previousFile: "Fichier précédent",
+        nextFile: "Fichier suivant",
+        minimap: "Minimap",
+        fullFileUnavailable: {
+          outOfSync:
+            "Ce fichier a changé depuis le calcul du diff. Seules les modifications sont affichées.",
+          missing: "Impossible de lire ce fichier. Seules les modifications sont affichées.",
+          tooLarge:
+            "Ce fichier est trop volumineux pour être affiché en entier. Seules les modifications sont affichées.",
+          uncommitted:
+            "Ce fichier contient des modifications non validées : sa version validée ne peut pas être affichée en entier. Seules les modifications sont affichées.",
+        },
         collapseAllFolders: "Replier tous les dossiers",
         expandAllFolders: "Déplier tous les dossiers",
         collapseAllFiles: "Replier tous les fichiers",
@@ -1052,6 +1072,9 @@ export const fr: TranslationResources = {
         newFile: "Nouveau",
         deletedFile: "Supprimé",
         modifiedFile: "Modifié",
+        markAsViewed: "Marquer comme vu",
+        viewed: "Vu",
+        viewedStateFailed: "Impossible d’enregistrer ou de charger les fichiers vus. Réessayez.",
         commits: {
           title: "Commits",
           countLabel: "{{count}} commits de l’espace de travail",
