@@ -1,5 +1,4 @@
 import { useCallback, useMemo } from "react";
-import { useIsCompactFormFactor } from "@/constants/layout";
 import { useAppSettings } from "@/hooks/use-settings";
 import type { AppSettings } from "@/hooks/use-settings/storage";
 import { useInstalledPlugins } from "@/plugins/registry";
@@ -31,7 +30,6 @@ export function useSidebarNavItems<Section extends SidebarSection>(
   section: Section,
 ): UseSidebarNavItemsReturn<Section> {
   const plugins = useInstalledPlugins();
-  const compact = useIsCompactFormFactor();
   const { settings, updateSettings } = useAppSettings();
   const field = PREFERENCE_FIELDS[section];
   const preferences = settings[field];
@@ -42,15 +40,8 @@ export function useSidebarNavItems<Section extends SidebarSection>(
   );
 
   const items = useMemo(
-    () =>
-      resolveSidebarNavItems({
-        section,
-        compact,
-        pluginGroups,
-        panelGroups,
-        preferences,
-      }),
-    [compact, panelGroups, pluginGroups, preferences, section],
+    () => resolveSidebarNavItems({ section, pluginGroups, panelGroups, preferences }),
+    [panelGroups, pluginGroups, preferences, section],
   );
 
   const setVisible = useCallback(
@@ -59,7 +50,6 @@ export function useSidebarNavItems<Section extends SidebarSection>(
         const previous = current[field];
         const currentItems = resolveSidebarNavItems({
           section,
-          compact,
           pluginGroups,
           panelGroups,
           preferences: previous,
@@ -69,7 +59,7 @@ export function useSidebarNavItems<Section extends SidebarSection>(
         };
       });
     },
-    [compact, field, panelGroups, pluginGroups, section, updateSettings],
+    [field, panelGroups, pluginGroups, section, updateSettings],
   );
 
   const move = useCallback(
@@ -78,7 +68,6 @@ export function useSidebarNavItems<Section extends SidebarSection>(
         const previous = current[field];
         const currentItems = resolveSidebarNavItems({
           section,
-          compact,
           pluginGroups,
           panelGroups,
           preferences: previous,
@@ -88,7 +77,7 @@ export function useSidebarNavItems<Section extends SidebarSection>(
         };
       });
     },
-    [compact, field, panelGroups, pluginGroups, section, updateSettings],
+    [field, panelGroups, pluginGroups, section, updateSettings],
   );
 
   return { items, setVisible, move };

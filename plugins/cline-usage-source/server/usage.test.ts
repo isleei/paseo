@@ -257,8 +257,7 @@ describe("cline usage source", () => {
 
     await expect(fetchUsage({}, fetchApi)).resolves.toMatchObject({
       status: "unavailable",
-      windows: [],
-      balances: [],
+      problem: { kind: "no_quota", detail: "Cline login was rejected" },
     });
     expect(readFileSync(providersPath, "utf8")).toBe(before);
   });
@@ -266,8 +265,7 @@ describe("cline usage source", () => {
   it("returns unavailable Cline usage when credentials are missing", async () => {
     await expect(fetchUsage({}, mockFetch(new Map()))).resolves.toMatchObject({
       status: "unavailable",
-      windows: [],
-      balances: [],
+      problem: { kind: "no_quota", detail: "No Cline credentials found" },
     });
     await expect(identify()).resolves.toBeNull();
   });

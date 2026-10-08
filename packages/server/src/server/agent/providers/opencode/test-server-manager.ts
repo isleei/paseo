@@ -47,6 +47,7 @@ export class TestOpenCodeServerManager implements OpenCodeServerManagerLike {
     this.acquisitions.push(acquisition);
     return {
       server: this.server,
+      environment: input.env ?? {},
       events,
       release: async () => {
         acquisition.released = true;

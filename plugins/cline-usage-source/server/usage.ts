@@ -6,7 +6,7 @@ import { z } from "zod";
 import {
   balanceToneFromRemaining,
   toneFromUsedPct,
-  unavailableUsage,
+  unavailable,
   windowFromUsedPct,
   type UsageBalance,
   type UsageReport,
@@ -321,14 +321,15 @@ export async function fetchUsage(
 ): Promise<UsageReport> {
   void input;
   const credentials = await readCredentials();
-  if (credentials.length === 0) return unavailableUsage();
+  if (credentials.length === 0)
+    return unavailable({ kind: "no_quota", detail: "No Cline credentials found" });
 
   for (const credential of credentials) {
     const usage = await fetchUsageWithCredential(fetchApi, credential);
     // Null means this credential was rejected; try the next Cline login.
     if (usage) return usage;
   }
-  return unavailableUsage();
+  return unavailable({ kind: "no_quota", detail: "Cline login was rejected" });
 }
 
 export async function identify() {

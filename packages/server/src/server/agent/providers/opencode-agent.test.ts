@@ -1621,6 +1621,7 @@ describe("OpenCode adapter startTurn error handling", () => {
       fakeClient,
       "ses_unit_test",
       createTestLogger(),
+      {},
       new Map(),
       createDirectEventSource(fakeClient),
     );
@@ -1731,6 +1732,7 @@ describe("OpenCode adapter startTurn error handling", () => {
       fakeClient,
       "ses_unit_test",
       createTestLogger(),
+      {},
       new Map(),
       createDirectEventSource(fakeClient),
     );
@@ -1815,6 +1817,7 @@ describe("OpenCode adapter startTurn error handling", () => {
       fakeClient,
       "ses_unit_test",
       createTestLogger(),
+      {},
       new Map(),
       createDirectEventSource(fakeClient),
     );
@@ -1856,6 +1859,7 @@ describe("OpenCode adapter startTurn error handling", () => {
       fakeClient,
       "ses_unit_test",
       createTestLogger(),
+      {},
       new Map(),
       undefined,
       undefined,
@@ -1884,6 +1888,7 @@ describe("OpenCode adapter startTurn error handling", () => {
       fakeClient,
       "ses_unit_test",
       createTestLogger(),
+      {},
     );
 
     await session.close();
@@ -1908,6 +1913,7 @@ describe("OpenCode adapter startTurn error handling", () => {
       fakeClient,
       "ses_unit_test",
       createTestLogger(),
+      {},
       new Map(),
       events,
     );
@@ -1980,6 +1986,7 @@ describe("OpenCode adapter startTurn error handling", () => {
       fakeClient,
       "ses_unit_test",
       createTestLogger(),
+      {},
     );
 
     const history: AgentStreamEvent[] = [];
@@ -2070,6 +2077,7 @@ describe("OpenCode adapter startTurn error handling", () => {
       fakeClient,
       "ses_unit_test",
       createTestLogger(),
+      {},
     );
 
     const history: AgentStreamEvent[] = [];
@@ -2122,6 +2130,7 @@ describe("OpenCode adapter startTurn error handling", () => {
       fakeClient,
       "ses_unit_test",
       createTestLogger(),
+      {},
     );
 
     const history: AgentStreamEvent[] = [];
@@ -2235,6 +2244,7 @@ describe("OpenCode adapter startTurn error handling", () => {
       fakeClient,
       "ses_unit_test",
       createTestLogger(),
+      {},
     );
 
     const history: AgentStreamEvent[] = [];
@@ -2350,6 +2360,7 @@ describe("OpenCode adapter startTurn error handling", () => {
       fakeClient,
       "ses_unit_test",
       createTestLogger(),
+      {},
     );
 
     const events: AgentStreamEvent[] = [];
@@ -3251,6 +3262,7 @@ describe("OpenCode adapter startTurn error handling", () => {
       sdkClient,
       "ses_sync_abort_failure",
       createTestLogger(),
+      {},
     );
 
     try {
@@ -3849,7 +3861,10 @@ describe("OpenCode adapter startTurn error handling", () => {
     try {
       await session.startTurn("first");
       await session.interrupt();
+      const descriptor = session.usageSession?.();
       openCode.emitEvent({ type: "server-exited", error: new Error("OpenCode exited") });
+      expect(session.usageSession?.()).toEqual(descriptor);
+      expect(descriptor).not.toBeNull();
       await vi.advanceTimersByTimeAsync(0);
 
       openCode.sessionPromptAsyncEvents = [
@@ -3904,6 +3919,7 @@ describe("OpenCode adapter startTurn error handling", () => {
       openCode.asSdkClient(),
       "ses_readiness_timeout",
       createTestLogger(),
+      {},
       new Map(),
       {
         ready: () => new Promise<void>(() => undefined),
@@ -3957,6 +3973,7 @@ describe("OpenCode adapter startTurn error handling", () => {
       openCode.asSdkClient(),
       "ses_readiness_slow_stream",
       createTestLogger(),
+      {},
       new Map(),
       {
         ready: () => streamReady.promise,
@@ -3989,6 +4006,7 @@ describe("OpenCode adapter startTurn error handling", () => {
       openCode.asSdkClient(),
       "ses_readiness_retry",
       createTestLogger(),
+      {},
       new Map(),
       {
         ready: () => streamReady.promise,
@@ -5667,6 +5685,7 @@ describe("OpenCode provider subagent contract", () => {
       fakeClient,
       "ses_parent",
       createTestLogger(),
+      {},
       new Map(),
       createDirectEventSource(fakeClient),
     );
@@ -5825,6 +5844,7 @@ describe("OpenCode provider subagent contract", () => {
       fakeClient,
       "ses_parent",
       createTestLogger(),
+      {},
       new Map(),
       createDirectEventSource(fakeClient),
     );
@@ -7200,9 +7220,14 @@ describe("OpenCode session permission rules", () => {
         metadata: { cwd },
       });
       try {
+        expect(session.usageSession?.()).toMatchObject({
+          provider: "opencode",
+          sessionKey: expect.any(String),
+        });
         expect(openCode.calls.sessionUpdate).toEqual([]);
       } finally {
         await session.close();
+        expect(session.usageSession?.()).toBeNull();
       }
     } finally {
       rmSync(cwd, { recursive: true, force: true });

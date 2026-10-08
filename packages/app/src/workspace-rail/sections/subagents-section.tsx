@@ -10,6 +10,7 @@ import {
   type WorkspaceTabPresentation,
 } from "@/screens/workspace/workspace-tab-presentation";
 import { useSubagentsForParent, type SubagentRow } from "@/subagents";
+import { getPanelManifest } from "@/panels/panel-manifest";
 import { buildSubagentRowPresentationData } from "@/subagents/track-presentation";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { openPreferredWorkspaceTarget } from "@/workspace-tabs/open-beside";
@@ -115,6 +116,7 @@ const SubagentRowView = memo(function SubagentRowView({
       ...data,
       tooltip: data.label,
       modified: false,
+      showCloseButton: getPanelManifest(data.kind).showCloseButton,
       icon: providerIcon(row.provider),
     };
   }, [providerIcon, row]);

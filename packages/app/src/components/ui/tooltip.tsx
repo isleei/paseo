@@ -549,6 +549,7 @@ export function TooltipContent({
           entering={FadeIn.duration(80)}
           exiting={FadeOut.duration(80)}
           collapsable={false}
+          role="tooltip"
           testID={testID}
           onLayout={handleLayout}
           style={contentStyle}
@@ -575,6 +576,7 @@ export function TooltipContent({
           entering={FadeIn.duration(80)}
           exiting={FadeOut.duration(80)}
           collapsable={false}
+          role="tooltip"
           testID={testID}
           onLayout={handleLayout}
           style={contentStyle}

@@ -58,7 +58,7 @@ describe("OpenCodeServerManager generations", () => {
     const acquisition = await manager.acquireCurrent();
     expect(acquisition.password).toBe("local-secret");
     expect(acquisition.server.password).toBe("local-secret");
-    expect(runtime.spawnCalls[0]?.options.env?.OPENCODE_SERVER_PASSWORD).toBe("local-secret");
+    expect(runtime.spawnCalls[0]?.options.baseEnv?.OPENCODE_SERVER_PASSWORD).toBe("local-secret");
     await acquisition.release();
     await manager.shutdown();
   });
@@ -102,6 +102,7 @@ describe("OpenCodeServerManager generations", () => {
     const acquisition = await manager.acquireCurrent();
 
     expect(runtime.spawnCalls[0]?.options.baseEnv).toEqual(baseEnv);
+    expect(acquisition.environment).toBe(runtime.spawnCalls[0]?.options.baseEnv);
     await acquisition.release();
   });
 

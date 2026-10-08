@@ -1950,8 +1950,13 @@ const styles = StyleSheet.create((theme: Theme) => ({
     backgroundColor: theme.colorScheme === "dark" ? theme.colors.surface2 : theme.colors.surface0,
     borderWidth: theme.borderWidth[1],
     borderColor: resolveComposerBorderColor(theme),
-    borderRadius: 20,
-    paddingVertical: {
+    borderRadius: theme.borderRadius["2xl"],
+    paddingTop: {
+      xs: theme.spacing[2],
+      md: theme.spacing[3],
+    },
+    // The button row bleeds 6px horizontally, so match its corner inset at the bottom.
+    paddingBottom: {
       xs: theme.spacing[2],
       md: theme.spacing[3],
     },

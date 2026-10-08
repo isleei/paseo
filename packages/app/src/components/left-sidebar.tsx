@@ -46,6 +46,7 @@ import { SidebarSeparator } from "@/components/sidebar/sidebar-separator";
 import { SidebarNavRows } from "@/components/sidebar/sidebar-nav-rows";
 import { SidebarHelpMenu } from "@/components/sidebar/sidebar-help-menu";
 import { SidebarResizeHandle } from "@/components/sidebar-resize-handle";
+import { buttonControlHeight } from "@/components/ui/control-geometry";
 import { Shortcut } from "@/components/ui/shortcut";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { HEADER_INNER_HEIGHT, useIsCompactFormFactor } from "@/constants/layout";
@@ -80,7 +81,12 @@ import { buildSettingsAddHostRoute, buildSettingsRoute } from "@/utils/host-rout
 import { openHostOverview } from "@/navigation/settings-navigation";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { pickSessionActivityTarget } from "@/utils/session-activity-target";
-import { UsageSidebarItem, useHasUsageSummary, useOpenUsageScreen } from "@/usage";
+import {
+  UsageSidebarItem,
+  UsageSidebarRoot,
+  useHasUsageSummary,
+  useOpenSidebarUsage,
+} from "@/usage";
 import { SidebarAgentListSkeleton } from "./sidebar-agent-list-skeleton";
 import { SidebarCalloutSlot } from "./sidebar-callout-slot";
 import { SidebarWorkspaceList } from "./sidebar-workspace-list";
@@ -300,6 +306,7 @@ function FooterIconButton({
   label,
   icon: Icon,
   iconSize,
+  iconSizeAdjustment = 0,
   shortcutKeys,
   theme,
 }: {
@@ -307,17 +314,23 @@ function FooterIconButton({
   testID: string;
   label: string;
   icon: LucideIcon;
+  /** Fixed pixel size; defaults to the responsive footer size. */
   iconSize?: number;
+  /** Only for a glyph that reads larger than the others at the same size. */
+  iconSizeAdjustment?: number;
   shortcutKeys?: ReturnType<typeof useShortcutKeys>;
   theme: SidebarTheme;
   buttonRef?: RefObject<View | null>;
 }) {
+  const isCompact = useIsCompactFormFactor();
+  const responsiveIconSize = isCompact ? theme.iconSize.lg : theme.iconSize.md;
+
   return (
     <Tooltip delayDuration={300}>
       <TooltipTrigger asChild>
         <Pressable
           ref={buttonRef}
-          style={styles.footerIconButton}
+          style={styles.footerIconButton(isCompact)}
           testID={testID}
           nativeID={testID}
           collapsable={false}
@@ -328,7 +341,7 @@ function FooterIconButton({
         >
           {({ hovered }) => (
             <Icon
-              size={iconSize ?? theme.iconSize.md}
+              size={(iconSize ?? responsiveIconSize) + iconSizeAdjustment}
               color={hovered ? theme.colors.foreground : theme.colors.foregroundMuted}
             />
           )}
@@ -470,45 +483,47 @@ function SidebarFooter({
   const settingsKeys = useShortcutKeys("toggle-settings");
 
   return (
-    <View style={styles.footerContainer} testID="sidebar-footer">
-      <SidebarFooterRows onBeforeNavigate={onBeforeNavigate} />
-      <View style={styles.sidebarFooter}>
-        <SidebarHostPicker
-          theme={theme}
-          label={labels.hosts}
-          onAddHost={handleAddHost}
-          onOpenHostSettings={handleOpenHostSettings}
-          avatarMode
-        />
-        <View style={styles.footerSpacer} />
-        <View style={styles.footerIconRow}>
-          <FooterIconButton
-            onPress={handleOpenProject}
-            testID="sidebar-add-project"
-            label={labels.addProject}
-            icon={FolderPlus}
+    <UsageSidebarRoot>
+      <View style={styles.footerContainer} testID="sidebar-footer">
+        <SidebarFooterRows onBeforeNavigate={onBeforeNavigate} />
+        <View style={styles.sidebarFooter}>
+          <SidebarHostPicker
             theme={theme}
+            label={labels.hosts}
+            onAddHost={handleAddHost}
+            onOpenHostSettings={handleOpenHostSettings}
+            avatarMode
           />
-          <FooterIconButton
-            onPress={handleImportSession}
-            testID="sidebar-import-session"
-            label={labels.importSession}
-            icon={Import}
-            theme={theme}
-          />
-          <SidebarUsageButton />
-          <SidebarHelpMenu />
-          <FooterIconButton
-            onPress={handleSettings}
-            testID="sidebar-settings"
-            label={labels.settings}
-            icon={Settings}
-            shortcutKeys={settingsKeys}
-            theme={theme}
-          />
+          <View style={styles.footerSpacer} />
+          <View style={styles.footerIconRow}>
+            <FooterIconButton
+              onPress={handleOpenProject}
+              testID="sidebar-add-project"
+              label={labels.addProject}
+              icon={FolderPlus}
+              theme={theme}
+            />
+            <FooterIconButton
+              onPress={handleImportSession}
+              testID="sidebar-import-session"
+              label={labels.importSession}
+              icon={Import}
+              theme={theme}
+            />
+            <SidebarUsageButton />
+            <SidebarHelpMenu />
+            <FooterIconButton
+              onPress={handleSettings}
+              testID="sidebar-settings"
+              label={labels.settings}
+              icon={Settings}
+              shortcutKeys={settingsKeys}
+              theme={theme}
+            />
+          </View>
         </View>
       </View>
-    </View>
+    </UsageSidebarRoot>
   );
 }
 
@@ -547,13 +562,13 @@ function SidebarFooterRows({ onBeforeNavigate }: { onBeforeNavigate?: () => void
   );
 }
 
-/** Usage stays a footer icon. The percent summary lives on the Usage screen. */
+/** Usage stays a footer icon opening the Usage modal. The percent summary lives above. */
 function SidebarUsageButton() {
   const { t } = useTranslation();
   const { theme } = useUnistyles();
   const { items } = useSidebarNavItems("footer");
   const usage = items.find((item) => item.kind === "builtin" && item.id === "usage");
-  const handlePress = useOpenUsageScreen();
+  const handlePress = useOpenSidebarUsage();
   if (!usage?.visible) return null;
   return (
     <FooterIconButton
@@ -1120,7 +1135,7 @@ const styles = StyleSheet.create((theme) => ({
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
   },
-  // The icons' 28pt buttons sit edge to edge; their own inset spaces the glyphs.
+  // Buttons sit edge to edge; their own inset spaces the glyphs.
   sidebarFooter: {
     flexDirection: "row",
     alignItems: "center",
@@ -1146,14 +1161,14 @@ const styles = StyleSheet.create((theme) => ({
     paddingVertical: theme.spacing[1.5],
     gap: 2,
   },
-  footerIconButton: {
-    width: 28,
-    height: 28,
+  footerIconButton: (isCompact: boolean) => ({
+    width: isCompact ? buttonControlHeight.md : buttonControlHeight.xs,
+    height: isCompact ? buttonControlHeight.md : buttonControlHeight.xs,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: theme.spacing[1],
     paddingHorizontal: theme.spacing[1],
-  },
+  }),
   tooltipRow: {
     flexDirection: "row",
     alignItems: "center",

@@ -11,7 +11,7 @@ import { spawnProcess, type SpawnProcessOptions } from "../../../../utils/spawn.
 import { terminateWithTreeKill, type ProcessTerminator } from "../../../../utils/tree-kill.js";
 import type { ManagedProcessRegistry } from "../../../managed-processes/managed-processes.js";
 import {
-  createProviderEnvSpec,
+  createProviderEnv,
   resolveProviderCommandPrefix,
   type ProviderRuntimeSettings,
 } from "../../provider-launch-config.js";
@@ -32,6 +32,7 @@ const OPENCODE_SERVER_FORCE_SHUTDOWN_TIMEOUT_MS = 1_000;
 export interface OpenCodeServerAcquisition {
   server: { port: number; url: string; password?: string };
   password?: string;
+  environment: Record<string, string>;
   events: OpenCodeEventSource;
   release: () => Promise<void>;
 }
@@ -45,6 +46,7 @@ export interface OpenCodeServerManagerLike {
 }
 
 export interface OpenCodeServerGeneration {
+  environment: Record<string, string>;
   process: ChildProcess;
   port: number;
   url: string;
@@ -222,6 +224,7 @@ export class OpenCodeServerManager implements OpenCodeServerManagerLike {
       },
       password: server.password,
       events: server.events,
+      environment: server.environment,
       release: async () => {
         if (releasePromise) {
           return releasePromise;
@@ -349,15 +352,16 @@ export class OpenCodeServerManager implements OpenCodeServerManagerLike {
     const bridgeEnv = this.decorateServerEnv?.(
       existingConfigContent ? { OPENCODE_CONFIG_CONTENT: existingConfigContent } : {},
     );
+    const environment = createProviderEnv({
+      baseEnv: this.baseEnv,
+      runtimeSettings: this.runtimeSettings,
+      overlays: [launchEnv, bridgeEnv],
+    });
     const serverProcess = this.spawnServerProcess(launchPrefix.command, serverArgs, {
       cwd: serverCwd,
       detached: process.platform !== "win32",
       stdio: ["ignore", "pipe", "pipe"],
-      ...createProviderEnvSpec({
-        baseEnv: this.baseEnv,
-        runtimeSettings: this.runtimeSettings,
-        overlays: [launchEnv, bridgeEnv],
-      }),
+      baseEnv: environment,
     });
     const managedProcessRecord = this.recordManagedServerProcess({
       process: serverProcess,
@@ -369,7 +373,14 @@ export class OpenCodeServerManager implements OpenCodeServerManagerLike {
     const processExit = new Promise<Error>((resolve) => {
       resolveProcessExit = resolve;
     });
+    let resolveListening!: () => void;
+    let rejectListening!: (error: Error) => void;
+    const ready = new Promise<void>((resolve, reject) => {
+      resolveListening = resolve;
+      rejectListening = reject;
+    });
     const server: OpenCodeServerGeneration = {
+      environment,
       process: serverProcess,
       port,
       url,
@@ -381,6 +392,7 @@ export class OpenCodeServerManager implements OpenCodeServerManagerLike {
         serverUrl: url,
         processExit,
         logger: this.logger,
+        listening: ready,
         ...(password ? { password } : {}),
       }),
       managedProcessRecord,
@@ -421,7 +433,7 @@ export class OpenCodeServerManager implements OpenCodeServerManagerLike {
       return sections.join("\n");
     };
 
-    const ready = new Promise<void>((resolve, reject) => {
+    {
       let timeout: ReturnType<typeof setTimeout>;
       const failStartup = (error: Error) => {
         if (settled) {
@@ -429,7 +441,7 @@ export class OpenCodeServerManager implements OpenCodeServerManagerLike {
         }
         settled = true;
         clearTimeout(timeout);
-        reject(error);
+        rejectListening(error);
       };
       timeout = setTimeout(() => {
         if (!started) {
@@ -444,7 +456,7 @@ export class OpenCodeServerManager implements OpenCodeServerManagerLike {
           started = true;
           settled = true;
           clearTimeout(timeout);
-          resolve();
+          resolveListening();
         }
       });
 
@@ -480,7 +492,7 @@ export class OpenCodeServerManager implements OpenCodeServerManagerLike {
           }
         }
       });
-    });
+    }
 
     server.ready = ready.catch(async (error) => {
       await this.killServer(server);
