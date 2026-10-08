@@ -2388,6 +2388,7 @@ final class AgentMenuBarController: NSObject, NSPopoverDelegate {
   private let eventSink: ([String: Any]) -> Void
   private var iconSkin: String?
   private var icon: NSImage?
+  private var outsideClickMonitor: Any?
 
   init(eventSink: @escaping ([String: Any]) -> Void = emitJson) {
     self.eventSink = eventSink
@@ -2399,6 +2400,10 @@ final class AgentMenuBarController: NSObject, NSPopoverDelegate {
     popover.behavior = .transient
     popover.animates = true
     popover.delegate = self
+    // The menu lives in a separate accessory process, not the Electron application.
+    NSWorkspace.shared.notificationCenter.addObserver(self,
+      selector: #selector(applicationActivated(_:)),
+      name: NSWorkspace.didActivateApplicationNotification, object: nil)
     popover.contentViewController = NSHostingController(rootView: AgentMenuBarContent(model: model) { [weak self] event in
       self?.handleAction(event)
     })
@@ -2423,12 +2428,41 @@ final class AgentMenuBarController: NSObject, NSPopoverDelegate {
     if popover.isShown {
       popover.performClose(nil)
     } else if let button = statusItem.button {
+      // Status-item clicks do not activate this accessory process. Without activation,
+      // clicking the already-frontmost app sends no activation change and can leave the popover open.
+      NSApp.activate(ignoringOtherApps: true)
       model.open = true
       popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
     }
   }
 
-  func popoverDidClose(_ notification: Notification) { model.open = false }
+  func popoverDidShow(_ notification: Notification) {
+    popover.contentViewController?.view.window?.makeKey()
+    // Clicking an already-active application need not send a workspace activation notification.
+    outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
+      matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+    ) { [weak self] _ in
+      self?.popover.performClose(nil)
+    }
+  }
+
+  @objc private func applicationActivated(_ notification: Notification) {
+    guard let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+      application.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
+    popover.performClose(nil)
+  }
+
+  func popoverDidClose(_ notification: Notification) {
+    stopMonitoringOutsideClicks()
+    model.open = false
+  }
+
+  private func stopMonitoringOutsideClicks() {
+    if let monitor = outsideClickMonitor {
+      NSEvent.removeMonitor(monitor)
+      outsideClickMonitor = nil
+    }
+  }
 
   func handleAction(_ event: [String: Any]) {
     let type = event["type"] as? String
@@ -2445,6 +2479,8 @@ final class AgentMenuBarController: NSObject, NSPopoverDelegate {
   }
 
   func close() {
+    stopMonitoringOutsideClicks()
+    NSWorkspace.shared.notificationCenter.removeObserver(self)
     popover.performClose(nil)
     model.open = false
     NSStatusBar.system.removeStatusItem(statusItem)

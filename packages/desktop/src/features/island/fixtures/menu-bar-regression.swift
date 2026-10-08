@@ -28,6 +28,8 @@ MainActor.assumeIsolated {
   RunLoop.main.run(until: Date().addingTimeInterval(0.4))
   precondition(controller.popover.isShown, "Click does not open native popover")
   precondition(controller.model.open, "Opened popover does not activate content")
+  precondition(controller.popover.contentViewController?.view.window?.isKeyWindow == true,
+    "Opened popover does not own keyboard focus")
   controller.apply(state: state)
   precondition(controller.popover.isShown, "Update closes user-opened popover")
   controller.model.pendingRequests.insert("request")
@@ -59,6 +61,19 @@ MainActor.assumeIsolated {
   controller.apply(state: state)
   precondition(!controller.popover.isShown, "Later update reopens popover")
   controller.togglePopover()
+  NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didActivateApplicationNotification,
+    object: nil, userInfo: [NSWorkspace.applicationUserInfoKey: NSRunningApplication.current])
+  precondition(controller.popover.isShown, "Helper activation closes its own popover")
+  let otherApplication = NSWorkspace.shared.runningApplications.first {
+    $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && $0.activationPolicy == .regular
+  }!
+  NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didActivateApplicationNotification,
+    object: nil, userInfo: [NSWorkspace.applicationUserInfoKey: otherApplication])
+  RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+  precondition(!controller.popover.isShown, "Switching applications leaves popover open")
+  precondition(!controller.model.open, "Switching applications keeps animations active")
+  controller.togglePopover()
+  precondition(controller.popover.isShown, "Popover cannot reopen after switching applications")
   controller.togglePopover()
   RunLoop.main.run(until: Date().addingTimeInterval(0.3))
   precondition(!controller.popover.isShown, "Second click does not close popover")
