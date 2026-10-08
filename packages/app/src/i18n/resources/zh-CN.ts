@@ -2165,9 +2165,13 @@ export const zhCN: TranslationResources = {
         destinations: {
           main: "主面板",
           side: "侧边面板",
+          bottom: "底部面板",
           explorer: "资源管理器侧边栏",
         },
         sources: {
+          terminal: {
+            label: "打开终端",
+          },
           explorerFiles: {
             label: "点击资源管理器侧边栏中的文件",
             description: "在当前工作旁打开资源管理器侧边栏中选中的文件",

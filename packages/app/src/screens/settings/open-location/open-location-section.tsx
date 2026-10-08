@@ -5,6 +5,7 @@ import {
   useAppSettings,
   type OpenInSidePanePreferences,
   type PullRequestOpenLocation,
+  type TerminalOpenLocation,
   type ServiceUrlBehavior,
 } from "@/hooks/use-settings";
 
@@ -24,31 +25,32 @@ const SERVICE_URL_LABEL_KEYS: Record<ServiceUrlBehavior, string> = {
   external: "settings.general.serviceUrls.options.external",
 };
 
-type OpenLocationSource = keyof OpenInSidePanePreferences | "pullRequests";
+type OpenLocationSource = keyof OpenInSidePanePreferences | "pullRequests" | "terminal";
+type OpenLocationDestination = PullRequestOpenLocation | TerminalOpenLocation;
+const MAIN_AND_SIDE_DESTINATIONS = ["main", "side"] as const;
+const TERMINAL_DESTINATIONS = ["main", "side", "bottom"] as const;
+const PULL_REQUEST_DESTINATIONS = ["main", "side", "explorer"] as const;
 
 function OpenLocationRow({
   source,
   destination,
-  allowExplorer,
+  destinations,
   onDestinationChange,
 }: {
   source: OpenLocationSource;
-  destination: PullRequestOpenLocation;
-  allowExplorer?: boolean;
-  onDestinationChange(source: OpenLocationSource, destination: PullRequestOpenLocation): void;
+  destination: OpenLocationDestination;
+  destinations: readonly OpenLocationDestination[];
+  onDestinationChange(source: OpenLocationSource, destination: OpenLocationDestination): void;
 }) {
   const { t } = useTranslation();
   const options = useMemo(() => {
-    const destinations = allowExplorer
-      ? (["main", "side", "explorer"] as const)
-      : (["main", "side"] as const);
     return destinations.map((value) => ({
       value,
       label: t(`settings.layout.openInSidePane.destinations.${value}`),
     }));
-  }, [allowExplorer, t]);
+  }, [destinations, t]);
   const change = useCallback(
-    (value: PullRequestOpenLocation) => onDestinationChange(source, value),
+    (value: OpenLocationDestination) => onDestinationChange(source, value),
     [source, onDestinationChange],
   );
   return (
@@ -88,9 +90,15 @@ export function OpenLocationSection() {
   const { t } = useTranslation();
   const { settings, updateSettings } = useAppSettings();
   const handleDestinationChange = useCallback(
-    (source: OpenLocationSource, destination: PullRequestOpenLocation) => {
+    (source: OpenLocationSource, destination: OpenLocationDestination) => {
       if (source === "pullRequests") {
+        if (destination === "bottom") return;
         void updateSettings({ pullRequestOpenLocation: destination });
+        return;
+      }
+      if (source === "terminal") {
+        if (destination === "explorer") return;
+        void updateSettings({ terminalOpenLocation: destination });
         return;
       }
       void updateSettings({
@@ -107,13 +115,20 @@ export function OpenLocationSection() {
             key={source}
             source={source}
             destination={settings.openInSidePane[source] ? "side" : "main"}
+            destinations={MAIN_AND_SIDE_DESTINATIONS}
             onDestinationChange={handleDestinationChange}
           />
         ))}
         <OpenLocationRow
+          source="terminal"
+          destination={settings.terminalOpenLocation}
+          destinations={TERMINAL_DESTINATIONS}
+          onDestinationChange={handleDestinationChange}
+        />
+        <OpenLocationRow
           source="pullRequests"
           destination={settings.pullRequestOpenLocation}
-          allowExplorer
+          destinations={PULL_REQUEST_DESTINATIONS}
           onDestinationChange={handleDestinationChange}
         />
         <ServiceUrlRow />
