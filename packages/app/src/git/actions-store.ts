@@ -16,6 +16,8 @@ export type CheckoutGitAsyncActionId =
   | "pull-and-push"
   | "refresh"
   | "create-pr"
+  | "commit-and-create-pr"
+  | "commit-and-push"
   | "merge-pr-squash"
   | "merge-pr-merge"
   | "merge-pr-rebase"
@@ -29,6 +31,28 @@ export type CheckoutGitAsyncActionId =
 
 type CheckoutKey = string;
 type StatusMap = Partial<Record<CheckoutGitAsyncActionId, CheckoutGitActionStatus>>;
+
+export interface CheckoutCommitInput {
+  serverId: string;
+  cwd: string;
+  message?: string;
+  noVerify?: boolean;
+  addAll?: boolean;
+}
+
+export class CommitFollowUpError extends Error {
+  constructor(
+    readonly action: "push" | "create-pr",
+    cause: unknown,
+  ) {
+    super(cause instanceof Error ? cause.message : String(cause), { cause });
+    this.name = "CommitFollowUpError";
+  }
+}
+
+function isCompositeCommit(actionId: CheckoutGitAsyncActionId): boolean {
+  return actionId === "commit-and-push" || actionId === "commit-and-create-pr";
+}
 
 function checkoutKey(serverId: string, cwd: string): CheckoutKey {
   return `${serverId}::${cwd}`;
@@ -101,19 +125,17 @@ interface CheckoutGitActionsStoreState {
     cwd: string;
     actionId: CheckoutGitAsyncActionId;
   }) => CheckoutGitActionStatus;
+  hasPendingAction: (params: { serverId: string; cwd: string }) => boolean;
 
-  commit: (params: {
-    serverId: string;
-    cwd: string;
-    message?: string;
-    noVerify?: boolean;
-  }) => Promise<void>;
+  commit: (params: CheckoutCommitInput) => Promise<void>;
   generateCommitMessage: (params: { serverId: string; cwd: string }) => Promise<string>;
   pull: (params: { serverId: string; cwd: string }) => Promise<void>;
   push: (params: { serverId: string; cwd: string }) => Promise<void>;
   pullAndPush: (params: { serverId: string; cwd: string }) => Promise<void>;
   refresh: (params: { serverId: string; cwd: string }) => Promise<void>;
   createPr: (params: { serverId: string; cwd: string }) => Promise<void>;
+  commitAndCreatePr: (params: CheckoutCommitInput) => Promise<void>;
+  commitAndPush: (params: CheckoutCommitInput) => Promise<void>;
   mergePr: (params: {
     serverId: string;
     cwd: string;
@@ -150,6 +172,15 @@ async function runCheckoutAction({
     return;
   }
 
+  const statuses = useCheckoutGitActionsStore.getState().statusByCheckout[key] ?? {};
+  const competingAction = Object.entries(statuses).find(
+    ([id, status]) =>
+      status === "pending" &&
+      id !== actionId &&
+      (isCompositeCommit(actionId) || id === "commit-and-push" || id === "commit-and-create-pr"),
+  );
+  if (competingAction) throw new Error(i18n.t("common.errors.gitActionInProgress"));
+
   const prevTimer = successTimers.get(inflightId);
   if (prevTimer) {
     clearTimeout(prevTimer);
@@ -182,20 +213,22 @@ async function runCheckoutAction({
 
 export const useCheckoutGitActionsStore = create<CheckoutGitActionsStoreState>()((set, get) => ({
   statusByCheckout: {},
+  hasPendingAction: ({ serverId, cwd }) =>
+    Object.values(get().statusByCheckout[checkoutKey(serverId, cwd)] ?? {}).includes("pending"),
 
   getStatus: ({ serverId, cwd, actionId }) => {
     const key = checkoutKey(serverId, cwd);
     return get().statusByCheckout[key]?.[actionId] ?? "idle";
   },
 
-  commit: async ({ serverId, cwd, message, noVerify }) => {
+  commit: async ({ serverId, cwd, message, noVerify, addAll = true }) => {
     await runCheckoutAction({
       serverId,
       cwd,
       actionId: "commit",
       run: async () => {
         const client = resolveClient(serverId);
-        const payload = await client.checkoutCommit(cwd, { addAll: true, message, noVerify });
+        const payload = await client.checkoutCommit(cwd, { addAll, message, noVerify });
         if (payload.error) {
           throw new Error(payload.error.message);
         }
@@ -278,6 +311,29 @@ export const useCheckoutGitActionsStore = create<CheckoutGitActionsStoreState>()
     });
   },
 
+  commitAndPush: async ({ serverId, cwd, message, noVerify, addAll = true }) => {
+    await runCheckoutAction({
+      serverId,
+      cwd,
+      actionId: "commit-and-push",
+      run: async () => {
+        const client = resolveClient(serverId);
+        const commitPayload = await client.checkoutCommit(cwd, { addAll, message, noVerify });
+        if (commitPayload.error) {
+          throw new Error(commitPayload.error.message);
+        }
+        try {
+          const pushPayload = await client.checkoutPush(cwd);
+          if (pushPayload.error) throw new Error(pushPayload.error.message);
+        } catch (error) {
+          throw new CommitFollowUpError("push", error);
+        } finally {
+          await invalidateCheckoutGitQueries(serverId, cwd).catch(() => undefined);
+        }
+      },
+    });
+  },
+
   createPr: async ({ serverId, cwd }) => {
     await runCheckoutAction({
       serverId,
@@ -288,6 +344,35 @@ export const useCheckoutGitActionsStore = create<CheckoutGitActionsStoreState>()
         const payload = await client.checkoutPrCreate(cwd, {});
         if (payload.error) {
           throw new Error(payload.error.message);
+        }
+      },
+    });
+  },
+
+  commitAndCreatePr: async ({ serverId, cwd, message, noVerify, addAll = true }) => {
+    await runCheckoutAction({
+      serverId,
+      cwd,
+      actionId: "commit-and-create-pr",
+      run: async () => {
+        const client = resolveClient(serverId);
+        const commitPayload = await client.checkoutCommit(cwd, { addAll, message, noVerify });
+        if (commitPayload.error) {
+          throw new Error(commitPayload.error.message);
+        }
+        try {
+          const prPayload = await client.checkoutPrCreate(cwd, {});
+          if (prPayload.error) {
+            throw new Error(prPayload.error.message);
+          }
+        } catch (error) {
+          throw new CommitFollowUpError("create-pr", error);
+        } finally {
+          // The commit already landed here, so refresh regardless of how PR creation
+          // went so a failure can't leave the diff/status views showing pre-commit
+          // state. Best effort: a refetch failure must not mask the error above or
+          // block PR creation, which already ran.
+          await invalidateCheckoutGitQueries(serverId, cwd).catch(() => undefined);
         }
       },
     });

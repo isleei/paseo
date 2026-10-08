@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useHostFeature } from "@/runtime/host-features";
 import { useToast } from "@/contexts/toast-context";
-import { useCheckoutGitActionsStore } from "@/git/actions-store";
+import { CommitFollowUpError, useCheckoutGitActionsStore } from "@/git/actions-store";
 import { useCommitSheetStore } from "@/git/commit-sheet-store";
 import { copyToClipboard } from "@/utils/copy-to-clipboard";
 import { isPreCommitHookError } from "./commit-hook-error";
@@ -98,9 +98,10 @@ export function CommitSheetHost() {
   if (!request) return null;
   return (
     <CommitSheet
-      key={`${request.serverId}::${request.cwd}`}
+      key={`${request.serverId}::${request.cwd}::${request.action ?? "commit"}`}
       serverId={request.serverId}
       cwd={request.cwd}
+      action={request.action ?? "commit"}
       onClose={closeCommitSheet}
     />
   );
@@ -109,10 +110,12 @@ export function CommitSheetHost() {
 function CommitSheet({
   serverId,
   cwd,
+  action,
   onClose,
 }: {
   serverId: string;
   cwd: string;
+  action: "commit" | "commit-and-push" | "commit-and-create-pr";
   onClose: () => void;
 }) {
   const { t } = useTranslation();
@@ -123,11 +126,22 @@ function CommitSheet({
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCommitting, setIsCommitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [followUp, setFollowUp] = useState<"push" | "create-pr" | null>(null);
+  const actionKeys = {
+    commit: "workspace.git.actions.commit",
+    "commit-and-push": "workspace.git.actions.commitAndPush",
+    "commit-and-create-pr": "workspace.git.actions.commitAndCreatePr",
+  } as const;
+  const actionKey = actionKeys[action];
 
   const isBusy = isGenerating || isCommitting;
   const header = useMemo<SheetHeader>(
-    () => ({ title: t("workspace.git.actions.commit.sheet.title") }),
-    [t],
+    () => ({
+      title: t(
+        action === "commit" ? "workspace.git.actions.commit.sheet.title" : `${actionKey}.label`,
+      ),
+    }),
+    [action, actionKey, t],
   );
 
   const handleClose = useCallback(() => {
@@ -162,15 +176,22 @@ function CommitSheet({
       setErrorMessage("");
       try {
         const trimmed = message.trim();
-        await useCheckoutGitActionsStore.getState().commit({
+        const store = useCheckoutGitActionsStore.getState();
+        const commitInput = {
           serverId,
           cwd,
           message: trimmed.length > 0 ? trimmed : undefined,
           noVerify: options?.noVerify,
-        });
-        toast.show(t("workspace.git.actions.commit.success"), { variant: "success" });
+        };
+        if (followUp === "push") await store.push({ serverId, cwd });
+        else if (followUp === "create-pr") await store.createPr({ serverId, cwd });
+        else if (action === "commit-and-push") await store.commitAndPush(commitInput);
+        else if (action === "commit-and-create-pr") await store.commitAndCreatePr(commitInput);
+        else await store.commit(commitInput);
+        toast.show(t(`${actionKey}.success`), { variant: "success" });
         onClose();
       } catch (error) {
+        if (error instanceof CommitFollowUpError) setFollowUp(error.action);
         setErrorMessage(
           error instanceof Error ? error.message : t("workspace.git.actions.toasts.failedCommit"),
         );
@@ -178,7 +199,7 @@ function CommitSheet({
         setIsCommitting(false);
       }
     },
-    [cwd, isBusy, message, onClose, serverId, t, toast],
+    [action, actionKey, cwd, followUp, isBusy, message, onClose, serverId, t, toast],
   );
 
   const handleBypassHook = useCallback(async () => {
@@ -194,7 +215,7 @@ function CommitSheet({
     onClose();
   }, [errorMessage, onClose, t, toast]);
 
-  const isHookError = isPreCommitHookError(errorMessage);
+  const isHookError = followUp === null && isPreCommitHookError(errorMessage);
 
   const handleNormalCommit = useCallback(() => {
     void handleCommit();
@@ -247,6 +268,11 @@ function CommitSheet({
     setErrorMessage("");
   }, [serverId, cwd]);
 
+  let idleSubmitKey = `${actionKey}.label`;
+  if (action === "commit") idleSubmitKey = "workspace.git.actions.commit.sheet.submit";
+  if (followUp !== null) idleSubmitKey = "common.actions.retry";
+  const submitLabel = t(isCommitting ? `${actionKey}.pending` : idleSubmitKey);
+
   return (
     <AdaptiveModalSheet header={header} visible onClose={handleClose} testID="commit-sheet">
       <View style={styles.field}>
@@ -261,7 +287,7 @@ function CommitSheet({
           style={styles.input}
           multiline
           numberOfLines={4}
-          editable={!isCommitting}
+          editable={!isCommitting && followUp === null}
           autoFocus
         />
         <Text style={styles.hint}>{t("workspace.git.actions.commit.sheet.hint")}</Text>
@@ -269,7 +295,7 @@ function CommitSheet({
       </View>
 
       <View style={styles.actions}>
-        {supportsGenerate ? (
+        {supportsGenerate && followUp === null ? (
           <Button
             style={styles.actionFlex}
             variant="secondary"
@@ -289,9 +315,7 @@ function CommitSheet({
           disabled={isBusy}
           testID="commit-sheet-submit"
         >
-          {isCommitting
-            ? t("workspace.git.actions.commit.pending")
-            : t("workspace.git.actions.commit.sheet.submit")}
+          {submitLabel}
         </Button>
       </View>
     </AdaptiveModalSheet>

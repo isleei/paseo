@@ -102,7 +102,17 @@ function createInput(
         status: "idle",
         handler: () => undefined,
       },
+      "commit-and-push": {
+        disabled: false,
+        status: "idle",
+        handler: () => undefined,
+      },
       pr: {
+        disabled: false,
+        status: "idle",
+        handler: () => undefined,
+      },
+      "commit-and-create-pr": {
         disabled: false,
         status: "idle",
         handler: () => undefined,
@@ -315,6 +325,64 @@ describe("git-actions-policy", () => {
     ).toBe(true);
   });
 
+  it("offers commit-and-create-pr only while dirty and before a PR exists", () => {
+    const dirty = createInput({
+      hasRemote: true,
+      isOnBaseBranch: false,
+      aheadCount: 1,
+      hasUncommittedChanges: true,
+    });
+
+    expect(buildGitActions(dirty).secondary.map((action) => action.id)).toContain(
+      "commit-and-create-pr",
+    );
+    expect(
+      buildGitActions({ ...dirty, hasUncommittedChanges: false }).secondary.map(
+        (action) => action.id,
+      ),
+    ).not.toContain("commit-and-create-pr");
+    expect(
+      buildGitActions({
+        ...dirty,
+        hasPullRequest: true,
+        pullRequestUrl: "https://example.com/pr/789",
+        pullRequestState: "open",
+      }).secondary.map((action) => action.id),
+    ).not.toContain("commit-and-create-pr");
+    expect(
+      buildGitActions({ ...dirty, githubFeaturesEnabled: false }).secondary.map(
+        (action) => action.id,
+      ),
+    ).not.toContain("commit-and-create-pr");
+    expect(
+      buildGitActions({ ...dirty, hasRemote: false }).secondary.map((action) => action.id),
+    ).not.toContain("commit-and-create-pr");
+    expect(
+      buildGitActions({ ...dirty, baseRefAvailable: false }).secondary.map((action) => action.id),
+    ).not.toContain("commit-and-create-pr");
+  });
+
+  it("keeps commit-and-create-pr visible while its own run is still pending, even after the commit clears hasUncommittedChanges", () => {
+    const pending = createInput({
+      hasRemote: true,
+      isOnBaseBranch: false,
+      aheadCount: 1,
+      hasUncommittedChanges: false,
+      runtime: {
+        ...createInput().runtime,
+        "commit-and-create-pr": {
+          disabled: false,
+          status: "pending",
+          handler: () => undefined,
+        },
+      },
+    });
+
+    expect(buildGitActions(pending).secondary.map((action) => action.id)).toContain(
+      "commit-and-create-pr",
+    );
+  });
+
   it("enables pull-and-push when the branch has both incoming and outgoing commits", () => {
     const actions = buildGitActions(
       createInput({
@@ -410,6 +478,113 @@ describe("git-actions-policy", () => {
       "Pull and push isn't available while you have local changes so commit or stash them first",
     );
   });
+
+  it("shows commit-and-push only when there's an open PR and uncommitted changes", () => {
+    const withPr = buildGitActions(
+      createInput({
+        hasRemote: true,
+        isOnBaseBranch: false,
+        hasUncommittedChanges: true,
+        hasPullRequest: true,
+        pullRequestUrl: "https://example.com/pr/456",
+        pullRequestState: "open",
+      }),
+    );
+    expect(withPr.secondary.some((action) => action.id === "commit-and-push")).toBe(true);
+
+    const withoutPr = buildGitActions(
+      createInput({
+        hasRemote: true,
+        isOnBaseBranch: false,
+        hasUncommittedChanges: true,
+        hasPullRequest: false,
+      }),
+    );
+    expect(withoutPr.secondary.some((action) => action.id === "commit-and-push")).toBe(false);
+
+    const clean = buildGitActions(
+      createInput({
+        hasRemote: true,
+        isOnBaseBranch: false,
+        hasUncommittedChanges: false,
+        hasPullRequest: true,
+        pullRequestUrl: "https://example.com/pr/456",
+        pullRequestState: "open",
+      }),
+    );
+    expect(clean.secondary.some((action) => action.id === "commit-and-push")).toBe(false);
+
+    const closedPr = buildGitActions(
+      createInput({
+        hasRemote: true,
+        isOnBaseBranch: false,
+        hasUncommittedChanges: true,
+        hasPullRequest: true,
+        pullRequestUrl: "https://example.com/pr/456",
+        pullRequestState: "closed",
+      }),
+    );
+    expect(closedPr.secondary.some((action) => action.id === "commit-and-push")).toBe(false);
+
+    const behindOrigin = buildGitActions(
+      createInput({
+        hasRemote: true,
+        isOnBaseBranch: false,
+        hasUncommittedChanges: true,
+        hasPullRequest: true,
+        pullRequestUrl: "https://example.com/pr/456",
+        pullRequestState: "open",
+        behindOfOrigin: 2,
+      }),
+    );
+    expect(behindOrigin.secondary.some((action) => action.id === "commit-and-push")).toBe(false);
+  });
+
+  it("places commit-and-push directly ahead of the remote actions", () => {
+    const actions = buildGitActions(
+      createInput({
+        hasRemote: true,
+        isOnBaseBranch: false,
+        hasUncommittedChanges: true,
+        hasPullRequest: true,
+        pullRequestUrl: "https://example.com/pr/456",
+        pullRequestState: "open",
+      }),
+    );
+
+    expect(actions.secondary[0]?.id).toBe("commit-and-push");
+    expect(actions.secondary.slice(0, 4).map((action) => action.id)).toEqual([
+      "commit-and-push",
+      "pull",
+      "push",
+      "pull-and-push",
+    ]);
+  });
+
+  it.each(["pending", "success"] as const)(
+    "keeps commit-and-push visible while its status is %s even if its inputs no longer qualify",
+    (status) => {
+      const actions = buildGitActions(
+        createInput({
+          hasRemote: true,
+          isOnBaseBranch: false,
+          hasUncommittedChanges: false,
+          hasPullRequest: true,
+          pullRequestUrl: "https://example.com/pr/456",
+          runtime: {
+            ...createInput().runtime,
+            "commit-and-push": {
+              disabled: false,
+              status,
+              handler: () => undefined,
+            },
+          },
+        }),
+      );
+
+      expect(actions.secondary.some((action) => action.id === "commit-and-push")).toBe(true);
+    },
+  );
 
   it("hides Git actions for a non-Git workspace", () => {
     const directory = buildGitActions(createInput({ isGit: false }));

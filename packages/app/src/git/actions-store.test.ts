@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
+import { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import { queryClient as appQueryClient } from "@/data/query-client";
 import { useSessionStore } from "@/stores/session-store";
 import {
   __resetCheckoutGitActionsStoreForTests,
+  CommitFollowUpError,
   useCheckoutGitActionsStore,
 } from "@/git/actions-store";
 
@@ -37,10 +38,59 @@ describe("checkout-git-actions-store", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.useRealTimers();
     __resetCheckoutGitActionsStoreForTests();
     appQueryClient.clear();
     useSessionStore.setState((state) => ({ ...state, sessions: {} }));
+  });
+
+  it("keeps the checkout exclusive for the entire composite operation", async () => {
+    const client = new DaemonClient({ url: "ws://unused.test", clientId: "git-actions-test" });
+    useSessionStore.getState().initializeSession(serverId, client);
+    const committed = { cwd, success: true, error: null, requestId: "commit" };
+    const pushed = { ...committed, requestId: "push" };
+    const deferred = createDeferred<typeof pushed>();
+    vi.spyOn(client, "checkoutCommit").mockResolvedValue(committed);
+    const push = vi.spyOn(client, "checkoutPush").mockReturnValue(deferred.promise);
+    const pull = vi.spyOn(client, "checkoutPull");
+    const store = useCheckoutGitActionsStore.getState();
+    const composite = store.commitAndPush({
+      serverId,
+      cwd,
+      message: "staged change",
+      noVerify: true,
+      addAll: false,
+    });
+    await vi.waitFor(() => expect(push).toHaveBeenCalledOnce());
+    expect(client.checkoutCommit).toHaveBeenCalledWith(cwd, {
+      addAll: false,
+      message: "staged change",
+      noVerify: true,
+    });
+    expect(store.hasPendingAction({ serverId, cwd })).toBe(true);
+    await expect(store.pull({ serverId, cwd })).rejects.toThrow();
+    expect(pull).not.toHaveBeenCalled();
+    deferred.resolve(pushed);
+    await composite;
+    expect(store.hasPendingAction({ serverId, cwd })).toBe(false);
+  });
+
+  it("identifies a failed follow-up so retries need not commit twice", async () => {
+    const client = new DaemonClient({ url: "ws://unused.test", clientId: "git-actions-test" });
+    useSessionStore.getState().initializeSession(serverId, client);
+    const committed = { cwd, success: true, error: null, requestId: "commit" };
+    vi.spyOn(client, "checkoutCommit").mockResolvedValue(committed);
+    vi.spyOn(client, "checkoutPush").mockRejectedValue(new Error("push rejected"));
+    const store = useCheckoutGitActionsStore.getState();
+    await expect(store.commitAndPush({ serverId, cwd })).rejects.toMatchObject({
+      name: "CommitFollowUpError",
+      action: "push",
+      message: "push rejected",
+    });
+    await expect(store.commitAndPush({ serverId, cwd })).rejects.toBeInstanceOf(
+      CommitFollowUpError,
+    );
   });
 
   it("shares pending state per checkout and de-dupes in-flight calls", async () => {
@@ -163,6 +213,216 @@ describe("checkout-git-actions-store", () => {
     ).rejects.toThrow("push rejected");
     expect(
       useCheckoutGitActionsStore.getState().getStatus({ serverId, cwd, actionId: "pull-and-push" }),
+    ).toBe("idle");
+  });
+
+  it("commits then creates a PR in order for commit-and-create-pr", async () => {
+    const order: string[] = [];
+    const client = {
+      checkoutCommit: vi.fn(async () => {
+        order.push("commit");
+        return {};
+      }),
+      checkoutPrCreate: vi.fn(async () => {
+        order.push("create-pr");
+        return {};
+      }),
+    };
+    useSessionStore.setState((state) => ({
+      ...state,
+      sessions: {
+        ...state.sessions,
+        [serverId]: { client } as unknown as (typeof state.sessions)[string],
+      },
+    }));
+
+    await useCheckoutGitActionsStore.getState().commitAndCreatePr({ serverId, cwd });
+
+    expect(order).toEqual(["commit", "create-pr"]);
+    expect(client.checkoutCommit).toHaveBeenCalledWith(cwd, { addAll: true });
+    expect(client.checkoutPrCreate).toHaveBeenCalledWith(cwd, {});
+    expect(
+      useCheckoutGitActionsStore
+        .getState()
+        .getStatus({ serverId, cwd, actionId: "commit-and-create-pr" }),
+    ).toBe("success");
+  });
+
+  it("does not create a PR when the commit fails for commit-and-create-pr", async () => {
+    const client = {
+      checkoutCommit: vi.fn(async () => ({ error: { message: "nothing to commit" } })),
+      checkoutPrCreate: vi.fn(async () => ({})),
+    };
+    useSessionStore.setState((state) => ({
+      ...state,
+      sessions: {
+        ...state.sessions,
+        [serverId]: { client } as unknown as (typeof state.sessions)[string],
+      },
+    }));
+
+    await expect(
+      useCheckoutGitActionsStore.getState().commitAndCreatePr({ serverId, cwd }),
+    ).rejects.toThrow("nothing to commit");
+
+    expect(client.checkoutPrCreate).not.toHaveBeenCalled();
+    expect(
+      useCheckoutGitActionsStore
+        .getState()
+        .getStatus({ serverId, cwd, actionId: "commit-and-create-pr" }),
+    ).toBe("idle");
+  });
+
+  it("does not fail commit-and-create-pr when the post-commit cache refresh fails", async () => {
+    const client = {
+      checkoutCommit: vi.fn(async () => ({})),
+      checkoutPrCreate: vi.fn(async () => ({})),
+    };
+    useSessionStore.setState((state) => ({
+      ...state,
+      sessions: {
+        ...state.sessions,
+        [serverId]: { client } as unknown as (typeof state.sessions)[string],
+      },
+    }));
+    const invalidateQueries = vi
+      .spyOn(appQueryClient, "invalidateQueries")
+      .mockRejectedValueOnce(new Error("refetch failed"));
+
+    await useCheckoutGitActionsStore.getState().commitAndCreatePr({ serverId, cwd });
+
+    expect(client.checkoutPrCreate).toHaveBeenCalledWith(cwd, {});
+    expect(
+      useCheckoutGitActionsStore
+        .getState()
+        .getStatus({ serverId, cwd, actionId: "commit-and-create-pr" }),
+    ).toBe("success");
+
+    invalidateQueries.mockRestore();
+  });
+
+  it("surfaces PR-creation errors from commit-and-create-pr after a successful commit", async () => {
+    const client = {
+      checkoutCommit: vi.fn(async () => ({})),
+      checkoutPrCreate: vi.fn(async () => ({ error: { message: "no forge configured" } })),
+    };
+    useSessionStore.setState((state) => ({
+      ...state,
+      sessions: {
+        ...state.sessions,
+        [serverId]: { client } as unknown as (typeof state.sessions)[string],
+      },
+    }));
+
+    await expect(
+      useCheckoutGitActionsStore.getState().commitAndCreatePr({ serverId, cwd }),
+    ).rejects.toThrow("no forge configured");
+
+    expect(client.checkoutCommit).toHaveBeenCalled();
+    expect(
+      useCheckoutGitActionsStore
+        .getState()
+        .getStatus({ serverId, cwd, actionId: "commit-and-create-pr" }),
+    ).toBe("idle");
+  });
+
+  it("still attempts a cache refresh for commit-and-create-pr even when PR creation fails", async () => {
+    const client = {
+      checkoutCommit: vi.fn(async () => ({})),
+      checkoutPrCreate: vi.fn(async () => ({ error: { message: "no forge configured" } })),
+    };
+    useSessionStore.setState((state) => ({
+      ...state,
+      sessions: {
+        ...state.sessions,
+        [serverId]: { client } as unknown as (typeof state.sessions)[string],
+      },
+    }));
+    const invalidateQueries = vi.spyOn(appQueryClient, "invalidateQueries");
+
+    await expect(
+      useCheckoutGitActionsStore.getState().commitAndCreatePr({ serverId, cwd }),
+    ).rejects.toThrow("no forge configured");
+
+    expect(invalidateQueries).toHaveBeenCalled();
+
+    invalidateQueries.mockRestore();
+  });
+
+  it("runs commit then push sequentially for commit-and-push", async () => {
+    const order: string[] = [];
+    const client = {
+      checkoutCommit: vi.fn(async () => {
+        order.push("commit");
+        return {};
+      }),
+      checkoutPush: vi.fn(async () => {
+        order.push("push");
+        return {};
+      }),
+    };
+    useSessionStore.setState((state) => ({
+      ...state,
+      sessions: {
+        ...state.sessions,
+        [serverId]: { client } as unknown as (typeof state.sessions)[string],
+      },
+    }));
+
+    await useCheckoutGitActionsStore.getState().commitAndPush({ serverId, cwd });
+
+    expect(order).toEqual(["commit", "push"]);
+    expect(
+      useCheckoutGitActionsStore
+        .getState()
+        .getStatus({ serverId, cwd, actionId: "commit-and-push" }),
+    ).toBe("success");
+  });
+
+  it("does not push when commit fails for commit-and-push", async () => {
+    const client = {
+      checkoutCommit: vi.fn(async () => ({ error: { message: "commit failed" } })),
+      checkoutPush: vi.fn(async () => ({})),
+    };
+    useSessionStore.setState((state) => ({
+      ...state,
+      sessions: {
+        ...state.sessions,
+        [serverId]: { client } as unknown as (typeof state.sessions)[string],
+      },
+    }));
+
+    await expect(
+      useCheckoutGitActionsStore.getState().commitAndPush({ serverId, cwd }),
+    ).rejects.toThrow("commit failed");
+    expect(client.checkoutPush).not.toHaveBeenCalled();
+    expect(
+      useCheckoutGitActionsStore
+        .getState()
+        .getStatus({ serverId, cwd, actionId: "commit-and-push" }),
+    ).toBe("idle");
+  });
+
+  it("surfaces push errors from commit-and-push after a successful commit", async () => {
+    const client = {
+      checkoutCommit: vi.fn(async () => ({})),
+      checkoutPush: vi.fn(async () => ({ error: { message: "push rejected" } })),
+    };
+    useSessionStore.setState((state) => ({
+      ...state,
+      sessions: {
+        ...state.sessions,
+        [serverId]: { client } as unknown as (typeof state.sessions)[string],
+      },
+    }));
+
+    await expect(
+      useCheckoutGitActionsStore.getState().commitAndPush({ serverId, cwd }),
+    ).rejects.toThrow("push rejected");
+    expect(
+      useCheckoutGitActionsStore
+        .getState()
+        .getStatus({ serverId, cwd, actionId: "commit-and-push" }),
     ).toBe("idle");
   });
 

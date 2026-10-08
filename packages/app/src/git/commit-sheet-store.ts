@@ -3,6 +3,7 @@ import { create } from "zustand";
 export interface CommitSheetRequest {
   serverId: string;
   cwd: string;
+  action?: "commit" | "commit-and-push" | "commit-and-create-pr";
 }
 
 interface CommitSheetStoreState {

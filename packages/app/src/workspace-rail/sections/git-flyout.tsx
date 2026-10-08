@@ -313,6 +313,9 @@ export function GitFlyout({
   const toast = useToast();
   const windowDimensions = useWindowDimensions();
   const supportsGenerate = useHostFeature(serverId, "checkoutGitGenerateCommitMessage");
+  const isGitActionPending = useCheckoutGitActionsStore((store) =>
+    store.hasPendingAction({ serverId, cwd }),
+  );
   const overlayLayer = useOverlayLayer("modal");
 
   const [message, setMessage] = useState("");
@@ -351,7 +354,7 @@ export function GitFlyout({
 
   const runAction = useCallback(
     (action: "commit" | "commit-and-push" | "push") => {
-      if (isGenerating) return;
+      if (isGenerating || isGitActionPending) return;
       if (action !== "push" && !git.isDirty) return;
       if (action === "push" && !git.ahead) return;
       const trimmedMessage = message.trim();
@@ -372,12 +375,10 @@ export function GitFlyout({
           if (action !== "push" && !finalMessage) {
             finalMessage = await store.generateCommitMessage({ serverId, cwd });
           }
-          if (action !== "push") {
-            await store.commit({ serverId, cwd, message: finalMessage });
-          }
-          if (action !== "commit") {
-            await store.push({ serverId, cwd });
-          }
+          const commitInput = { serverId, cwd, message: finalMessage, addAll: includeUnstaged };
+          if (action === "commit-and-push") await store.commitAndPush(commitInput);
+          else if (action === "commit") await store.commit(commitInput);
+          else await store.push({ serverId, cwd });
           toast.show(
             action === "commit"
               ? t("workspace.git.actions.commit.success", "提交成功")
@@ -398,6 +399,8 @@ export function GitFlyout({
       git.ahead,
       git.isDirty,
       isGenerating,
+      isGitActionPending,
+      includeUnstaged,
       message,
       onClose,
       serverId,
@@ -468,8 +471,8 @@ export function GitFlyout({
   if (!isOpen) return null;
 
   const branchName = git.branch ?? t("workspace.git.rail.detached", "游离 HEAD");
-  const commitDisabled = isGenerating || !git.isDirty;
-  const pushDisabled = isGenerating || !git.ahead;
+  const commitDisabled = isGenerating || isGitActionPending || !git.isDirty;
+  const pushDisabled = isGenerating || isGitActionPending || !git.ahead;
 
   const content = (
     <OverlayLayerProvider layer={overlayLayer}>
