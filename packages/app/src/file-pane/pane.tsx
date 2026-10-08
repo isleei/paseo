@@ -34,13 +34,14 @@ import { FileEditorModel, getFileConflictCallout, type FileConflictCallout } fro
 import { createFileObservationSource } from "./editor/observation-source";
 import { FileEditorView } from "./editor/view";
 import { FilePreviewFind } from "./find/preview";
-import { FileSourceView } from "./source/view";
+import { WorkspaceFileSource } from "./source";
 import type { FileConflictAlertState } from "./conflict-alert";
 import type { LiveFileModel } from "./live-file/model";
 import { confirmDialog } from "@/utils/confirm-dialog";
 import { usePublishPanelInstanceAttributes } from "@/panels/panel-instance-attributes";
 import type { Theme } from "@/styles/theme";
 import { ZoomableImage } from "@/components/zoomable-viewport/image";
+import { formatFileSize } from "@/utils/format-file-size";
 
 const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
 const foregroundMutedColorMapping = (theme: Theme) => ({
@@ -59,24 +60,6 @@ interface FilePreviewBodyProps {
 
 type TextExplorerFile = ExplorerFile & { kind: "text" };
 
-function trimNonEmpty(value: string | null | undefined): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function formatFileSize({ size }: { size: number }): string {
-  if (size < 1024) {
-    return `${size} B`;
-  }
-  if (size < 1024 * 1024) {
-    return `${(size / 1024).toFixed(1)} KB`;
-  }
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 function ReadonlySource({
   preview,
   filename,
@@ -88,32 +71,13 @@ function ReadonlySource({
   location: WorkspaceFileLocation;
   navigationRevision: number;
 }) {
-  const theme = UnistylesRuntime.getTheme();
-  const { t } = useTranslation();
-  const visualTheme = useMemo(
-    () => ({
-      colorScheme: theme.colorScheme,
-      background: theme.colors.surface0,
-      foreground: theme.colors.foreground,
-      cursor: theme.colors.terminal.cursor,
-      foregroundMuted: theme.colors.foregroundMuted,
-      border: theme.colors.border,
-      selection: theme.colors.terminal.selectionBackground,
-      monoFont: theme.fontFamily.mono,
-      codeFontSize: theme.fontSize.code,
-      syntax: theme.colors.syntax,
-    }),
-    [theme],
-  );
   return (
-    <FileSourceView
+    <WorkspaceFileSource
       content={preview.content ?? ""}
       filename={filename}
       location={location}
       navigationRevision={navigationRevision}
       size={preview.size}
-      theme={visualTheme}
-      tooLargeMessage={t("panels.file.tooLargeToDisplay")}
     />
   );
 }
@@ -123,7 +87,7 @@ function TooLargeSource({ size }: { size?: number }) {
   return (
     <View style={styles.centerState} testID="file-source-too-large">
       <Text style={styles.emptyText}>{t("panels.file.tooLargeToDisplay")}</Text>
-      {size ? <Text style={styles.binaryMetaText}>{formatFileSize({ size })}</Text> : null}
+      {size ? <Text style={styles.binaryMetaText}>{formatFileSize(size)}</Text> : null}
     </View>
   );
 }
@@ -166,7 +130,7 @@ function FilePreviewBody({
     );
   }
 
-  if (preview.kind === "text") {
+  if (preview.kind === "text" || (location.lineStart && preview.content !== undefined)) {
     if (renderKind === "html") {
       // The HTML document owns its own scrolling, so no ScrollView wrapper here.
       return (
@@ -217,7 +181,7 @@ function FilePreviewBody({
   return (
     <View style={styles.centerState}>
       <Text style={styles.emptyText}>{t("panels.file.binaryPreviewUnavailable")}</Text>
-      <Text style={styles.binaryMetaText}>{formatFileSize({ size: preview.size })}</Text>
+      <Text style={styles.binaryMetaText}>{formatFileSize(preview.size)}</Text>
     </View>
   );
 }
@@ -242,8 +206,8 @@ export function FilePane({
   const supportsEditing = useSessionStore(
     (state) => state.sessions[serverId]?.serverInfo?.features?.workspaceFileEditing === true,
   );
-  const normalizedWorkspaceRoot = useMemo(() => workspaceRoot.trim(), [workspaceRoot]);
-  const normalizedFilePath = useMemo(() => trimNonEmpty(location.path), [location.path]);
+  const normalizedWorkspaceRoot = workspaceRoot;
+  const normalizedFilePath = location.path || null;
   const readTarget = useMemo(
     () =>
       normalizedFilePath

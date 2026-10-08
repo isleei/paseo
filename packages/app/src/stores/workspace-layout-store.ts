@@ -119,6 +119,12 @@ interface WorkspaceLayoutStore {
   pinnedAgentIdsByWorkspace: Record<string, Set<string>>;
   hiddenAgentIdsByWorkspace: Record<string, Set<string>>;
   focusRestorationByWorkspace: Record<string, WorkspaceFocusRestorationState>;
+  /**
+   * Bumped whenever a file tab is explicitly activated. File targets are identity-stable so the
+   * same path reuses its tab; without this an activation of an unchanged location would look like
+   * a no-op and leave the pane wherever the reader had scrolled it.
+   */
+  fileNavigationRevisionByTabId: Record<string, number>;
   explorerSidebarPaneIdByWorkspace: Record<string, string | null>;
   sidePaneIdByWorkspace: Record<string, string | null>;
   /** Workspaces where PR detection already added its tab once; a closed tab never returns. */
@@ -139,6 +145,7 @@ interface WorkspaceLayoutStore {
   ensureBottomPane: (workspaceKey: string) => string | null;
   closeTab: (workspaceKey: string, tabId: string) => void;
   focusTab: (workspaceKey: string, tabId: string) => void;
+  requestFileNavigation: (tabId: string) => void;
   selectTabInPane: (workspaceKey: string, paneId: string, tabId: string) => void;
   replaceTab: (
     workspaceKey: string,
@@ -770,6 +777,7 @@ export function createWorkspaceLayoutStore(storeOptions: WorkspaceLayoutStoreOpt
         pinnedAgentIdsByWorkspace: {},
         hiddenAgentIdsByWorkspace: {},
         focusRestorationByWorkspace: {},
+        fileNavigationRevisionByTabId: {},
         explorerSidebarPaneIdByWorkspace: {},
         sidePaneIdByWorkspace: {},
         pullRequestTabAutoOpenedByWorkspace: {},
@@ -1081,6 +1089,16 @@ export function createWorkspaceLayoutStore(storeOptions: WorkspaceLayoutStoreOpt
               },
             };
           });
+        },
+        requestFileNavigation: (tabId) => {
+          const normalizedTabId = trimNonEmpty(tabId);
+          if (!normalizedTabId) return;
+          set((state) => ({
+            fileNavigationRevisionByTabId: {
+              ...state.fileNavigationRevisionByTabId,
+              [normalizedTabId]: (state.fileNavigationRevisionByTabId[normalizedTabId] ?? 0) + 1,
+            },
+          }));
         },
         focusTab: (workspaceKey, tabId) => {
           const normalizedWorkspaceKey = trimNonEmpty(workspaceKey);

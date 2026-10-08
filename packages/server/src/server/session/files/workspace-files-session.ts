@@ -1,3 +1,4 @@
+import { searchWorkspaceContent } from "../../workspace-content-search/index.js";
 import type pino from "pino";
 import type { SessionDelivery } from "../owned-subscriptions/index.js";
 import type { FileVersion } from "@getpaseo/protocol/messages";
@@ -67,6 +68,7 @@ export interface WorkspaceFilesSessionOptions {
  * the whole concern.
  */
 export class WorkspaceFilesSession {
+  private readonly searches = new Map<object, Map<string, AbortController>>();
   private readonly host: WorkspaceFilesSessionHost;
   private readonly downloadTokenStore: DownloadTokenStore;
   private readonly logger: pino.Logger;
@@ -79,6 +81,65 @@ export class WorkspaceFilesSession {
     this.logger = options.logger;
     this.fileUploads = new FileUploadStore({ paseoHome: options.paseoHome });
     this.fileObserver = options.fileObserver ?? workspaceFileObserver;
+  }
+
+  async handleContentSearch(
+    request: Extract<SessionInboundMessage, { type: "fs.content.search.request" }>,
+    ownership: SessionDelivery,
+  ): Promise<void> {
+    const controller = new AbortController();
+    const owner = ownership.operation(
+      (message) => message.type === "fs.content.search.response",
+      () => controller.abort(),
+    );
+    let searches = this.searches.get(owner.source);
+    if (!searches) {
+      searches = new Map();
+      this.searches.set(owner.source, searches);
+    }
+    if (searches.size >= 2 || searches.has(request.requestId)) {
+      this.host.emit({
+        type: "fs.content.search.response",
+        payload: {
+          requestId: request.requestId,
+          result: {
+            status: "error",
+            code: "busy",
+            message: "Another search is still stopping — retry",
+          },
+        },
+      });
+      await owner.release();
+      return;
+    }
+    searches.set(request.requestId, controller);
+    try {
+      const result = await searchWorkspaceContent({
+        cwd: request.cwd,
+        query: request.query,
+        signal: controller.signal,
+      });
+      owner.emit({
+        type: "fs.content.search.response",
+        payload: { requestId: request.requestId, result },
+      });
+    } finally {
+      searches.delete(request.requestId);
+      if (searches.size === 0) this.searches.delete(owner.source);
+      await owner.release();
+    }
+  }
+
+  handleContentCancel(
+    request: Extract<SessionInboundMessage, { type: "fs.content.cancel.request" }>,
+    ownership: SessionDelivery,
+  ): void {
+    const source = ownership.currentSource;
+    if (source) this.searches.get(source)?.get(request.searchRequestId)?.abort();
+    this.host.emit({
+      type: "fs.content.cancel.response",
+      payload: { requestId: request.requestId, searchRequestId: request.searchRequestId },
+    });
   }
 
   async handleFileSubscribeRequest(
@@ -245,10 +306,16 @@ export class WorkspaceFilesSession {
     });
   }
 
+  dispose(): void {
+    for (const searches of this.searches.values()) {
+      for (const controller of searches.values()) controller.abort();
+    }
+  }
+
   async handleFileExplorerRequest(request: FileExplorerRequest, source?: object): Promise<void> {
     const { cwd: workspaceCwd, path: requestedPath = ".", mode, requestId } = request;
-    const cwd = workspaceCwd.trim();
-    if (!cwd) {
+    const cwd = workspaceCwd;
+    if (!cwd.trim()) {
       this.host.emit(
         {
           type: "file_explorer_response",
@@ -297,41 +364,45 @@ export class WorkspaceFilesSession {
           }
         }
         if (request.acceptBinary && this.host.hasBinaryChannel()) {
-          await streamExplorerFile({ root: cwd, relativePath: requestedPath }, async (file) => {
-            await this.host.emitBinary(
-              encodeFileTransferFrame({
-                opcode: FileTransferOpcode.FileBegin,
-                requestId,
-                metadata: {
-                  mime: file.mimeType,
-                  size: file.size,
-                  encoding: file.encoding,
-                  modifiedAt: file.modifiedAt,
-                  revision: file.revision,
-                },
-              }),
-              source,
-            );
-            for await (const chunk of file.chunks) {
+          await streamExplorerFile(
+            { root: cwd, relativePath: requestedPath, maxBytes: request.maxBytes },
+            async (file) => {
               await this.host.emitBinary(
                 encodeFileTransferFrame({
-                  opcode: FileTransferOpcode.FileChunk,
+                  opcode: FileTransferOpcode.FileBegin,
                   requestId,
-                  payload: chunk,
+                  metadata: {
+                    mime: file.mimeType,
+                    size: file.size,
+                    encoding: file.encoding,
+                    modifiedAt: file.modifiedAt,
+                    revision: file.revision,
+                  },
                 }),
                 source,
               );
-            }
-            await this.host.emitBinary(
-              encodeFileTransferFrame({
-                opcode: FileTransferOpcode.FileEnd,
-                requestId,
-              }),
-              source,
-            );
-          });
+              for await (const chunk of file.chunks) {
+                await this.host.emitBinary(
+                  encodeFileTransferFrame({
+                    opcode: FileTransferOpcode.FileChunk,
+                    requestId,
+                    payload: chunk,
+                  }),
+                  source,
+                );
+              }
+              await this.host.emitBinary(
+                encodeFileTransferFrame({
+                  opcode: FileTransferOpcode.FileEnd,
+                  requestId,
+                }),
+                source,
+              );
+            },
+          );
         } else {
           const file = await readExplorerFile({
+            maxBytes: request.maxBytes,
             root: cwd,
             relativePath: requestedPath,
           });
@@ -439,7 +510,7 @@ export class WorkspaceFilesSession {
 
   async handleFileDownloadTokenRequest(request: FileDownloadTokenRequest): Promise<void> {
     const { cwd: workspaceCwd, path: requestedPath, requestId } = request;
-    const cwd = workspaceCwd.trim();
+    const cwd = workspaceCwd;
     if (!cwd) {
       this.host.emit({
         type: "file_download_token_response",

@@ -1888,6 +1888,7 @@ export class VoiceAssistantWebSocketServer {
         workspaceRecovery: true,
         // COMPAT(workspaceFileEditing): added in v0.2.0, remove after 2027-01-18 once daemon floor >= v0.2.0.
         workspaceFileEditing: true,
+        workspaceContentSearch: true,
         // COMPAT(providerUsageList): added in v0.1.98, drop the gate when daemon floor >= v0.1.98.
         providerUsageList: true,
         // COMPAT(environmentCheck): added in v0.9.0, remove gate after 2027-03-20 once daemon floor >= v0.9.0.

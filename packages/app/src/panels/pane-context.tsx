@@ -79,7 +79,11 @@ export function useOptionalPaneContext(): PaneContextValue | null {
 }
 
 export function usePaneFocus(): PaneFocusContextValue {
-  const value = useContext(PaneFocusContext);
+  const value = useOptionalPaneFocus();
   invariant(value, "PaneFocusContext is required");
   return value;
+}
+
+export function useOptionalPaneFocus(): PaneFocusContextValue | null {
+  return useContext(PaneFocusContext);
 }

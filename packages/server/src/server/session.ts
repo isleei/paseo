@@ -3022,6 +3022,11 @@ export class Session {
     source?: object,
   ): Promise<void> | undefined {
     switch (msg.type) {
+      case "fs.content.search.request":
+        return this.workspaceFilesSession.handleContentSearch(msg, this.delivery);
+      case "fs.content.cancel.request":
+        this.workspaceFilesSession.handleContentCancel(msg, this.delivery);
+        return;
       case "file_explorer_request":
         return this.workspaceFilesSession.handleFileExplorerRequest(msg, source);
       case "fs.file.subscribe.request":
@@ -8858,6 +8863,7 @@ export class Session {
     this.providerCatalogSession.dispose();
 
     this.terminalController.dispose();
+    this.workspaceFilesSession.dispose();
 
     this.checkoutSession.cleanup();
 

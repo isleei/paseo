@@ -11,7 +11,7 @@ import { View, type View as ViewInstance } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { PaneFind, findShortcutPlatform, isFindShortcut, type PaneFindHandle } from "@/pane-find";
-import { usePaneFocus } from "@/panels/pane-context";
+import { useOptionalPaneFocus } from "@/panels/pane-context";
 import { hasActiveWebOverlay } from "@/lib/overlay-root";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import { isImeComposingKeyboardEvent } from "@/utils/keyboard-ime";
@@ -29,7 +29,9 @@ export function FileFind({
   const { t } = useTranslation();
   const state = useSyncExternalStore(model.subscribe, model.getSnapshot, model.getSnapshot);
   const widget = useRef<PaneFindHandle>(null);
-  const { isInteractive } = usePaneFocus();
+  const focus = useOptionalPaneFocus();
+  // Search overlays also render source previews, without owning a workspace pane.
+  const isInteractive = focus?.isInteractive ?? false;
   const active = useRetainedPanelActive();
   // RN Web hands the underlying DOM element to a View ref; the model measures it.
   const setWidgetNode = useCallback(

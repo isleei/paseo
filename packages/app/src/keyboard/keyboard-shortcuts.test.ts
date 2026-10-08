@@ -1492,3 +1492,20 @@ describe("number-group shortcut capture", () => {
     expect(normalizeCapturedShortcutCombo(id, "Ctrl+9")).toBe("Ctrl+Digit");
   });
 });
+
+it("searches contents from terminal focus while preserving the existing Focus shortcut", () => {
+  const event = { key: "F", code: "KeyF", metaKey: true, shiftKey: true, altKey: true };
+  const context = { isMac: true, isDesktop: true, focusScope: "terminal" as const };
+  expect(resolveShortcut({ event, context }).match?.action).toBe("command-center.content");
+  expect(resolveShortcut({ event: { ...event, altKey: false }, context }).match?.action).toBe(
+    "view.toggle.focus",
+  );
+  const bindings = buildEffectiveBindings({
+    "view-toggle-focus-cmd-shift-f-mac": "Cmd+Alt+Shift+F",
+  });
+  expect(resolveShortcut({ event, context, bindings }).match?.action).toBe("view.toggle.focus");
+  const disabled = buildEffectiveBindings({
+    "command-center-content-cmd-shift-f-mac": UNASSIGNED_COMBO,
+  });
+  expect(resolveShortcut({ event, context, bindings: disabled }).match).toBeNull();
+});

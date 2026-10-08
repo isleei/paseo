@@ -9,7 +9,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import * as contentSearch from "../../workspace-content-search/index.js";
 import pino from "pino";
 import {
   decodeFileTransferFrame,
@@ -27,9 +28,105 @@ import type { SessionOutboundMessage } from "../../messages.js";
 const tempDirs: string[] = [];
 
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const dir of tempDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("content searches sharing a request id belong to their physical sources", async () => {
+  const { subsystem } = makeSubsystem();
+  const responses: Array<{ source: object; message: SessionOutboundMessage }> = [];
+  const signals: AbortSignal[] = [];
+  const finish: Array<() => void> = [];
+  vi.spyOn(contentSearch, "searchWorkspaceContent").mockImplementation(
+    ({ signal }) =>
+      new Promise((resolve) => {
+        if (!signal) throw new Error("Search must own cancellation");
+        signals.push(signal);
+        signal.addEventListener(
+          "abort",
+          () => resolve({ status: "error", code: "cancelled", message: "Search cancelled" }),
+          { once: true },
+        );
+        finish.push(() => resolve({ status: "ok", matches: [], limited: false }));
+      }),
+  );
+  const delivery = new SessionDelivery((source, message) => responses.push({ source, message }));
+  const sources = [{}, {}];
+  const request = {
+    type: "fs.content.search.request",
+    requestId: "shared-search",
+    cwd: makeDir("workspace-content-source-"),
+    query: "needle",
+  } as const;
+  const running = sources.map((source) =>
+    delivery.request(source, request, () => subsystem.handleContentSearch(request, delivery)),
+  );
+  try {
+    expect(signals).toHaveLength(2);
+    const cancel = {
+      type: "fs.content.cancel.request",
+      requestId: "cancel",
+      searchRequestId: request.requestId,
+    } as const;
+    await delivery.request(sources[0], cancel, async () => {
+      subsystem.handleContentCancel(cancel, delivery);
+    });
+    expect(signals[0].aborted).toBe(true);
+    expect(signals[1].aborted).toBe(false);
+    finish[1]();
+    await Promise.all(running);
+    expect(responses).toEqual([
+      {
+        source: sources[0],
+        message: expect.objectContaining({ type: "fs.content.search.response" }),
+      },
+      {
+        source: sources[1],
+        message: expect.objectContaining({ type: "fs.content.search.response" }),
+      },
+    ]);
+    expect(delivery.sourceRegistrationCount(sources[0])).toBe(0);
+    expect(delivery.sourceRegistrationCount(sources[1])).toBe(0);
+  } finally {
+    finish.forEach((resolve) => resolve());
+    await Promise.all(running);
+    await delivery.close();
+  }
+});
+
+test("disconnecting a search source cancels its host work and suppresses its reply", async () => {
+  const { subsystem } = makeSubsystem();
+  const responses: SessionOutboundMessage[] = [];
+  const search = vi.spyOn(contentSearch, "searchWorkspaceContent").mockImplementation(
+    ({ signal }) =>
+      new Promise((resolve) => {
+        if (!signal) throw new Error("Search must own cancellation");
+        signal.addEventListener(
+          "abort",
+          () => resolve({ status: "error", code: "cancelled", message: "Search cancelled" }),
+          { once: true },
+        );
+      }),
+  );
+  const delivery = new SessionDelivery((_source, message) => responses.push(message));
+  const source = {};
+  const request = {
+    type: "fs.content.search.request",
+    requestId: "closed-search",
+    cwd: makeDir("workspace-content-disconnect-"),
+    query: "needle",
+  } as const;
+  const running = delivery.request(source, request, () =>
+    subsystem.handleContentSearch(request, delivery),
+  );
+  expect(search).toHaveBeenCalledOnce();
+  await delivery.detach(source);
+  await running;
+  expect(responses).toEqual([]);
+  expect(delivery.registrationCount).toBe(0);
+  await delivery.close();
 });
 
 function makeDir(prefix: string): string {
