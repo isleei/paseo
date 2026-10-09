@@ -63,6 +63,7 @@ import {
 } from "@/workspace-tabs/open-beside";
 import { resolveImplicitTerminalPlacement } from "@/workspace-tabs/terminal-open-location";
 import { openWorkspacePullRequest } from "@/workspace-tabs/open-supporting-view";
+import { revealFileInExplorer } from "@/workspace-tabs/reveal-file-in-explorer";
 import { type ExplorerCheckoutContext } from "@/stores/explorer-checkout-context";
 import { traceInstant } from "@/performance/native-trace";
 import { useSessionStore, type WorkspaceDescriptor } from "@/stores/session-store";
@@ -434,6 +435,7 @@ interface MobileWorkspaceTabSwitcherProps {
   onCopyAgentId: (agentId: string) => Promise<void> | void;
   onCopyTerminalId: (terminalId: string) => Promise<void> | void;
   onCopyFilePath: (path: string) => Promise<void> | void;
+  onRevealFileInExplorer: (path: string) => void;
   onReloadAgent: (agentId: string) => Promise<void> | void;
   onRenameTab: (tab: WorkspaceTabDescriptor) => void;
   onCloseTab: (tabId: string) => Promise<void> | void;
@@ -541,6 +543,7 @@ function MobileWorkspaceTabOption({
   onCopyAgentId,
   onCopyTerminalId,
   onCopyFilePath,
+  onRevealFileInExplorer,
   onReloadAgent,
   onRenameTab,
   onCloseTab,
@@ -560,6 +563,7 @@ function MobileWorkspaceTabOption({
   onCopyAgentId: (agentId: string) => Promise<void> | void;
   onCopyTerminalId: (terminalId: string) => Promise<void> | void;
   onCopyFilePath: (path: string) => Promise<void> | void;
+  onRevealFileInExplorer: (path: string) => void;
   onReloadAgent: (agentId: string) => Promise<void> | void;
   onRenameTab: (tab: WorkspaceTabDescriptor) => void;
   onCloseTab: (tabId: string) => Promise<void> | void;
@@ -574,6 +578,7 @@ function MobileWorkspaceTabOption({
       copyAgentId: t("workspace.tabs.menu.copyAgentId"),
       copyTerminalId: t("workspace.tabs.menu.copyTerminalId"),
       copyFilePath: t("workspace.tabs.menu.copyFilePath"),
+      revealInFiles: t("workspace.tabs.menu.revealInFiles"),
       rename: t("workspace.tabs.menu.rename"),
       closeAbove: t("workspace.tabs.menu.closeAbove"),
       closeBelow: t("workspace.tabs.menu.closeBelow"),
@@ -602,6 +607,7 @@ function MobileWorkspaceTabOption({
     onCopyAgentId,
     onCopyTerminalId,
     onCopyFilePath,
+    onRevealFileInExplorer,
     onReloadAgent,
     onRenameTab,
     onCloseTab,
@@ -675,6 +681,7 @@ const MobileWorkspaceTabSwitcher = memo(function MobileWorkspaceTabSwitcher({
   onCopyAgentId,
   onCopyTerminalId,
   onCopyFilePath,
+  onRevealFileInExplorer,
   onReloadAgent,
   onRenameTab,
   onCloseTab,
@@ -697,6 +704,17 @@ const MobileWorkspaceTabSwitcher = memo(function MobileWorkspaceTabSwitcher({
     Keyboard.dismiss();
     setIsOpen(true);
   }, []);
+
+  // Choosing a tab closes this sheet through the Combobox's own `onSelect` → close path.
+  // Reveal in Files is a per-row menu action, not a Combobox selection, so it never runs that
+  // path; without this it leaves the sheet open over the Explorer overlay Reveal just opened.
+  const handleSwitcherRevealFileInExplorer = useCallback(
+    (path: string) => {
+      onRevealFileInExplorer(path);
+      setIsOpen(false);
+    },
+    [onRevealFileInExplorer],
+  );
 
   const renderTabOption = useCallback(
     ({
@@ -732,6 +750,7 @@ const MobileWorkspaceTabSwitcher = memo(function MobileWorkspaceTabSwitcher({
           onCopyAgentId={onCopyAgentId}
           onCopyTerminalId={onCopyTerminalId}
           onCopyFilePath={onCopyFilePath}
+          onRevealFileInExplorer={handleSwitcherRevealFileInExplorer}
           onReloadAgent={onReloadAgent}
           onRenameTab={onRenameTab}
           onCloseTab={onCloseTab}
@@ -751,6 +770,7 @@ const MobileWorkspaceTabSwitcher = memo(function MobileWorkspaceTabSwitcher({
       onCopyAgentId,
       onCopyTerminalId,
       onCopyFilePath,
+      handleSwitcherRevealFileInExplorer,
       onReloadAgent,
       onRenameTab,
       onCloseTab,
@@ -2797,6 +2817,24 @@ function WorkspaceScreenContent({
     [toast, t, workspaceDirectory],
   );
 
+  const handleRevealFileInExplorer = useCallback(
+    (path: string) => {
+      const result = revealFileInExplorer({
+        isCompact: isMobile,
+        workspaceKey: persistenceKey,
+        workspaceId: normalizedWorkspaceId,
+        checkout: activeExplorerCheckout,
+        path,
+      });
+      if (result === "outside-workspace") {
+        toast.error(t("workspace.fileExplorer.reveal.outsideWorkspace"));
+      } else if (result === "unavailable") {
+        toast.error(t("workspace.fileExplorer.states.unavailable"));
+      }
+    },
+    [activeExplorerCheckout, isMobile, normalizedWorkspaceId, persistenceKey, t, toast],
+  );
+
   const handleCopyResumeCommand = useCallback(
     async (agentId: string) => {
       if (!agentId) return;
@@ -3183,6 +3221,12 @@ function WorkspaceScreenContent({
     ],
   );
 
+  const handleWorkspaceRevealInFilesAction = useCallback((): boolean => {
+    const descriptor = activeTab?.descriptor;
+    if (descriptor?.target.kind === "file") handleRevealFileInExplorer(descriptor.target.path);
+    return true;
+  }, [activeTab, handleRevealFileInExplorer]);
+
   const handleWorkspaceCurrentTabCloseAction = useCallback(
     (action: KeyboardActionDefinition): boolean => {
       if (!activeTabId) return true;
@@ -3484,6 +3528,19 @@ function WorkspaceScreenContent({
     priority: 100,
     isActive: () => true,
     handle: handleWorkspaceCurrentTabMetadataAction,
+  });
+
+  useKeyboardActionHandler({
+    handlerId: buildWorkspaceKeyboardHandlerId({
+      name: "workspace-current-tab-reveal-in-files",
+      serverId: normalizedServerId,
+      workspaceId: normalizedWorkspaceId,
+    }),
+    actions: ["workspace.tab.reveal-in-files"] as const,
+    enabled: workspaceActionsEnabled,
+    priority: 100,
+    isActive: () => true,
+    handle: handleWorkspaceRevealInFilesAction,
   });
 
   useKeyboardActionHandler({
@@ -4083,6 +4140,7 @@ function WorkspaceScreenContent({
         onCopyAgentId={handleCopyAgentId}
         onCopyTerminalId={handleCopyTerminalId}
         onCopyFilePath={handleCopyFilePath}
+        onRevealFileInExplorer={handleRevealFileInExplorer}
         onReloadAgent={handleReloadAgent}
         onRenameTab={handleRenameTab}
         onMoveToWorkspace={openMovePicker}
@@ -4121,6 +4179,7 @@ function WorkspaceScreenContent({
     handleCopyAgentId,
     handleCopyTerminalId,
     handleCopyFilePath,
+    handleRevealFileInExplorer,
     handleReloadAgent,
     handleRenameTab,
     handleCloseTabsToLeftInPane,
@@ -4180,6 +4239,7 @@ function WorkspaceScreenContent({
           onCopyAgentId={handleCopyAgentId}
           onCopyTerminalId={handleCopyTerminalId}
           onCopyFilePath={handleCopyFilePath}
+          onRevealFileInExplorer={handleRevealFileInExplorer}
           onReloadAgent={handleReloadAgent}
           onRenameTab={handleRenameTab}
           onCloseTab={handleCloseTabById}
@@ -4204,6 +4264,7 @@ function WorkspaceScreenContent({
             onCopyAgentId={handleCopyAgentId}
             onCopyTerminalId={handleCopyTerminalId}
             onCopyFilePath={handleCopyFilePath}
+            onRevealFileInExplorer={handleRevealFileInExplorer}
             onReloadAgent={handleReloadAgent}
             onRenameTab={handleRenameTab}
             onMoveToWorkspace={openMovePicker}

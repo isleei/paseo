@@ -325,6 +325,18 @@ export const ko: TranslationResources = {
       empty: "불러온 기록에 프로젝트가 없습니다",
       emptyFiltered: "불러온 페이지에 {{project}} 세션이 없습니다",
     },
+    searchSnippet: {
+      user: "나",
+      assistant: "답변",
+    },
+    archivedFilter: {
+      all: "전체",
+      active: "보관되지 않음",
+      archived: "보관됨",
+      emptyArchived: "보관된 세션이 없습니다",
+      emptyActive: "보관되지 않은 세션이 없습니다",
+      emptyLoaded: "불러온 페이지에 일치 항목이 없습니다",
+    },
     actions: {
       newStandalone: "새 독립 세션",
       loadMore: "더 불러오기",
@@ -574,6 +586,11 @@ export const ko: TranslationResources = {
         revealFailed: "항목을 표시하지 못했습니다",
         deleteFailed: "항목을 삭제하지 못했습니다",
       },
+      reveal: {
+        outsideWorkspace: "이 파일은 워크스페이스 밖에 있습니다",
+        hidden: "숨겨진 파일입니다. 보려면 숨겨진 파일을 표시하세요.",
+        notFound: "파일에서 이 파일을 찾을 수 없습니다",
+      },
       draft: {
         filePlaceholder: "파일 이름",
         folderPlaceholder: "폴더 이름",
@@ -682,6 +699,7 @@ export const ko: TranslationResources = {
         copyTerminalId: "터미널 ID 복사",
         copyFilePath: "파일 경로 복사",
         openWithDefaultApp: "기본 앱으로 열기",
+        revealInFiles: "파일에서 보기",
         rename: "이름 변경",
         closeAbove: "위쪽 탭 닫기",
         closeBelow: "아래쪽 탭 닫기",

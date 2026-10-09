@@ -329,6 +329,18 @@ export const ja: TranslationResources = {
       empty: "読み込み済みの履歴にプロジェクトがありません",
       emptyFiltered: "読み込み済みのページに {{project}} のセッションがありません",
     },
+    searchSnippet: {
+      user: "あなた",
+      assistant: "返信",
+    },
+    archivedFilter: {
+      all: "すべて",
+      active: "未アーカイブ",
+      archived: "アーカイブ済み",
+      emptyArchived: "アーカイブ済みのセッションはありません",
+      emptyActive: "未アーカイブのセッションはありません",
+      emptyLoaded: "読み込み済みのページに一致はありません",
+    },
     actions: {
       newStandalone: "新しいスタンドアロンセッション",
       loadMore: "さらに読み込む",
@@ -579,6 +591,11 @@ export const ja: TranslationResources = {
         revealFailed: "エントリの表示に失敗しました",
         deleteFailed: "エントリの削除に失敗しました",
       },
+      reveal: {
+        outsideWorkspace: "このファイルはワークスペースの外にあります",
+        hidden: "このファイルは隠しファイルです。表示するには隠しファイルを表示してください。",
+        notFound: "ファイルにこのファイルが見つかりません",
+      },
       draft: {
         filePlaceholder: "ファイル名",
         folderPlaceholder: "フォルダ名",
@@ -687,6 +704,7 @@ export const ja: TranslationResources = {
         copyTerminalId: "ターミナルIDをコピー",
         copyFilePath: "ファイルパスをコピー",
         openWithDefaultApp: "既定のアプリで開く",
+        revealInFiles: "ファイルで表示",
         rename: "名前を変更",
         closeAbove: "上のタブを閉じる",
         closeBelow: "下のタブを閉じる",

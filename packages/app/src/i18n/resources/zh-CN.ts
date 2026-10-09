@@ -324,6 +324,18 @@ export const zhCN: TranslationResources = {
       empty: "已加载的历史中没有项目",
       emptyFiltered: "已加载的页面中没有「{{project}}」的会话",
     },
+    searchSnippet: {
+      user: "你",
+      assistant: "回复",
+    },
+    archivedFilter: {
+      all: "全部",
+      active: "未归档",
+      archived: "已归档",
+      emptyArchived: "没有已归档的会话",
+      emptyActive: "没有未归档的会话",
+      emptyLoaded: "已加载的页面里没有匹配项",
+    },
     actions: {
       newStandalone: "新建独立会话",
       loadMore: "加载更多",
@@ -573,6 +585,11 @@ export const zhCN: TranslationResources = {
         revealFailed: "显示条目失败",
         deleteFailed: "删除条目失败",
       },
+      reveal: {
+        outsideWorkspace: "此文件位于工作区之外",
+        hidden: "此文件已隐藏。显示隐藏文件即可查看。",
+        notFound: "在文件中未找到此文件",
+      },
       draft: {
         filePlaceholder: "文件名",
         folderPlaceholder: "文件夹名称",
@@ -681,6 +698,7 @@ export const zhCN: TranslationResources = {
         copyTerminalId: "复制终端 ID",
         copyFilePath: "复制文件路径",
         openWithDefaultApp: "用默认应用打开",
+        revealInFiles: "在文件树中定位",
         rename: "重命名",
         closeAbove: "关闭上方标签",
         closeBelow: "关闭下方标签",

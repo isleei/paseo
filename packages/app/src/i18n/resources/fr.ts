@@ -329,6 +329,18 @@ export const fr: TranslationResources = {
       empty: "Aucun projet dans l'historique chargé",
       emptyFiltered: "Aucune session pour {{project}} dans les pages chargées",
     },
+    searchSnippet: {
+      user: "Vous",
+      assistant: "Réponse",
+    },
+    archivedFilter: {
+      all: "Toutes",
+      active: "Non archivées",
+      archived: "Archivées",
+      emptyArchived: "Aucune séance archivée",
+      emptyActive: "Aucune séance non archivée",
+      emptyLoaded: "Aucune correspondance dans les pages chargées",
+    },
     actions: {
       newStandalone: "Nouvelle session autonome",
       loadMore: "Charger plus",
@@ -578,6 +590,11 @@ export const fr: TranslationResources = {
         revealFailed: "Impossible d’afficher l’élément",
         deleteFailed: "Impossible de supprimer l’élément",
       },
+      reveal: {
+        outsideWorkspace: "Ce fichier se trouve en dehors de l'espace de travail",
+        hidden: "Ce fichier est caché. Affichez les fichiers cachés pour le voir.",
+        notFound: "Fichier introuvable dans Fichiers",
+      },
       draft: {
         filePlaceholder: "Nom du fichier",
         folderPlaceholder: "Nom du dossier",
@@ -691,6 +708,7 @@ export const fr: TranslationResources = {
         closeBelow: "Fermer les onglets en dessous",
         closeLeft: "Fermer les onglets à gauche",
         closeRight: "Fermer les onglets à droite",
+        revealInFiles: "Afficher dans Fichiers",
         closeOthers: "Fermer les autres onglets",
         moveToWorkspace: "Déplacer vers un workspace…",
         moveToMain: "Déplacer vers le panneau principal",

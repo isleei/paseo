@@ -5,9 +5,12 @@ import { connectSeedClient } from "../support/helpers/seed-client";
 import { createTempGitRepo } from "../support/helpers/workspace";
 import {
   createIdleAgent,
+  createMockIdleAgent,
   openSessions,
   resetSeededPageState,
 } from "../support/helpers/archive-tab";
+import { seedMockAgentWorkspace } from "../support/helpers/mock-agent";
+import { getServerId } from "../support/helpers/server-id";
 
 /**
  * Every seeded title opens with the same nonce, so a query of "<nonce> term"
@@ -27,7 +30,9 @@ async function search(page: Page, query: string): Promise<void> {
 }
 
 function rowTitles(page: Page) {
-  return page.getByRole("button");
+  return page.getByTestId(new RegExp(`^agent-row-${getServerId()}-`)).filter({
+    has: page.getByTestId(new RegExp("^agent-row-title-")),
+  });
 }
 
 async function expectVisibleTitles(page: Page, titles: string[]): Promise<void> {
@@ -70,12 +75,12 @@ async function verifyRecencyBeforeMatchStrength(page: Page): Promise<void> {
 async function verifyExactAndTypoHighlights(page: Page): Promise<void> {
   await test.step("highlights exact and typo-resolved matches", async () => {
     await search(page, `${NONCE} billing`);
-    const row = page.getByRole("button").filter({ hasText: NONCE }).first();
+    const row = rowTitles(page).filter({ hasText: NONCE }).first();
     await expect(row.getByText("billing", { exact: true })).toBeVisible({ timeout: 30_000 });
 
     await search(page, `${NONCE} bulling`);
     await expectVisibleTitles(page, [TITLES.billing]);
-    const typoRow = page.getByRole("button").filter({ hasText: NONCE }).first();
+    const typoRow = rowTitles(page).filter({ hasText: NONCE }).first();
     await expect(typoRow.getByText("billing", { exact: true })).toBeVisible({
       timeout: 30_000,
     });
@@ -159,5 +164,61 @@ test.describe("History search", () => {
 
       await verifyEmptySearchAndRecovery(page);
     });
+  }
+});
+
+test("searches recent messages and combines archive and project filters on desktop", async ({
+  page,
+}) => {
+  const token = `preview${randomUUID().replaceAll("-", "").slice(0, 12)}`;
+  const query = `pineapple${token}`;
+  const fixture = await seedMockAgentWorkspace({
+    repoPrefix: "history-preview-",
+    title: `${token} Conversation probe`,
+    initialPrompt: `Please remember ${query}`,
+    featureValues: { mockAssistantResponse: `A reply about kumquat${token}` },
+  });
+  try {
+    await fixture.client.waitForFinish(fixture.agentId, 30_000);
+    const live = await createMockIdleAgent(fixture.client, {
+      cwd: fixture.cwd,
+      workspaceId: fixture.workspaceId,
+      title: `${token} Live session`,
+    });
+    await fixture.client.archiveAgent(fixture.agentId);
+    await resetSeededPageState(page);
+    await openSessions(page);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const archivedRow = page.getByTestId(`agent-row-${getServerId()}-${fixture.agentId}`);
+    const liveRow = page.getByTestId(`agent-row-${getServerId()}-${live.id}`);
+    await search(page, token);
+    await expect(archivedRow).toBeVisible();
+    await expect(liveRow).toBeVisible();
+    await expect(page.getByTestId("sessions-archived-filter-all")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    await search(page, query);
+    const snippet = page.getByTestId(new RegExp(`^agent-row-snippet-.*-${fixture.agentId}$`));
+    await expect(snippet).toContainText(query);
+    await expect(liveRow).toBeHidden();
+    await page.getByTestId("sessions-archived-filter-active").click();
+    await expect(page.getByTestId("sessions-empty")).toBeVisible();
+    await page.getByTestId("sessions-archived-filter-archived").click();
+    await expect(archivedRow).toBeVisible();
+    await archivedRow.getByTestId(new RegExp("^agent-row-project-filter-")).click();
+    await expect(page.getByTestId("sessions-project-filter-trigger")).toBeVisible();
+    await expect(archivedRow).toBeVisible();
+    await page.getByTestId("sessions-archived-filter-all").click();
+    await search(page, token);
+    await expect(liveRow).toBeVisible();
+    await expect(archivedRow).toBeVisible();
+    await page.screenshot({
+      path: "/tmp/paseo-followup-integration/history-desktop.png",
+      fullPage: true,
+    });
+  } finally {
+    await fixture.cleanup();
   }
 });

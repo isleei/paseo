@@ -140,6 +140,37 @@ function historyEntry(input: {
 }
 
 describe("fetchAgentHistoryPage", () => {
+  it("preserves searched message snippets without adding snippets to older history entries", async () => {
+    const entry = historyEntry({
+      id: "message-match",
+      cwd: "/repo",
+      updatedAt: "2026-10-09T00:00:00.000Z",
+    });
+    const snippet = { role: "user", text: "Remember pineapple" } as const;
+    const client = createClient([
+      historyPayload({
+        entries: [
+          { ...entry, searchSnippet: snippet },
+          historyEntry({
+            id: "name-match",
+            cwd: "/repo",
+            updatedAt: "2026-10-08T00:00:00.000Z",
+          }),
+        ],
+      }),
+    ]);
+    const page = await fetchAgentHistoryPage({
+      client,
+      serverId: "server-1",
+      cursor: null,
+      search: "pineapple",
+    });
+    expect(page.agents.find((agent) => agent.id === "message-match")?.searchSnippet).toEqual(
+      snippet,
+    );
+    expect(page.agents.find((agent) => agent.id === "name-match")?.searchSnippet).toBeNull();
+  });
+
   it("builds the all-host query key independent of host order", () => {
     expect(allAgentHistoryQueryKey(["server-b", "server-a"])).toEqual(
       allAgentHistoryQueryKey(["server-a", "server-b"]),

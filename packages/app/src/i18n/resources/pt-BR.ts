@@ -328,6 +328,18 @@ export const ptBR: TranslationResources = {
       empty: "Nenhum projeto no histórico carregado",
       emptyFiltered: "Nenhuma sessão de {{project}} nas páginas carregadas",
     },
+    searchSnippet: {
+      user: "Você",
+      assistant: "Resposta",
+    },
+    archivedFilter: {
+      all: "Todas",
+      active: "Não arquivadas",
+      archived: "Arquivadas",
+      emptyArchived: "Nenhuma sessão arquivada",
+      emptyActive: "Nenhuma sessão não arquivada",
+      emptyLoaded: "Nenhuma correspondência nas páginas carregadas",
+    },
     actions: {
       newStandalone: "Nova sessão independente",
       loadMore: "Carregar mais",
@@ -578,6 +590,11 @@ export const ptBR: TranslationResources = {
         revealFailed: "Falha ao mostrar entrada",
         deleteFailed: "Falha ao excluir entrada",
       },
+      reveal: {
+        outsideWorkspace: "Este arquivo está fora do workspace",
+        hidden: "Este arquivo está oculto. Mostre os arquivos ocultos para vê-lo.",
+        notFound: "Arquivo não encontrado em Arquivos",
+      },
       draft: {
         filePlaceholder: "Nome do arquivo",
         folderPlaceholder: "Nome da pasta",
@@ -686,6 +703,7 @@ export const ptBR: TranslationResources = {
         copyTerminalId: "Copiar ID do terminal",
         copyFilePath: "Copiar caminho do arquivo",
         openWithDefaultApp: "Abrir com o aplicativo padrão",
+        revealInFiles: "Mostrar em Arquivos",
         rename: "Renomear",
         closeAbove: "Fechar abas acima",
         closeBelow: "Fechar abas abaixo",

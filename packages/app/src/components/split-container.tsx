@@ -110,6 +110,7 @@ interface SplitContainerProps {
   onCopyAgentId: (agentId: string) => Promise<void> | void;
   onCopyTerminalId: (terminalId: string) => Promise<void> | void;
   onCopyFilePath: (path: string) => Promise<void> | void;
+  onRevealFileInExplorer: (path: string) => void;
   onReloadAgent: (agentId: string) => Promise<void> | void;
   onRenameTab: (tab: WorkspaceTabDescriptor) => void;
   onMoveToWorkspace: (tab: WorkspaceTabDescriptor) => void;
@@ -325,6 +326,7 @@ export function SplitContainer({
   onCopyAgentId,
   onCopyTerminalId,
   onCopyFilePath,
+  onRevealFileInExplorer,
   onReloadAgent,
   onRenameTab,
   onMoveToWorkspace,
@@ -686,6 +688,7 @@ export function SplitContainer({
                     onCopyAgentId={onCopyAgentId}
                     onCopyTerminalId={onCopyTerminalId}
                     onCopyFilePath={onCopyFilePath}
+                    onRevealFileInExplorer={onRevealFileInExplorer}
                     onReloadAgent={onReloadAgent}
                     onRenameTab={onRenameTab}
                     onMoveToWorkspace={onMoveToWorkspace}
@@ -751,6 +754,7 @@ export function SplitContainer({
                   onCopyAgentId={onCopyAgentId}
                   onCopyTerminalId={onCopyTerminalId}
                   onCopyFilePath={onCopyFilePath}
+                  onRevealFileInExplorer={onRevealFileInExplorer}
                   onReloadAgent={onReloadAgent}
                   onRenameTab={onRenameTab}
                   onCloseTabsToLeft={onCloseTabsToLeft}
@@ -968,6 +972,7 @@ function SplitNodeView({
   onCopyAgentId,
   onCopyTerminalId,
   onCopyFilePath,
+  onRevealFileInExplorer,
   onReloadAgent,
   onRenameTab,
   onMoveToWorkspace,
@@ -1057,6 +1062,7 @@ function SplitNodeView({
             onCopyAgentId={onCopyAgentId}
             onCopyTerminalId={onCopyTerminalId}
             onCopyFilePath={onCopyFilePath}
+            onRevealFileInExplorer={onRevealFileInExplorer}
             onReloadAgent={onReloadAgent}
             onRenameTab={onRenameTab}
             onMoveToWorkspace={onMoveToWorkspace}
@@ -1110,6 +1116,7 @@ function SplitNodeView({
               onCopyAgentId={onCopyAgentId}
               onCopyTerminalId={onCopyTerminalId}
               onCopyFilePath={onCopyFilePath}
+              onRevealFileInExplorer={onRevealFileInExplorer}
               onReloadAgent={onReloadAgent}
               onRenameTab={onRenameTab}
               onMoveToWorkspace={onMoveToWorkspace}
@@ -1171,6 +1178,7 @@ function SplitPaneView({
   onCopyAgentId,
   onCopyTerminalId,
   onCopyFilePath,
+  onRevealFileInExplorer,
   onReloadAgent,
   onRenameTab,
   onMoveToWorkspace,
@@ -1308,6 +1316,7 @@ function SplitPaneView({
               onCopyAgentId={onCopyAgentId}
               onCopyTerminalId={onCopyTerminalId}
               onCopyFilePath={onCopyFilePath}
+              onRevealFileInExplorer={onRevealFileInExplorer}
               onReloadAgent={onReloadAgent}
               onRenameTab={onRenameTab}
               onMoveToWorkspace={onMoveToWorkspace}

@@ -321,6 +321,18 @@ export const en = {
       empty: "No projects in the loaded history",
       emptyFiltered: "No sessions for {{project}} in the loaded pages",
     },
+    searchSnippet: {
+      user: "You",
+      assistant: "Reply",
+    },
+    archivedFilter: {
+      all: "All",
+      active: "Unarchived",
+      archived: "Archived",
+      emptyArchived: "No archived sessions",
+      emptyActive: "No unarchived sessions",
+      emptyLoaded: "No matches in the pages loaded so far",
+    },
     actions: {
       newStandalone: "New standalone session",
       loadMore: "Load more",
@@ -570,6 +582,11 @@ export const en = {
         revealFailed: "Failed to reveal entry",
         deleteFailed: "Failed to delete entry",
       },
+      reveal: {
+        outsideWorkspace: "This file is outside the workspace",
+        hidden: "This file is hidden. Show hidden files to see it.",
+        notFound: "File not found in Files",
+      },
       draft: {
         filePlaceholder: "File name",
         folderPlaceholder: "Folder name",
@@ -678,6 +695,7 @@ export const en = {
         copyTerminalId: "Copy terminal id",
         copyFilePath: "Copy file path",
         openWithDefaultApp: "Open with default app",
+        revealInFiles: "Reveal in Files",
         rename: "Rename",
         closeAbove: "Close tabs above",
         closeBelow: "Close tabs below",

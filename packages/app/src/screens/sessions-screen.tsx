@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { AgentList } from "@/components/agent-list";
 import { SearchField } from "@/components/ui/search-field";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { SelectField, type SelectFieldOption } from "@/components/ui/select-field";
 import { HostFilter } from "@/components/hosts/host-filter";
 import { ALL_HOSTS_OPTION_ID } from "@/components/hosts/host-picker";
@@ -23,6 +24,9 @@ import {
   ALL_PROJECTS_OPTION_ID,
   buildSessionProjectOptions,
   filterAgentsByProject,
+  filterAgentsByArchivedState,
+  resolveSessionsEmptyText,
+  type SessionsArchivedFilter,
   sessionProjectKey,
   sessionProjectLabel,
 } from "./sessions-screen-state";
@@ -90,7 +94,12 @@ function SessionsEmptyState({
         </Button>
       )}
       {hasMore ? (
-        <Button variant="ghost" onPress={onLoadMore} disabled={isLoadingMore}>
+        <Button
+          variant="ghost"
+          onPress={onLoadMore}
+          disabled={isLoadingMore}
+          testID="sessions-empty-load-more"
+        >
           {isLoadingMore ? "Loading..." : t("sessions.actions.loadMore")}
         </Button>
       ) : null}
@@ -135,22 +144,6 @@ function SessionProjectSelect({
   );
 }
 
-/** An empty list means something different once a query is narrowing it. */
-function resolveEmptyText(input: {
-  t: TFunction;
-  isSearching: boolean;
-  isAllHosts: boolean;
-  projectFilter: string;
-  projectLabel: string;
-}): string {
-  if (input.isSearching) return input.t("sessions.noMatches");
-  if (input.projectFilter !== ALL_PROJECTS_OPTION_ID) {
-    return input.t("sessions.projectFilter.emptyFiltered", { project: input.projectLabel });
-  }
-  if (input.isAllHosts) return input.t("sessions.empty");
-  return "No sessions for this host";
-}
-
 export function SessionsScreen() {
   const isFocused = useIsFocused();
 
@@ -168,6 +161,7 @@ function SessionsScreenContent() {
   const hosts = useHosts();
   const [selectedHost, setSelectedHost] = useState(ALL_HOSTS_OPTION_ID);
   const [searchInput, setSearchInput] = useState("");
+  const [archivedFilter, setArchivedFilter] = useState<SessionsArchivedFilter>("all");
   const search = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS).trim();
   const historyServerId = selectedHost === ALL_HOSTS_OPTION_ID ? null : selectedHost;
   const {
@@ -188,12 +182,12 @@ function SessionsScreenContent() {
   const isSearching = isSearchSupported && search.length > 0;
   const [projectFilter, setProjectFilter] = useState(ALL_PROJECTS_OPTION_ID);
   const projectOptions = useMemo(() => buildSessionProjectOptions(agents), [agents]);
-  // Both search and the project filter narrow the already-loaded pages;
+  // Project and archive filters narrow the already-loaded pages;
   // loading more history widens the project options.
-  const visibleAgents = useMemo(
-    () => filterAgentsByProject(agents, projectFilter),
-    [agents, projectFilter],
-  );
+  const visibleAgents = useMemo(() => {
+    const projectAgents = filterAgentsByProject(agents, projectFilter);
+    return filterAgentsByArchivedState(projectAgents, archivedFilter);
+  }, [agents, projectFilter, archivedFilter]);
   const selectedProjectLabel = useMemo(
     () =>
       projectFilter === ALL_PROJECTS_OPTION_ID
@@ -222,6 +216,26 @@ function SessionsScreenContent() {
     (agent: (typeof agents)[number]) => setProjectFilter(sessionProjectKey(agent)),
     [],
   );
+  const archivedFilterOptions = useMemo(
+    () => [
+      {
+        value: "all" as const,
+        label: t("sessions.archivedFilter.all"),
+        testID: "sessions-archived-filter-all",
+      },
+      {
+        value: "active" as const,
+        label: t("sessions.archivedFilter.active"),
+        testID: "sessions-archived-filter-active",
+      },
+      {
+        value: "archived" as const,
+        label: t("sessions.archivedFilter.archived"),
+        testID: "sessions-archived-filter-archived",
+      },
+    ],
+    [t],
+  );
 
   useEffect(() => {
     if (
@@ -240,15 +254,16 @@ function SessionsScreenContent() {
   }, [refreshAll]);
 
   // Searching filters the chronological history without changing its date buckets.
-  const emptyText = resolveEmptyText({
+  const emptyText = resolveSessionsEmptyText({
     t,
     isSearching,
     isAllHosts: selectedHost === ALL_HOSTS_OPTION_ID,
     projectFilter,
     projectLabel: selectedProjectLabel,
+    archivedFilter,
+    hasMore,
   });
   const showHostFilter = hosts.length > 1;
-  const showFilterRow = showHostFilter || isSearchSupported || projectOptions.length > 0;
   const showLoadError = isError && agents.length === 0;
 
   const handleBack = useCallback(() => {
@@ -300,35 +315,40 @@ function SessionsScreenContent() {
   return (
     <View style={styles.container}>
       <MenuHeader title={t("sessions.title")} rightContent={newStandaloneButton} />
-      {showFilterRow ? (
-        <View style={styles.filterContainer}>
-          {isSearchSupported ? (
-            <SearchField
-              value={searchInput}
-              onChangeText={setSearchInput}
-              placeholder={t("sessions.searchPlaceholder")}
-              clearAccessibilityLabel={t("sessions.actions.clearSearch")}
-              testID="sessions-search-input"
-              clearTestID="sessions-search-clear"
-            />
-          ) : null}
-          {showHostFilter ? (
-            <HostFilter
-              hosts={hosts}
-              selectedHost={selectedHost}
-              onSelectHost={setSelectedHost}
-              triggerTestID="sessions-host-filter-trigger"
-              hostOptionTestID={sessionsHostOptionTestID}
-            />
-          ) : null}
-          <SessionProjectSelect
-            projectFilter={projectFilter}
-            label={selectedProjectLabel}
-            options={projectFilterOptions}
-            onChange={setProjectFilter}
+      <View style={styles.filterContainer}>
+        {isSearchSupported ? (
+          <SearchField
+            value={searchInput}
+            onChangeText={setSearchInput}
+            placeholder={t("sessions.searchPlaceholder")}
+            clearAccessibilityLabel={t("sessions.actions.clearSearch")}
+            testID="sessions-search-input"
+            clearTestID="sessions-search-clear"
           />
-        </View>
-      ) : null}
+        ) : null}
+        {showHostFilter ? (
+          <HostFilter
+            hosts={hosts}
+            selectedHost={selectedHost}
+            onSelectHost={setSelectedHost}
+            triggerTestID="sessions-host-filter-trigger"
+            hostOptionTestID={sessionsHostOptionTestID}
+          />
+        ) : null}
+        <SessionProjectSelect
+          projectFilter={projectFilter}
+          label={selectedProjectLabel}
+          options={projectFilterOptions}
+          onChange={setProjectFilter}
+        />
+        <SegmentedControl
+          size="sm"
+          value={archivedFilter}
+          onValueChange={setArchivedFilter}
+          options={archivedFilterOptions}
+          testID="sessions-archived-filter"
+        />
+      </View>
       {hostErrors.length > 0 ? <SessionHostErrorsBanner errors={hostErrors} t={t} /> : null}
       {isInitialLoad ? (
         <View style={styles.loadingContainer}>
@@ -381,6 +401,7 @@ const styles = StyleSheet.create((theme) => ({
   filterContainer: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: theme.spacing[2],
     paddingHorizontal: {
       xs: theme.spacing[3],

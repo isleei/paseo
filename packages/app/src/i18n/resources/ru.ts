@@ -328,6 +328,18 @@ export const ru: TranslationResources = {
       empty: "Нет проектов в загруженной истории",
       emptyFiltered: "Нет сессий для {{project}} в загруженных страницах",
     },
+    searchSnippet: {
+      user: "Вы",
+      assistant: "Ответ",
+    },
+    archivedFilter: {
+      all: "Все",
+      active: "Не в архиве",
+      archived: "В архиве",
+      emptyArchived: "Нет сессий в архиве",
+      emptyActive: "Нет сессий вне архива",
+      emptyLoaded: "Совпадений на загруженных страницах нет",
+    },
     actions: {
       newStandalone: "Новая автономная сессия",
       loadMore: "Загрузить ещё",
@@ -578,6 +590,11 @@ export const ru: TranslationResources = {
         revealFailed: "Не удалось показать расположение элемента",
         deleteFailed: "Не удалось удалить элемент",
       },
+      reveal: {
+        outsideWorkspace: "Этот файл находится вне рабочего пространства",
+        hidden: "Это скрытый файл. Включите показ скрытых файлов, чтобы увидеть его.",
+        notFound: "Файл не найден в разделе «Файлы»",
+      },
       draft: {
         filePlaceholder: "Имя файла",
         folderPlaceholder: "Имя папки",
@@ -688,6 +705,7 @@ export const ru: TranslationResources = {
         copyTerminalId: "Скопировать идентификатор терминала",
         copyFilePath: "Скопировать путь к файлу",
         openWithDefaultApp: "Открыть в приложении по умолчанию",
+        revealInFiles: "Показать в файлах",
         rename: "Переименовать",
         closeAbove: "Закрыть вкладки выше",
         closeBelow: "Закрыть вкладки ниже",

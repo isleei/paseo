@@ -324,6 +324,18 @@ export const ar: TranslationResources = {
       empty: "لا توجد مشاريع في السجل المحمّل",
       emptyFiltered: "لا توجد جلسات لـ {{project}} في الصفحات المحمّلة",
     },
+    searchSnippet: {
+      user: "أنت",
+      assistant: "الرد",
+    },
+    archivedFilter: {
+      all: "الكل",
+      active: "غير المؤرشفة",
+      archived: "المؤرشفة",
+      emptyArchived: "لا توجد جلسات مؤرشفة",
+      emptyActive: "لا توجد جلسات غير مؤرشفة",
+      emptyLoaded: "لا توجد نتائج في الصفحات المحمّلة",
+    },
     actions: {
       newStandalone: "جلسة مستقلة جديدة",
       loadMore: "تحميل المزيد",
@@ -573,6 +585,11 @@ export const ar: TranslationResources = {
         revealFailed: "فشل إظهار العنصر",
         deleteFailed: "فشل حذف العنصر",
       },
+      reveal: {
+        outsideWorkspace: "هذا الملف خارج مساحة العمل",
+        hidden: "هذا الملف مخفي. أظهر الملفات المخفية لرؤيته.",
+        notFound: "لم يتم العثور على الملف في الملفات",
+      },
       draft: {
         filePlaceholder: "اسم الملف",
         folderPlaceholder: "اسم المجلد",
@@ -681,6 +698,7 @@ export const ar: TranslationResources = {
         copyTerminalId: "نسخ معرف المحطة",
         copyFilePath: "Copy file path",
         openWithDefaultApp: "الفتح بالتطبيق الافتراضي",
+        revealInFiles: "إظهار في الملفات",
         rename: "إعادة تسمية",
         closeAbove: "إغلاق علامات التبويب أعلاه",
         closeBelow: "إغلاق علامات التبويب أدناه",
