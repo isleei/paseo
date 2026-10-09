@@ -8,4 +8,8 @@ describe("keyboardShortcutsAvailable", () => {
     expect(keyboardShortcutsAvailable({ isNative: true, isCompact: false })).toBe(false);
     expect(keyboardShortcutsAvailable({ isNative: true, isCompact: true })).toBe(false);
   });
+
+  it.each([false, true])("keeps Electron shortcuts available with compact=%s", (isCompact) => {
+    expect(keyboardShortcutsAvailable({ isNative: false, isCompact, isElectron: true })).toBe(true);
+  });
 });

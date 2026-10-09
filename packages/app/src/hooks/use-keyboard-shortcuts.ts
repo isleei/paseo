@@ -70,8 +70,12 @@ export function useKeyboardShortcuts({
     () => buildEffectiveBindings(overrides, { paneFocusInTextFields }),
     [overrides, paneFocusInTextFields],
   );
-  const shortcutsAvailable = keyboardShortcutsAvailable({ isNative, isCompact: isMobile });
   const isDesktopApp = getIsElectronRuntime();
+  const shortcutsAvailable = keyboardShortcutsAvailable({
+    isNative,
+    isCompact: isMobile,
+    isElectron: isDesktopApp,
+  });
   const isMac = getShortcutOs() === "mac";
   const chordStateRef = useRef<ChordState>({
     candidateIndices: [],
@@ -230,7 +234,7 @@ export function useKeyboardShortcuts({
       { action: input.action, payload: input.payload },
       {
         pathname,
-        isMobile,
+        isMobile: isMobile && !isDesktopApp,
         sidebarShortcutTargets: store.sidebarShortcutWorkspaceTargets,
         navigationActiveWorkspace:
           keyboardWorkspaceSelectionRef.current ?? activeWorkspaceSelection,
@@ -341,7 +345,7 @@ export function useKeyboardShortcuts({
     if (
       key === "Escape" &&
       pathname.startsWith("/settings") &&
-      !isMobile &&
+      (!isMobile || isDesktopApp) &&
       hasActiveWebOverlay()
     ) {
       return;
