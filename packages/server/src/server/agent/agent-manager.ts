@@ -103,6 +103,7 @@ import {
   type ProviderSubagentDescriptor,
   type ProviderSubagentStoreEvent,
 } from "./provider-subagents/store.js";
+import { AgentBackgroundWorkStore, type AgentBackgroundWorkItem } from "./background-work/store.js";
 import { withTimeout } from "../../utils/promise-timeout.js";
 import { extractAttention } from "../persistence-hooks.js";
 import { setTimeout as delay } from "node:timers/promises";
@@ -245,6 +246,7 @@ export type {
 export type AgentManagerEvent =
   | { type: "agent_state"; agent: ManagedAgent }
   | { type: "provider_subagent"; event: ProviderSubagentStoreEvent }
+  | { type: "background_work"; agentId: string; items: AgentBackgroundWorkItem[] }
   | { type: "timeline_replacement"; agentId: string; epoch: string }
   | {
       type: "agent_stream";
@@ -765,6 +767,7 @@ export class AgentManager {
   private readonly agents = new Map<string, LiveManagedAgent>();
   private readonly timelineStore = new InMemoryAgentTimelineStore();
   private readonly providerSubagents = new ProviderSubagentStore();
+  private readonly backgroundWork = new AgentBackgroundWorkStore();
   private readonly agentsAwaitingInitialSnapshotPersist = new Set<string>();
   private readonly sessionEventTails = new Map<string, Promise<void>>();
   private readonly steerEventBarriers = new Map<string, SteerEventBarrier>();
@@ -1569,6 +1572,16 @@ export class AgentManager {
     return this.providerSubagents.list(parentAgentId);
   }
 
+  listAgentBackgroundWork(agentId: string): AgentBackgroundWorkItem[] {
+    this.requirePublicAgent(agentId);
+    return this.backgroundWork.list(agentId);
+  }
+
+  private clearBackgroundWork(agentId: string): void {
+    const items = this.backgroundWork.clear(agentId);
+    if (items) this.dispatch({ type: "background_work", agentId, items });
+  }
+
   listProviderSubagentActivity(): ProviderSubagentDescriptor[] {
     const publicParentIds = new Set(
       Array.from(this.agents.values())
@@ -1948,6 +1961,7 @@ export class AgentManager {
       await this.closeReloadedSession(existing.session, agentId);
       await this.drainSessionEvents(agentId);
       this.cancelRunningProviderSubagents(agentId);
+      this.clearBackgroundWork(agentId);
       closedExisting = this.prepareAgentForClosure(existing, "agent reloaded");
       await this.persistSnapshot(closedExisting);
       this.assertAcceptingAgentRegistrations();
@@ -2101,6 +2115,8 @@ export class AgentManager {
     // native writer, so publishing a resumable closed snapshot would orphan it.
     await agent.session.close();
     this.cancelRunningProviderSubagents(agentId);
+    // close() drops the session's subscribers before the provider could report an empty list.
+    this.clearBackgroundWork(agentId);
     const closedAgent = this.prepareAgentForClosure(agent, "agent closed");
 
     let persistError: unknown;
@@ -4271,6 +4287,7 @@ export class AgentManager {
     for (const event of this.providerSubagents.deleteParent(agentId)) {
       this.dispatch({ type: "provider_subagent", event });
     }
+    this.clearBackgroundWork(agentId);
   }
 
   private emitClosedAgent(agent: ManagedAgentClosed, options?: { persist?: boolean }): void {
@@ -4378,6 +4395,11 @@ export class AgentManager {
     if (event.type === "provider_subagent") {
       const update = this.providerSubagents.apply(agent.id, event.provider, event.event);
       this.dispatch({ type: "provider_subagent", event: update });
+      return;
+    }
+    if (event.type === "background_work") {
+      const items = this.backgroundWork.apply(agent.id, event.items);
+      if (items) this.dispatch({ type: "background_work", agentId: agent.id, items });
       return;
     }
     const turnId = getAgentStreamEventTurnId(event);
@@ -5648,6 +5670,13 @@ export class AgentManager {
       }
       if (
         subscriber.agentId &&
+        event.type === "background_work" &&
+        subscriber.agentId !== event.agentId
+      ) {
+        continue;
+      }
+      if (
+        subscriber.agentId &&
         event.type === "agent_state" &&
         subscriber.agentId !== event.agent.id
       ) {
@@ -5674,6 +5703,7 @@ export class AgentManager {
   private eventBelongsToInternalAgent(event: AgentManagerEvent): boolean {
     if (event.type === "agent_state") return event.agent.internal === true;
     if (event.type === "agent_stream") return this.agents.get(event.agentId)?.internal === true;
+    if (event.type === "background_work") return this.agents.get(event.agentId)?.internal === true;
     if (event.type !== "provider_subagent") return false;
     const parentAgentId =
       event.event.type === "upsert"
