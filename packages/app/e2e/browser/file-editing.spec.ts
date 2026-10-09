@@ -788,3 +788,28 @@ test.describe("CodeMirror workspace file editing", () => {
     await expect(page.getByLabel("Vim mode NORMAL")).toBeVisible();
   });
 });
+
+test("chat URL links keep the default external destination", async ({ page }) => {
+  const session = await seedMockAgentWorkspace({
+    repoPrefix: "chat-url-external-",
+    title: "Chat URL",
+    initialPrompt: "Show a web link",
+    featureValues: { mockAssistantResponse: "[Desktop link](https://example.com/paseo-chat-link)" },
+  });
+  try {
+    await session.client.waitForFinish(session.agentId);
+    await openAgentRoute(page, session);
+    const link = page.getByText("Desktop link", { exact: true });
+    await expect(link).toBeVisible();
+    const popupPromise = page.context().waitForEvent("page");
+    await link.click();
+    const popup = await popupPromise;
+    try {
+      await expect.poll(() => popup.url()).toContain("example.com/paseo-chat-link");
+    } finally {
+      await popup.close();
+    }
+  } finally {
+    await session.cleanup();
+  }
+});

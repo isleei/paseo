@@ -8875,6 +8875,13 @@ export class Session {
     if (shouldNotify) notified.add(subscription.owner.source);
   }
 
+  // Subscribing to an event is not the same as understanding its payload: a
+  // client that never advertised the capability must not receive it either way.
+  private sourceUnderstandsEvent(message: SessionOutboundMessage, source: object): boolean {
+    if (message.type !== "agent_prompt_suggestions") return true;
+    return this.supportsForSource(CLIENT_CAPS.promptSuggestions, source);
+  }
+
   private emitSubscribedEvent(message: SessionOutboundMessage, onlySource?: object): boolean {
     const event = sessionEventCategory(message);
     if (!event) return false;
@@ -8884,7 +8891,8 @@ export class Session {
     for (const subscription of this.eventSubscriptions.values()) {
       if (
         !subscription.events.has(event) ||
-        (onlySource && subscription.owner.source !== onlySource)
+        (onlySource && subscription.owner.source !== onlySource) ||
+        !this.sourceUnderstandsEvent(message, subscription.owner.source)
       )
         continue;
       this.emitEventToOwner(subscription, message, notified);
@@ -8897,6 +8905,7 @@ export class Session {
           (!onlySource || source === onlySource) &&
           !delivered.has(source) &&
           !this.delivery.isModern(source) &&
+          this.sourceUnderstandsEvent(message, source) &&
           this.wantsEvent(event, source)
         )
           this.onMessageToSource(source, this.workspaceSetupMessageForClient(message, source));
@@ -9080,6 +9089,7 @@ function sessionEventCategory(message: SessionOutboundMessage): SessionEventSubs
     case "project.update":
     case "providers_snapshot_update":
     case "agent_attention_required":
+    case "agent_prompt_suggestions":
     case "agent_permission_request":
     case "agent_permission_resolved":
     case "checkout_status_update":
@@ -9093,18 +9103,24 @@ function sessionEventCategory(message: SessionOutboundMessage): SessionEventSubs
     case "hub.execution.agent.stream":
       return message.type;
     case "status":
-      switch (message.payload.status) {
-        case "server_info":
-          return "status.server_info";
-        case "daemon_config_changed":
-          return "status.daemon_config_changed";
-        case "plugin_catalog_changed":
-          return "status.plugin_catalog_changed";
-        case "plugin_settings_changed":
-          return "status.plugin_settings_changed";
-        default:
-          return null;
-      }
+      return statusEventCategory(message.payload.status);
+    default:
+      return null;
+  }
+}
+
+function statusEventCategory(
+  status: Extract<SessionOutboundMessage, { type: "status" }>["payload"]["status"],
+): SessionEventSubscription | null {
+  switch (status) {
+    case "server_info":
+      return "status.server_info";
+    case "daemon_config_changed":
+      return "status.daemon_config_changed";
+    case "plugin_catalog_changed":
+      return "status.plugin_catalog_changed";
+    case "plugin_settings_changed":
+      return "status.plugin_settings_changed";
     default:
       return null;
   }
@@ -9128,6 +9144,8 @@ function legacyWantsEvent(
     // Old apps parse outbound messages strictly and do not know this type.
     case "agent.background_work.update":
       return false;
+    case "agent_prompt_suggestions":
+      return capabilities.has(CLIENT_CAPS.promptSuggestions);
     default:
       return true;
   }

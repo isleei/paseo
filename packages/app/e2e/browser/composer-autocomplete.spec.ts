@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "../support/fixtures";
+import { connectNewWorkspaceDaemonClient } from "../support/helpers/new-workspace";
 import { composerLocator, expectComposerVisible } from "../support/helpers/composer";
 import {
   openAgentRoute,
@@ -719,4 +720,59 @@ test.describe("Composer autocomplete", () => {
       }
     });
   });
+});
+
+test("opt-in prompt suggestions accept without sending and disappear when disabled", async ({
+  page,
+}) => {
+  const configClient = await connectNewWorkspaceDaemonClient({ ownProjects: false });
+  const previousConfig = await configClient.getDaemonConfig();
+  const session = await seedMockAgentWorkspace({
+    repoPrefix: "prompt-suggestions-",
+    title: "Suggestion flow",
+    model: "e2e-fast-stream",
+    initialPrompt: "Fix the login test",
+    featureValues: { mockAssistantResponse: "The focused test passes." },
+  });
+  try {
+    await session.client.waitForFinish(session.agentId);
+    await openAgentRoute(page, session);
+    await expectComposerVisible(page);
+    const ghost = page.getByTestId("composer-ghost-suggestion");
+    await expect(ghost).toHaveCount(0);
+    await configClient.patchDaemonConfig({
+      promptSuggestions: { enabled: true },
+      metadataGeneration: {
+        promptSuggestions: { providers: [{ provider: "mock", model: "e2e-fast-stream" }] },
+      },
+    });
+    await session.client.sendAgentMessage(session.agentId, "Review the login fix");
+    await session.client.waitForFinish(session.agentId);
+    await expect(ghost).toContainText("Run the focused tests", { timeout: 30_000 });
+    await page.screenshot({
+      path: "/tmp/paseo-feature-integration-20261009/prompt-suggestions.png",
+    });
+    const input = composerLocator(page);
+    await input.focus();
+    await input.press("Tab");
+    await expect(input).toHaveValue("Run the focused tests");
+    await expect(ghost).toHaveCount(0);
+    await input.fill("");
+    await session.client.sendAgentMessage(session.agentId, "Review the next change");
+    await session.client.waitForFinish(session.agentId);
+    await expect(ghost).toBeVisible();
+    await configClient.patchDaemonConfig({ promptSuggestions: { enabled: false } });
+    await expect(ghost).toHaveCount(0);
+  } finally {
+    await configClient.patchDaemonConfig({
+      promptSuggestions: { enabled: false },
+      metadataGeneration: {
+        promptSuggestions: {
+          providers: previousConfig.config.metadataGeneration.promptSuggestions?.providers ?? [],
+        },
+      },
+    });
+    await configClient.close();
+    await session.cleanup();
+  }
 });

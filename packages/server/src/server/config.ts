@@ -530,6 +530,13 @@ function resolveProfileLists(persisted: ReturnType<typeof loadPersistedConfig>) 
   };
 }
 
+function resolveAgentGenerationConfig(persisted: PersistedConfig) {
+  return {
+    metadataGeneration: persisted.agents?.metadataGeneration,
+    promptSuggestions: persisted.agents?.promptSuggestions,
+  };
+}
+
 function resolveStaticLoadConfigSettings(
   env: NodeJS.ProcessEnv,
   cli: CliConfigOverrides | undefined,
@@ -658,7 +665,7 @@ export function resolveConfigFromPersisted(
     voiceLlmModel: voiceLlm.model,
     agentProviderSettings: extractAgentProviderSettings(providerOverrides),
     providerCatalogRefreshTimeoutMs: persisted.agents?.catalogRefreshTimeoutMs,
-    metadataGeneration: persisted.agents?.metadataGeneration,
+    ...resolveAgentGenerationConfig(persisted),
     providerOverrides,
     log: resolveLogConfigFromEnv(env, persisted),
     configReload: {

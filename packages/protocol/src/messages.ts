@@ -159,9 +159,28 @@ const MutableStructuredGenerationProviderSchema = z
   })
   .passthrough();
 
+const MutableMetadataGenerationKindConfigSchema = z
+  .object({
+    providers: z.array(MutableStructuredGenerationProviderSchema).optional(),
+  })
+  .passthrough();
+
+// The per-kind entries override `providers` for one artifact; they travel with the
+// shared list so a settings write cannot silently drop them.
 const MutableMetadataGenerationConfigSchema = z
   .object({
     providers: z.array(MutableStructuredGenerationProviderSchema).default([]),
+    title: MutableMetadataGenerationKindConfigSchema.optional(),
+    branchName: MutableMetadataGenerationKindConfigSchema.optional(),
+    commitMessage: MutableMetadataGenerationKindConfigSchema.optional(),
+    pullRequest: MutableMetadataGenerationKindConfigSchema.optional(),
+    promptSuggestions: MutableMetadataGenerationKindConfigSchema.optional(),
+  })
+  .passthrough();
+
+const MutablePromptSuggestionsConfigSchema = z
+  .object({
+    enabled: z.boolean().default(false),
   })
   .passthrough();
 
@@ -206,6 +225,7 @@ export const MutableDaemonConfigSchema = z
     browserTools: MutableBrowserToolsConfigSchema.default({ enabled: false }),
     providers: z.record(z.string(), MutableDaemonProviderConfigSchema).default({}),
     metadataGeneration: MutableMetadataGenerationConfigSchema.default({ providers: [] }),
+    promptSuggestions: MutablePromptSuggestionsConfigSchema.optional(),
     autoArchiveAfterMerge: z.boolean().default(false),
     enableTerminalAgentHooks: z.boolean().default(false),
     agentRetryAttempts: z.number().int().min(0).max(5).optional(),
@@ -229,7 +249,14 @@ export const MutableDaemonConfigPatchSchema = z
       .record(z.string(), MutableDaemonProviderConfigSchema.partial().passthrough())
       .optional(),
     removeProviders: z.array(z.string().min(1)).optional(),
-    metadataGeneration: MutableMetadataGenerationConfigSchema.partial().optional(),
+    // Zod 4 still applies a default inside .partial(), which would turn a patch that
+    // names only one kind into "shared providers = []"; the patch must omit it instead.
+    metadataGeneration: MutableMetadataGenerationConfigSchema.extend({
+      providers: z.array(MutableStructuredGenerationProviderSchema).optional(),
+    })
+      .partial()
+      .optional(),
+    promptSuggestions: MutablePromptSuggestionsConfigSchema.partial().optional(),
     autoArchiveAfterMerge: z.boolean().optional(),
     enableTerminalAgentHooks: z.boolean().optional(),
     agentRetryAttempts: z.number().int().min(0).max(5).optional(),
@@ -3284,6 +3311,7 @@ export const SessionEventSubscriptionSchema = z.enum([
   "project.update",
   "providers_snapshot_update",
   "agent_attention_required",
+  "agent_prompt_suggestions",
   "agent_permission_request",
   "agent_permission_resolved",
   "checkout_status_update",
@@ -3722,6 +3750,7 @@ export const ServerInfoStatusPayloadSchema = z
         agentRequestReceipts: z.boolean().optional(),
         agentRetry: z.boolean().optional(),
         sharedProjectContext: z.boolean().optional(),
+        promptSuggestions: z.boolean().optional(),
         // COMPAT(workspaceRequestReceipts): added in v0.8.0; remove gate after 2027-03-07.
         workspaceRequestReceipts: z.boolean().optional(),
         creationLifecycle: z.boolean().optional(),
@@ -5069,6 +5098,31 @@ export const AgentAttentionRequiredMessageSchema = z.object({
       .optional(),
   }),
 });
+
+// One suggestion is one line in the composer; the cap keeps a chatty model from
+// filling the input with a paragraph nobody will read before sending.
+export const PROMPT_SUGGESTION_MAX_CHARS = 160;
+export const PROMPT_SUGGESTION_MAX_COUNT = 3;
+
+export const PromptSuggestionSchema = z.object({
+  id: z.string().min(1),
+  text: z.string().min(1).max(PROMPT_SUGGESTION_MAX_CHARS),
+});
+export type PromptSuggestion = z.infer<typeof PromptSuggestionSchema>;
+
+export const AgentPromptSuggestionsMessageSchema = z.object({
+  type: z.literal("agent_prompt_suggestions"),
+  payload: z.object({
+    subscriptionId: z.string().optional(),
+    agentId: z.string(),
+    // The turn whose completion produced these; a payload that lost the race
+    // with a newer turn the client has seen is dropped.
+    turnSeq: z.number().int().nonnegative(),
+    suggestions: z.array(PromptSuggestionSchema).max(PROMPT_SUGGESTION_MAX_COUNT),
+    generatedAt: z.string(),
+  }),
+});
+export type AgentPromptSuggestionsMessage = z.infer<typeof AgentPromptSuggestionsMessageSchema>;
 
 export const AgentForkContextResponseMessageSchema = z.object({
   type: z.literal("agent.fork_context.response"),
@@ -7262,6 +7316,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   AgentBackgroundWorkUpdateMessageSchema,
   SetAgentTimelineSubscriptionResponseMessageSchema,
   AgentAttentionRequiredMessageSchema,
+  AgentPromptSuggestionsMessageSchema,
   AgentForkContextResponseMessageSchema,
   CancelAgentResponseMessageSchema,
   ClearAgentAttentionResponseMessageSchema,
@@ -7926,6 +7981,7 @@ export const WSHelloMessageSchema = z.object({
       [CLIENT_CAPS.timelineReplacementInvalidation]: z.boolean().optional(),
       [CLIENT_CAPS.timelineNotifications]: z.boolean().optional(),
       [CLIENT_CAPS.fileUploadProgress]: z.boolean().optional(),
+      [CLIENT_CAPS.promptSuggestions]: z.boolean().optional(),
       [CLIENT_CAPS.browserHost]: BrowserAutomationHostCapabilitySchema.optional(),
     })
     .passthrough()

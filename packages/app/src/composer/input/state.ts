@@ -137,18 +137,18 @@ export function runAlternateSendAction(ctx: SendActionContext): void {
 
 export type MessageInputEnterAction = "alternate-send" | "default-send";
 
-export interface MessageInputEnterContext {
+export interface MessageInputEnterContext<TPayload = MessagePayload> {
   submitOnEnter: boolean;
   commandEnterToSend: boolean;
   shiftKey: boolean;
   metaKey: boolean;
   ctrlKey: boolean;
   isAgentRunning: boolean;
-  onQueue: ((payload: MessagePayload) => void) | undefined;
+  onQueue: ((payload: TPayload) => void) | undefined;
 }
 
-export function resolveMessageInputEnterAction(
-  ctx: MessageInputEnterContext,
+export function resolveMessageInputEnterAction<TPayload>(
+  ctx: MessageInputEnterContext<TPayload>,
 ): MessageInputEnterAction | null {
   if (!ctx.submitOnEnter) return null;
   if (ctx.shiftKey) return null;

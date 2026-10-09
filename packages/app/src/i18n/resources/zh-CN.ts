@@ -148,6 +148,10 @@ export const zhCN: TranslationResources = {
       tokensLabel: "令牌",
       cacheLabel: "缓存命中率",
     },
+    promptSuggestions: {
+      a11yLabel: "建议的提示词，按 Tab 采用",
+      chipAccessibilityLabel: "使用建议：{{text}}",
+    },
     input: {
       accessibilityLabel: "给智能体发消息...",
       terminalAccessibilityLabel: "终端提示词",
@@ -2339,7 +2343,7 @@ export const zhCN: TranslationResources = {
     plugins: pluginSettings["zh-CN"],
     metadataGeneration: {
       title: "元数据生成",
-      description: "选择 Paimon 用于工作区标题、分支名称、提交消息和拉取请求草稿的模型",
+      description: "选择 Paimon 用于工作区标题、分支名称、提交消息、拉取请求草稿和提示建议的模型",
       selection: "模型选择",
       automatic: "自动",
       preferred: "手动",
@@ -2349,6 +2353,9 @@ export const zhCN: TranslationResources = {
       fallbackHint: "如果不可用，Paimon 会改用其他可用模型",
       docs: "文档",
       saveError: "无法更新元数据生成设置",
+      suggestionSection: "消息建议",
+      suggestionSharedHint: "建议使用元数据生成模型",
+      suggestionCustomHint: "消息建议使用此模型",
     },
     general: {
       title: "通用",
@@ -2780,6 +2787,11 @@ export const zhCN: TranslationResources = {
           title: "启用 Paimon 工具",
           hint: "智能体将能够管理 worktree、智能体和计划",
           accessibilityLabel: "注入 Paimon 工具",
+        },
+        promptSuggestions: {
+          title: "建议下一条提示",
+          hint: "Agent 完成后，建议接下来可以问什么",
+          accessibilityLabel: "建议下一条提示",
         },
         systemPrompt: {
           title: "系统提示词",

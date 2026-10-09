@@ -10,6 +10,7 @@ import { gotoAppShell, openSettings } from "../support/helpers/app";
 import { getE2EDaemonPort } from "../support/helpers/daemon-port";
 import { TEST_HOST_LABEL } from "../support/helpers/daemon-registry";
 import { startIsolatedHostDaemon } from "../support/helpers/isolated-host-daemon";
+import { connectNewWorkspaceDaemonClient } from "../support/helpers/new-workspace";
 import { getServerId } from "../support/helpers/server-id";
 import {
   expectSettingsHeader,
@@ -266,5 +267,55 @@ test("automatic retry countdown survives reload, retries immediately, and can be
   } finally {
     await client.close();
     await workspace.cleanup();
+  }
+});
+
+test("prompt suggestion host setting defaults off and persists when toggled", async ({ page }) => {
+  const client = await connectNewWorkspaceDaemonClient({ ownProjects: false });
+  const previous = await client.getDaemonConfig();
+  const home = process.env.E2E_PASEO_HOME;
+  if (!home) throw new Error("Missing isolated test home");
+  const configFile = path.join(home, "config.json");
+  const backup = path.join(home, "suggestions-test-config-backup.json");
+  let blocked = false;
+  try {
+    expect(previous.config.promptSuggestions?.enabled).toBe(false);
+    await gotoAppShell(page);
+    await openSettings(page);
+    await openSettingsHost(page, getServerId());
+    await openHostSection(page, getServerId(), "agents");
+    const toggle = page.getByTestId("host-page-prompt-suggestions-card").getByRole("switch");
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
+    await toggle.click();
+    await expect
+      .poll(async () => (await client.getDaemonConfig()).config.promptSuggestions?.enabled)
+      .toBe(true);
+    await page.reload();
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    await toggle.click();
+    await expect
+      .poll(async () => (await client.getDaemonConfig()).config.promptSuggestions?.enabled)
+      .toBe(false);
+    await rename(configFile, backup);
+    await mkdir(configFile);
+    blocked = true;
+    await toggle.click();
+    const error = page.getByTestId("host-page-prompt-suggestions-error");
+    await expect(error).toBeVisible();
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
+    await expect(toggle).toBeEnabled();
+    await rm(configFile, { recursive: true });
+    await rename(backup, configFile);
+    blocked = false;
+    await toggle.click();
+    await expect(error).toHaveCount(0);
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+  } finally {
+    if (blocked) {
+      await rm(configFile, { recursive: true });
+      await rename(backup, configFile);
+    }
+    await client.patchDaemonConfig({ promptSuggestions: { enabled: false } });
+    await client.close();
   }
 });

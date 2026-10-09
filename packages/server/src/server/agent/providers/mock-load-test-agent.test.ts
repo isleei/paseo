@@ -182,6 +182,23 @@ describe("MockLoadTestAgentClient", () => {
     });
   });
 
+  test("returns deterministic JSON for prompt suggestion integration fixtures", async () => {
+    vi.useFakeTimers();
+    const session = await new MockLoadTestAgentClient().createSession({
+      provider: "mock",
+      cwd: process.cwd(),
+      model: "ten-second-stream",
+    });
+    const resultPromise = session.run(
+      'You predict what a developer will type next to a coding agent.\nReturn JSON only: {"suggestions": ["...", "..."]}',
+    );
+    await vi.runAllTimersAsync();
+    expect(JSON.parse((await resultPromise).finalText)).toEqual({
+      suggestions: ["Run the focused tests", "Review the changes"],
+    });
+    await session.close();
+  });
+
   test("returns schema-shaped JSON for structured branch-name generation", async () => {
     vi.useFakeTimers();
     const client = new MockLoadTestAgentClient();

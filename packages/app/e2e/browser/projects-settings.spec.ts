@@ -287,6 +287,8 @@ test.describe("Projects settings", () => {
     const toggle = page.getByTestId("project-shared-context-toggle").getByRole("switch");
     await expect(toggle).toHaveAttribute("aria-checked", "false");
     await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    await page.screenshot({ path: "/tmp/paseo-feature-integration-20261009/shared-settings.png" });
     await clickSaveProjectSettings(page);
     await expect
       .poll(async () => JSON.parse(await readProjectConfigFile(editableProject)))
@@ -294,7 +296,6 @@ test.describe("Projects settings", () => {
         sharedContext: { enabled: true },
         customTopLevelField: "preserved",
       });
-    await page.screenshot({ path: "/tmp/paseo-feature-integration-20261009/shared-settings.png" });
     await page.reload();
     await expect(toggle).toHaveAttribute("aria-checked", "true");
     await toggle.click();

@@ -480,6 +480,18 @@ function parseStructuredBranchNamePrompt(
   return { title: title || "Mock task", branch };
 }
 
+function parseStructuredPromptSuggestions(
+  prompt: AgentPromptInput,
+): { suggestions: string[] } | null {
+  const text = promptToText(prompt);
+  if (
+    !text.includes("You predict what a developer will type next to a coding agent.") ||
+    !text.includes('Return JSON only: {"suggestions":')
+  )
+    return null;
+  return { suggestions: ["Run the focused tests", "Review the changes"] };
+}
+
 function buildRepeatedPayload(bytes: number, prefix: string): string {
   const line = `${prefix} ${"x".repeat(96)}\n`;
   let output = "";
@@ -864,6 +876,7 @@ export class MockLoadTestAgentSession implements AgentSession {
     const stress = parseAgentStreamStressPrompt(prompt);
     const questionPrompt = parseMockQuestionPrompt(prompt);
     const structuredBranchName = parseStructuredBranchNamePrompt(prompt);
+    const structuredPromptSuggestions = parseStructuredPromptSuggestions(prompt);
     const settledAssistantImageMarkdown = parseSettledAssistantImageMarkdown(prompt);
     const steeringReplayShape = parseSteeringReplayShape(prompt);
     const scheduleTurn = () => {
@@ -880,6 +893,8 @@ export class MockLoadTestAgentSession implements AgentSession {
         );
       } else if (structuredBranchName) {
         this.scheduleSettledAssistantTurn(turn, JSON.stringify(structuredBranchName));
+      } else if (structuredPromptSuggestions) {
+        this.scheduleSettledAssistantTurn(turn, JSON.stringify(structuredPromptSuggestions));
       } else if (settledAssistantImageMarkdown) {
         this.scheduleSettledAssistantTurn(turn, settledAssistantImageMarkdown);
       } else if (shouldEmitPlanApprovalPrompt(prompt)) {

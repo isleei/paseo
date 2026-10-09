@@ -51,6 +51,9 @@ export const CLIENT_CAPS = {
   // Remove the gate after 2027-04-09 once the supported client floor supports fileUploadProgress.
   fileUploadProgress: "file_upload_progress",
   browserHost: "browser_host",
+  // Prompt suggestions are additive chrome; a client that does not advertise
+  // this never receives the message, and the daemon skips generating for it.
+  promptSuggestions: "prompt_suggestions",
 } as const;
 
 export type ClientCapability = (typeof CLIENT_CAPS)[keyof typeof CLIENT_CAPS];

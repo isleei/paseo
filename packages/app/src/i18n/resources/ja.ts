@@ -149,6 +149,10 @@ export const ja: TranslationResources = {
       tokensLabel: "トークン",
       cacheLabel: "キャッシュヒット率",
     },
+    promptSuggestions: {
+      a11yLabel: "候補のプロンプト、Tab キーで採用",
+      chipAccessibilityLabel: "候補を使用: {{text}}",
+    },
     input: {
       accessibilityLabel: "エージェントにメッセージ...",
       terminalAccessibilityLabel: "Terminal prompt",
@@ -2313,7 +2317,7 @@ export const ja: TranslationResources = {
     metadataGeneration: {
       title: "メタデータ生成",
       description:
-        "ワークスペースのタイトル、ブランチ名、コミットメッセージ、プルリクエストの下書きに使用するモデルを選択します",
+        "ワークスペースのタイトル、ブランチ名、コミットメッセージ、プルリクエストの下書き、プロンプト候補に使用するモデルを選択します",
       selection: "モデル選択",
       automatic: "自動",
       preferred: "手動",
@@ -2323,6 +2327,9 @@ export const ja: TranslationResources = {
       fallbackHint: "利用できない場合、Paimon は別の利用可能なモデルを使用します",
       docs: "ドキュメント",
       saveError: "メタデータ生成を更新できません",
+      suggestionSection: "メッセージの提案",
+      suggestionSharedHint: "提案にはメタデータ生成のモデルを使用します",
+      suggestionCustomHint: "メッセージの提案にこのモデルを使用します",
     },
     general: {
       title: "一般",
@@ -2763,6 +2770,11 @@ export const ja: TranslationResources = {
           title: "Paimonツールを有効にする",
           hint: "エージェントがワークツリー、エージェント、スケジュールを管理できるようになります",
           accessibilityLabel: "Paimonツールを有効にする",
+        },
+        promptSuggestions: {
+          title: "次のプロンプトを提案",
+          hint: "エージェントの応答が終わったら、次に依頼する内容を提案します",
+          accessibilityLabel: "次のプロンプトを提案",
         },
         systemPrompt: {
           title: "システムプロンプト",

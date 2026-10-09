@@ -20,10 +20,10 @@ export function buildDesktopFrameStyle(input: DesktopFrameStyleInput): StyleProp
     shouldHideDesktopContent,
     availableHeight,
   } = input;
+  const boundedHeight = Math.min(desktopFixedHeight ?? 400, availableHeight ?? Infinity);
+  // CSS min-height wins over max-height, so both must respect the viewport.
   const fixedHeightStyle =
-    desktopFixedHeight != null
-      ? { minHeight: desktopFixedHeight, maxHeight: desktopFixedHeight }
-      : null;
+    desktopFixedHeight != null ? { minHeight: boundedHeight, maxHeight: boundedHeight } : null;
   const hiddenStyle = shouldHideDesktopContent ? { opacity: 0 } : null;
   const availableHeightStyle =
     typeof availableHeight === "number"

@@ -1794,6 +1794,7 @@ export class VoiceAssistantWebSocketServer {
         agentRequestReceipts: true,
         agentRetry: true,
         sharedProjectContext: true,
+        promptSuggestions: true,
         workspaceRequestReceipts: true,
         creationLifecycle: true,
         // COMPAT(standaloneAgents): added in v0.8.x; remove gate after 2027-09-16.

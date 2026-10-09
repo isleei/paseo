@@ -302,6 +302,7 @@ export function HostAgentsPage({ serverId }: { serverId: string }) {
         <SettingsSection title={t("settings.hostSections.agents")}>
           <AgentSettingsProfileCard serverId={serverId} />
           <InjectPaseoToolsCard serverId={serverId} />
+          <PromptSuggestionsCard serverId={serverId} />
           <BrowserToolsOptInCard serverId={serverId} />
           <AgentRetryCard serverId={serverId} />
           <AppendSystemPromptCard key={`prompt:${profileKey}`} serverId={serverId} />
@@ -976,6 +977,59 @@ function InjectPaseoToolsCard({ serverId }: { serverId: string }) {
           title={t("common.errors.unableToSave")}
           description={mutation.error.message}
           testID="host-page-inject-mcp-error"
+        />
+      ) : null}
+    </View>
+  );
+}
+
+function PromptSuggestionsCard({ serverId }: { serverId: string }) {
+  const { t } = useTranslation();
+  const isConnected = useHostRuntimeIsConnected(serverId);
+  const supported = useHostFeature(serverId, "promptSuggestions");
+  const { config, patchConfig } = useDaemonConfig(serverId);
+
+  const mutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const updated = await patchConfig({ promptSuggestions: { enabled } });
+      if (!updated) throw new Error(t("workspace.terminal.hostDisconnected"));
+      return updated;
+    },
+  });
+  const { mutate } = mutation;
+  const handleValueChange = useCallback((enabled: boolean) => mutate(enabled), [mutate]);
+  if (!isConnected || !supported || !config) return null;
+
+  return (
+    <View style={settingsStyles.card} testID="host-page-prompt-suggestions-card">
+      <View style={settingsStyles.row}>
+        <View style={settingsStyles.rowContent}>
+          <Text style={settingsStyles.rowTitle}>
+            {t("settings.host.orchestration.promptSuggestions.title")}
+          </Text>
+          <Text style={settingsStyles.rowHint}>
+            {t("settings.host.orchestration.promptSuggestions.hint")}
+          </Text>
+        </View>
+        <Switch
+          value={config.promptSuggestions?.enabled === true}
+          disabled={mutation.isPending}
+          onValueChange={handleValueChange}
+          accessibilityLabel={t("settings.host.orchestration.promptSuggestions.accessibilityLabel")}
+        />
+      </View>
+      {mutation.isPending ? (
+        <Text style={settingsStyles.rowHint}>
+          {t("settings.host.orchestration.systemPrompt.saving")}
+        </Text>
+      ) : null}
+      {mutation.error ? (
+        <InlineAlert
+          size="sm"
+          variant="error"
+          title={t("common.errors.unableToSave")}
+          description={mutation.error.message}
+          testID="host-page-prompt-suggestions-error"
         />
       ) : null}
     </View>
