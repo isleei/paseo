@@ -3118,6 +3118,10 @@ export const fr: TranslationResources = {
           remove: "Supprimer",
         },
       },
+      sharedContext: {
+        title: "Shared project knowledge",
+        enabled: "Enable shared project knowledge",
+      },
       metadata: {
         title: "Génération des métadonnées",
         info: "Instructions propres au projet, injectées dans les prompts IA que Paseo utilise pour générer les métadonnées : servez-vous-en pour imposer les conventions de votre équipe (nommage des branches, style de commit, format des PR).",

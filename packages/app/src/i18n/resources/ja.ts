@@ -3079,6 +3079,10 @@ export const ja: TranslationResources = {
           remove: "削除",
         },
       },
+      sharedContext: {
+        title: "Shared project knowledge",
+        enabled: "Enable shared project knowledge",
+      },
       metadata: {
         title: "メタデータ生成",
         info: "Paimonがメタデータ生成に使うAIプロンプトへ追加する、プロジェクト固有の指示です。ブランチ名、コミット形式、PR形式など、チームの規約を反映するために使います。",

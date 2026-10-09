@@ -352,6 +352,12 @@ export interface AgentManagerOptions {
   retryClock?: RetryClock;
   appendSystemPrompt?: string;
   resolveSettingsProfile?: (id?: string) => AgentSettingsProfile | undefined;
+  /**
+   * Renders the shared project context digest for a cwd (null when the project
+   * has none). Injected into every agent session's appended system prompt so
+   * later agents inherit knowledge earlier agents saved.
+   */
+  sharedProjectContextDigest?: (cwd: string) => Promise<string | null>;
   agentStreamCoalesceWindowMs?: number;
   rescueTimeouts?: AgentManagerRescueTimeouts;
   beforeSteerUnavailableFallback?: (input: {
@@ -798,6 +804,7 @@ export class AgentManager {
   ) => ProviderPaseoToolsPolicy | undefined;
   private appendSystemPrompt: string;
   private readonly resolveSettingsProfile: AgentManagerOptions["resolveSettingsProfile"];
+  private readonly sharedProjectContextDigest: AgentManagerOptions["sharedProjectContextDigest"];
   private onAgentAttention?: AgentAttentionCallback;
   private onAgentArchived?: AgentArchivedCallback;
   private onWorkspaceStateMayHaveChanged?: (params: { cwd: string }) => void;
@@ -828,6 +835,7 @@ export class AgentManager {
     this.resolvePaseoToolPolicy = options.resolvePaseoToolPolicy ?? (() => undefined);
     this.appendSystemPrompt = options.appendSystemPrompt ?? "";
     this.resolveSettingsProfile = options.resolveSettingsProfile;
+    this.sharedProjectContextDigest = options.sharedProjectContextDigest;
     this.logger = options.logger.child({ module: "agent", component: "agent-manager" });
     this.rescueTimeouts = {
       reloadSessionCloseMs:
@@ -5810,7 +5818,11 @@ export class AgentManager {
         mcpAuthToken: this.mcpAuthToken,
       }),
     );
-    return { storedConfig, launchConfig, paseoToolPolicy };
+    return {
+      storedConfig,
+      launchConfig: await this.applySharedProjectContext(launchConfig, storedConfig.cwd),
+      paseoToolPolicy,
+    };
   }
 
   private applyDaemonAppendSystemPrompt(config: AgentSessionConfig): AgentSessionConfig {
@@ -5834,6 +5846,39 @@ export class AgentManager {
     if (config.settingsProfileId && !profile)
       throw new Error("Agent settings profile does not exist");
     return profile ? { ...config, settingsProfile: structuredClone(profile) } : config;
+  }
+
+  /**
+   * Appends the project's shared context digest (knowledge saved by earlier
+   * agents on the same project) to the launch config's appended system prompt,
+   * so every new session inherits it. Failures never block agent launch.
+   */
+  private async applySharedProjectContext(
+    config: AgentSessionConfig,
+    cwd: string,
+  ): Promise<AgentSessionConfig> {
+    if (!this.sharedProjectContextDigest || !cwd) {
+      return config;
+    }
+    let digest: string | null = null;
+    try {
+      digest = await this.sharedProjectContextDigest(cwd);
+    } catch (error) {
+      this.logger.warn(
+        { err: error, cwd },
+        "Failed to load shared project context digest; skipping injection",
+      );
+      return config;
+    }
+    const trimmed = digest?.trim();
+    if (!trimmed) {
+      return config;
+    }
+    const existing = config.daemonAppendSystemPrompt?.trim() ?? "";
+    return {
+      ...config,
+      daemonAppendSystemPrompt: existing ? `${existing}\n\n${trimmed}` : trimmed,
+    };
   }
 
   private async buildLaunchContext(

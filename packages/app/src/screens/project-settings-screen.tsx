@@ -29,6 +29,7 @@ import { ProjectEditSheet } from "@/components/project-edit-sheet";
 import { EditingTextInput as TextInput } from "@/components/ui/text-input";
 import { SettingsTextAreaCard } from "@/components/settings-textarea";
 import { SettingsGroup } from "@/components/settings/headings/settings-group";
+import { SettingsCard, SettingsSwitch } from "@/components/settings";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
 import { settingsStyles } from "@/styles/settings";
 import { useProjects } from "@/hooks/use-projects";
@@ -490,6 +491,7 @@ function ProjectConfigForm({
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const toast = useToast();
+  const supportsSharedContext = useHostFeature(queryKey[1], "sharedProjectContext");
 
   const [draft, setDraft] = useState<ProjectConfigDraft>(() => configToDraft(baseConfig));
   const [writeError, setWriteError] = useState<ProjectConfigRpcError | null>(null);
@@ -645,6 +647,13 @@ function ProjectConfigForm({
     [draft.scripts, t],
   );
 
+  const handleSharedContextChange = useCallback(
+    (enabled: boolean) => {
+      updateDraft((current) => ({ ...current, sharedContextEnabled: enabled }));
+    },
+    [updateDraft],
+  );
+
   const scriptsTrailing = useMemo(
     () => (
       <Pressable
@@ -690,6 +699,18 @@ function ProjectConfigForm({
 
   return (
     <View>
+      {supportsSharedContext ? (
+        <SettingsGroup title={t("settings.project.sharedContext.title")}>
+          <SettingsCard>
+            <SettingsSwitch
+              label={t("settings.project.sharedContext.enabled")}
+              value={draft.sharedContextEnabled}
+              onValueChange={handleSharedContextChange}
+              testID="project-shared-context-toggle"
+            />
+          </SettingsCard>
+        </SettingsGroup>
+      ) : null}
       <SettingsGroup
         title={t("settings.project.worktree.title")}
         info={t("settings.project.worktree.info")}

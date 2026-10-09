@@ -3114,6 +3114,10 @@ export const es: TranslationResources = {
           remove: "Eliminar",
         },
       },
+      sharedContext: {
+        title: "Shared project knowledge",
+        enabled: "Enable shared project knowledge",
+      },
       metadata: {
         title: "Generación de metadatos",
         info: "Instrucciones específicas del proyecto inyectadas en los mensajes de IA quePaseoutiliza para generar metadatos; úselas para hacer cumplir las convenciones de su equipo, como la denominación de ramas, el estilo de confirmación o el formatoPR.",

@@ -21,6 +21,7 @@ export interface ProjectScriptDraft {
 }
 
 export interface ProjectConfigDraft {
+  sharedContextEnabled: boolean;
   setupText: string;
   setupOriginalKind: LifecycleOriginalKind;
   teardownText: string;
@@ -136,6 +137,7 @@ export function configToDraft(config: PaseoConfigRaw | null | undefined): Projec
   }
 
   return {
+    sharedContextEnabled: config?.sharedContext?.enabled === true,
     setupText: setup.text,
     setupOriginalKind: setup.kind,
     teardownText: teardown.text,
@@ -227,6 +229,12 @@ export function applyDraftToConfig(input: ApplyDraftInput): PaseoConfigRaw {
   }
 
   const result: Record<string, unknown> = { ...baseConfig };
+  if (input.draft.sharedContextEnabled || baseConfig.sharedContext) {
+    result.sharedContext = {
+      ...baseConfig.sharedContext,
+      enabled: input.draft.sharedContextEnabled,
+    };
+  }
   if (Object.keys(nextWorktree).length === 0) {
     delete result.worktree;
   } else {

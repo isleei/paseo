@@ -76,6 +76,7 @@ export const PaseoConfigRawSchema = z
     worktree: PaseoWorktreeConfigRawSchema.optional(),
     scripts: z.record(z.string(), PaseoScriptEntryRawSchema).optional(),
     metadataGeneration: PaseoMetadataGenerationSchema.optional(),
+    sharedContext: z.object({ enabled: z.boolean().optional() }).passthrough().optional(),
   })
   .passthrough();
 

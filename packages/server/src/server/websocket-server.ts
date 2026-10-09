@@ -1793,6 +1793,7 @@ export class VoiceAssistantWebSocketServer {
         ownedSubscriptions: true,
         agentRequestReceipts: true,
         agentRetry: true,
+        sharedProjectContext: true,
         workspaceRequestReceipts: true,
         creationLifecycle: true,
         // COMPAT(standaloneAgents): added in v0.8.x; remove gate after 2027-09-16.

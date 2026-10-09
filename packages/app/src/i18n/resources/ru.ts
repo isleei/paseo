@@ -3105,6 +3105,10 @@ export const ru: TranslationResources = {
           remove: "Удалить",
         },
       },
+      sharedContext: {
+        title: "Shared project knowledge",
+        enabled: "Enable shared project knowledge",
+      },
       metadata: {
         title: "Генерация метаданных",
         info: "Инструкции для этого проекта, добавляемые в промпты ИИ, с помощью которых Paimon генерирует метаданные. Используйте их, чтобы соблюдать принятые в команде правила именования веток, оформления коммитов и формата PR.",

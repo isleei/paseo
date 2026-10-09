@@ -5,6 +5,7 @@ import { applyDraftToConfig, configToDraft, type ProjectConfigDraft } from "./pr
 
 function emptyDraft(): ProjectConfigDraft {
   return {
+    sharedContextEnabled: false,
     setupText: "",
     setupOriginalKind: "missing",
     teardownText: "",
@@ -348,5 +349,20 @@ describe("applyDraftToConfig", () => {
     const next = applyDraftToConfig({ draft, base });
     const scripts = next.scripts ?? {};
     expect(Object.keys(scripts)).toEqual(["dev"]);
+  });
+});
+
+it("keeps shared context opt-in and preserves unrelated project config", () => {
+  expect(configToDraft({}).sharedContextEnabled).toBe(false);
+  expect(applyDraftToConfig({ base: {}, draft: configToDraft({}) })).not.toHaveProperty(
+    "sharedContext",
+  );
+  const base = { sharedContext: { enabled: true, retention: 10 } };
+  const draft = configToDraft(base);
+  expect(draft.sharedContextEnabled).toBe(true);
+  draft.sharedContextEnabled = false;
+  expect(applyDraftToConfig({ base, draft }).sharedContext).toEqual({
+    enabled: false,
+    retention: 10,
   });
 });

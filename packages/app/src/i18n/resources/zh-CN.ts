@@ -3067,6 +3067,7 @@ export const zhCN: TranslationResources = {
           remove: "移除",
         },
       },
+      sharedContext: { title: "共享项目知识", enabled: "启用共享项目知识" },
       metadata: {
         title: "元数据生成",
         info: "注入到 Paimon 用来生成元数据的 AI 提示词中的项目专属指令，可用于强制执行团队约定，例如分支命名、提交风格或 PR 格式",

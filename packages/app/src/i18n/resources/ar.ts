@@ -3046,6 +3046,10 @@ export const ar: TranslationResources = {
           remove: "يزيل",
         },
       },
+      sharedContext: {
+        title: "Shared project knowledge",
+        enabled: "Enable shared project knowledge",
+      },
       metadata: {
         title: "توليد البيانات الوصفية",
         info: "تعليمات خاصة بالمشروع يتم إدخالها في الذكاء الاصطناعي الذي يستخدمه Paimon لإنشاء بيانات التعريف - استخدمها لفرض اصطلاحات فريقك مثل تسمية الفرع أو نمط الالتزام أو تنسيق PR",

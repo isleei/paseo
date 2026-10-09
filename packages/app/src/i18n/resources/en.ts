@@ -3184,6 +3184,10 @@ export const en = {
           remove: "Remove",
         },
       },
+      sharedContext: {
+        title: "Shared project knowledge",
+        enabled: "Enable shared project knowledge",
+      },
       metadata: {
         title: "Metadata generation",
         info: "Project-specific instructions injected into the AI prompts Paimon uses to generate metadata - use them to enforce your team's conventions like branch naming, commit style, or PR format",
