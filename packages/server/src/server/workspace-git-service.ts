@@ -19,6 +19,7 @@ import {
   getCheckoutSnapshotFacts,
   getCheckoutShortstat,
   getCheckoutStatus,
+  getCheckoutIdentity,
   getCheckoutWorktreeState,
   getPullRequestStatus,
   forgeAuthStateFromError,
@@ -128,6 +129,9 @@ const WORKSPACE_GIT_AUXILIARY_READ_TTL_MS = 15_000;
 const WORKSPACE_GIT_INTERNAL_MIN_GAP_MS = 2_000;
 // Small values (booleans, short strings, small arrays); generous cap.
 const WORKSPACE_GIT_AUXILIARY_CACHE_MAX = 256;
+// Workspace records with no observer left (every client session ended). Sized above the
+// workspace counts seen on real hosts so a reconnect after the session grace finds all of them.
+const WORKSPACE_GIT_RETAINED_SNAPSHOT_MAX = 2_000;
 
 function mergeSets<T>(
   left: ReadonlySet<T>,
@@ -366,6 +370,7 @@ interface WorkspaceGitServiceDependencies {
   getCheckoutSnapshotFacts: typeof getCheckoutSnapshotFacts;
   getCheckoutRefDerivedState: typeof getCheckoutRefDerivedState;
   getCheckoutStatus: typeof getCheckoutStatus;
+  getCheckoutIdentity: typeof getCheckoutIdentity;
   getCheckoutShortstat: typeof getCheckoutShortstat;
   getCheckoutWorktreeState: typeof getCheckoutWorktreeState;
   getCheckoutDiff: typeof getCheckoutDiff;
@@ -441,6 +446,14 @@ interface WorkspaceGitTarget {
   observationSetupPromise: Promise<void> | null;
   observationSetupComplete: boolean;
   closed: boolean;
+  // Creation order across targets. A cwd has one target at a time, so a higher generation
+  // always read its git facts later than every earlier target for that cwd.
+  generation: number;
+}
+
+interface RetainedWorkspaceSnapshot {
+  generation: number;
+  snapshot: WorkspaceGitRuntimeSnapshot;
 }
 
 interface RepoGitTarget {
@@ -559,6 +572,7 @@ function buildDefaultWorkspaceGitServiceDeps(
     getCheckoutSnapshotFacts,
     getCheckoutRefDerivedState,
     getCheckoutStatus,
+    getCheckoutIdentity,
     getCheckoutShortstat,
     getCheckoutWorktreeState,
     getCheckoutDiff,
@@ -633,6 +647,14 @@ export class WorkspaceGitServiceImpl implements WorkspaceGitService {
     string,
     WorkspaceGitAuxiliaryReadCacheEntry<string>
   >({ max: WORKSPACE_GIT_AUXILIARY_CACHE_MAX });
+  // Last snapshot of each workspace target torn down because its last listener left. Without it
+  // a client reconnecting after its session expired gets descriptors with no git facts, and then
+  // one workspace_update per workspace as the cold refreshes land. peekSnapshot serves these
+  // until the new target's own refresh replaces them.
+  private readonly retainedSnapshots = new LRUCache<string, RetainedWorkspaceSnapshot>({
+    max: WORKSPACE_GIT_RETAINED_SNAPSHOT_MAX,
+  });
+  private nextWorkspaceTargetGeneration = 0;
   private readonly checkoutDiffCache = new CheckoutDiffCache(() => this.deps.now().getTime());
   private watcherErrorCallbackCount = 0;
   constructor(options: WorkspaceGitServiceOptions) {
@@ -760,7 +782,7 @@ export class WorkspaceGitServiceImpl implements WorkspaceGitService {
   async getCheckout(cwd: string): Promise<ProjectCheckoutLitePayload> {
     this.assertNotDisposed();
     const normalizedCwd = resolve(cwd);
-    const status = await this.deps.getCheckoutStatus(normalizedCwd, {
+    const status = await this.deps.getCheckoutIdentity(normalizedCwd, {
       paseoHome: this.paseoHome,
       worktreesRoot: this.worktreesRoot,
       logger: this.logger,
@@ -787,7 +809,11 @@ export class WorkspaceGitServiceImpl implements WorkspaceGitService {
 
   peekSnapshot(cwd: string): WorkspaceGitRuntimeSnapshot | null {
     cwd = resolve(cwd);
-    return this.workspaceTargets.get(cwd)?.latestSnapshot ?? null;
+    return (
+      this.workspaceTargets.get(cwd)?.latestSnapshot ??
+      this.retainedSnapshots.get(cwd)?.snapshot ??
+      null
+    );
   }
 
   async getCheckoutDiff(
@@ -1041,6 +1067,7 @@ export class WorkspaceGitServiceImpl implements WorkspaceGitService {
     this.workingTreeWatchSetups.clear();
     this.workingTreeWatchResolutions.clear();
     this.workingTreeWatchAliases.clear();
+    this.retainedSnapshots.clear();
     this.snapshotUpdatedListeners.clear();
     this.disposePromise = this.fileObserver.close();
     return this.disposePromise;
@@ -1207,6 +1234,7 @@ export class WorkspaceGitServiceImpl implements WorkspaceGitService {
       observationSetupPromise: null,
       observationSetupComplete: false,
       closed: false,
+      generation: this.nextWorkspaceTargetGeneration++,
     };
 
     this.workspaceTargets.set(cwd, target);
@@ -3493,12 +3521,32 @@ export class WorkspaceGitServiceImpl implements WorkspaceGitService {
     });
   }
 
+  // Only the newest target for a cwd may retain its snapshot, so a slow refresh from an older
+  // target never replaces facts a later target already read.
+  private retainSnapshot(target: WorkspaceGitTarget, snapshot: WorkspaceGitRuntimeSnapshot): void {
+    const liveTarget = this.workspaceTargets.get(target.cwd);
+    const retained = this.retainedSnapshots.get(target.cwd);
+    if (
+      (liveTarget && liveTarget !== target) ||
+      (retained && retained.generation > target.generation)
+    ) {
+      return;
+    }
+    this.retainedSnapshots.set(target.cwd, { generation: target.generation, snapshot });
+  }
+
   private rememberSnapshot(
     target: WorkspaceGitTarget,
     snapshot: WorkspaceGitRuntimeSnapshot,
     options?: { forceEmit?: boolean; notify?: boolean },
   ): void {
     target.latestSnapshot = snapshot;
+    if (target.closed) {
+      // A refresh that outlived its target may still hold the newest facts for this cwd.
+      this.retainSnapshot(target, snapshot);
+      return;
+    }
+    this.retainedSnapshots.delete(target.cwd);
     if (target.listeners.size > 0) {
       this.updateForgePrStatusPollForTarget(target);
     }
@@ -3665,6 +3713,9 @@ export class WorkspaceGitServiceImpl implements WorkspaceGitService {
       }
     }
 
+    if (target.latestSnapshot) {
+      this.retainSnapshot(target, target.latestSnapshot);
+    }
     this.closeWorkspaceTarget(target);
     this.workspaceTargets.delete(target.cwd);
   }
