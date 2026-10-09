@@ -542,6 +542,7 @@ function resolveStaticLoadConfigSettings(
     browserToolsEnabled: resolveBrowserToolsEnabled(persisted),
     autoArchiveAfterMerge: persisted.daemon?.autoArchiveAfterMerge ?? false,
     appendSystemPrompt: resolveAppendSystemPrompt(persisted),
+    projectSearchRoots: persisted.projects?.searchRoots,
     ...resolveProfileLists(persisted),
     hostnames: mergeHostnames([
       persisted.daemon?.hostnames,
@@ -580,6 +581,7 @@ export function resolveConfigFromPersisted(
     terminalProfiles,
     agentProfiles,
     agentSettingsProfiles,
+    projectSearchRoots,
     hostnames,
     trustedProxies,
     appBaseUrl,
@@ -613,6 +615,7 @@ export function resolveConfigFromPersisted(
     paseoHome,
     desktopManaged: env.PASEO_DESKTOP_MANAGED === "1",
     worktreesRoot: resolveWorktreesRoot(paseoHome, persisted),
+    projectSearchRoots,
     corsAllowedOrigins: resolveCorsAllowedOrigins(env, persisted),
     hostnames,
     trustedProxies,

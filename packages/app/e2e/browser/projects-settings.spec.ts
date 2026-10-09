@@ -47,7 +47,9 @@ import {
 import { gotoAppShell } from "../support/helpers/app";
 import { openCompactSettings } from "../support/helpers/settings";
 import {
+  addProjectFlowConfirmDirectory,
   addProjectFlowInput,
+  addProjectFlowSelectedDirectory,
   chooseAddProjectMethod,
   openAddProjectFlow,
 } from "../support/helpers/add-project-flow";
@@ -171,7 +173,8 @@ async function addProjectFromSidebar(page: Page, projectPath: string): Promise<s
 
   const input = addProjectFlowInput(page);
   await input.fill(projectPath);
-  await page.keyboard.press("Enter");
+  await expect(addProjectFlowSelectedDirectory(page)).toHaveText(projectPath);
+  await addProjectFlowConfirmDirectory(page).click();
 
   const projectRow = page
     .locator('[data-testid^="sidebar-project-row-"]')
@@ -257,6 +260,48 @@ test.describe("Projects settings", () => {
     await editWorktreeSetup(page, updatedSetup);
     await clickSaveProjectSettings(page);
     await expectProjectConfigSaved(gitlabRemoteProject);
+  });
+
+  test("project search directories save without changing the project list", async ({
+    page,
+    editableProject,
+  }) => {
+    await openProjects(page);
+    await page.getByTestId("project-search-root-0").fill(path.dirname(editableProject.path));
+    await page.getByTestId("project-search-save").click();
+    await expect(page.getByTestId("project-search-status")).toContainText("Saved");
+    await page.reload();
+    await expect(page.getByTestId("project-search-root-0")).toHaveValue(
+      path.dirname(editableProject.path),
+    );
+    await openProjectSettings(page, editableProject.name);
+    await expectProjectTitle(page, editableProject.name);
+  });
+
+  test("shared project knowledge stays opt-in and persists through settings", async ({
+    page,
+    editableProject,
+  }) => {
+    await openProjects(page);
+    await openProjectSettings(page, editableProject.name);
+    const toggle = page.getByTestId("project-shared-context-toggle").getByRole("switch");
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
+    await toggle.click();
+    await clickSaveProjectSettings(page);
+    await expect
+      .poll(async () => JSON.parse(await readProjectConfigFile(editableProject)))
+      .toMatchObject({
+        sharedContext: { enabled: true },
+        customTopLevelField: "preserved",
+      });
+    await page.screenshot({ path: "/tmp/paseo-feature-integration-20261009/shared-settings.png" });
+    await page.reload();
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    await toggle.click();
+    await clickSaveProjectSettings(page);
+    await expect
+      .poll(async () => JSON.parse(await readProjectConfigFile(editableProject)))
+      .toMatchObject({ sharedContext: { enabled: false } });
   });
 
   test("user renames a project from the edit sheet", async ({ page, editableProject }) => {

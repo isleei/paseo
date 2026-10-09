@@ -21,6 +21,8 @@ export {
 } from "./plugin-config.js";
 import { TerminalProfileSchema } from "./terminal-profile.js";
 export { TerminalProfileSchema, type TerminalProfile } from "./terminal-profile.js";
+import { ProjectSearchConfigSchema } from "./project-search-config.js";
+export { ProjectSearchConfigSchema } from "./project-search-config.js";
 import { z } from "zod";
 import { TerminalActivitySchema } from "./terminal-activity.js";
 import { CLIENT_CAPS } from "./client-capabilities.js";
@@ -178,6 +180,7 @@ export const MutableDaemonConfigSchema = z
   .object({
     // COMPAT(relayConfig): added in v0.2.6, remove after 2027-01-31 when old daemons are unsupported.
     relay: MutableRelayConfigSchema.optional(),
+    projects: ProjectSearchConfigSchema.optional(),
     mcp: z
       .object({
         enabled: z.boolean().optional(),
@@ -219,6 +222,7 @@ export const MutableDaemonConfigSchema = z
 export const MutableDaemonConfigPatchSchema = z
   .object({
     relay: MutableRelayConfigSchema.partial().optional(),
+    projects: ProjectSearchConfigSchema.optional(),
     mcp: z.object({ injectIntoAgents: z.boolean().optional() }).passthrough().optional(),
     browserTools: MutableBrowserToolsConfigSchema.partial().optional(),
     providers: z
@@ -3759,6 +3763,7 @@ export const ServerInfoStatusPayloadSchema = z
         daemonConfigReload: z.boolean().optional(),
         // COMPAT(shutdownIfIdle): added in v0.11.0, remove gate after 2027-03-22.
         shutdownIfIdle: z.boolean().optional(),
+        projectSearchRoots: z.boolean().optional(),
         // COMPAT(relayConfig): added in v0.2.6, remove gate after 2027-01-31.
         relayConfig: z.boolean().optional(),
         // COMPAT(pushTokenRevocation): added in v0.3.2, remove gate after 2027-02-10.
