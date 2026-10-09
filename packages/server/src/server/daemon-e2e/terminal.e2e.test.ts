@@ -871,6 +871,22 @@ test("visible terminal restore sends bounded ANSI history", async () => {
     expect(restoreText).not.toContain("restore-line-1186");
     expect(restoreText).not.toContain("restore-line-0001");
     expect(restoredLines.length).toBeLessThanOrEqual(15);
+
+    // A client asking for its whole scrollback gets everything the daemon retains.
+    const fullRestoreFramePromise = waitForRawBinaryFrame(
+      ws,
+      (frame) => frame.opcode === TerminalStreamOpcode.Restore,
+      10000,
+    );
+    await subscribeRawTerminal(ws, terminalId, "subscribe-full", {
+      mode: "visible-snapshot",
+      scrollbackLines: 10_000,
+    });
+    const fullRestoredLines =
+      getFrameText(await fullRestoreFramePromise).match(/restore-line-\d{4}/g) ?? [];
+
+    expect(fullRestoredLines[0]).toBe("restore-line-0192");
+    expect(fullRestoredLines.at(-1)).toBe("restore-line-1200");
   } finally {
     await closeWebSocket(ws);
   }
@@ -1197,10 +1213,14 @@ test("fast output to a slow websocket client falls back to a snapshot", async ()
   rawSocket!.pause();
   ctx.client.sendTerminalInput(terminalId, {
     type: "input",
-    data: `node -e 'process.stdout.write("A".repeat(${8 * 1024 * 1024}))'\r`,
+    data: `node -e 'process.stdout.write("A".repeat(${16 * 1024 * 1024}) + "\\nSLOW_CLIENT_OUTPUT_DONE\\n")'\r`,
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 750));
+  // Keep the receiver paused until the worker has parsed the whole burst.
+  await waitForCondition(async () => {
+    const capture = await ctx.client.captureTerminal(terminalId, { start: -10 });
+    return capture.lines.some((line) => line === "SLOW_CLIENT_OUTPUT_DONE");
+  }, 15000);
   const catchUpFramePromise = waitForRawBinaryFrame(
     ws,
     (frame) => frame.opcode === TerminalStreamOpcode.Snapshot,
@@ -1383,11 +1403,13 @@ test("terminal exits notify the client", async () => {
     }
   });
 
-  await ctx.client.subscribeTerminal(terminalId);
+  const { subscription } = await ctx.client.subscribeTerminal(terminalId);
   const kill = await ctx.client.killTerminal(terminalId);
   expect(kill.success).toBe(true);
 
   await waitForCondition(() => sawExit, 10000);
+  // Exit releases the owned observation asynchronously; drain it before closing the client.
+  await subscription.release();
   unsubscribe();
 
   rmSync(cwd, { recursive: true, force: true });
@@ -1561,8 +1583,7 @@ test("terminal exit prevents resubscribe and sends no frames after exit", async 
     const exitMessage = await exitMessagePromise;
     expect(exitMessage.message.type).toBe("terminal_stream_exit");
 
-    const subscribeResult = await ctx.client.subscribeTerminal(terminalId);
-    expect(subscribeResult.error).toBe("Terminal not found");
+    await expect(ctx.client.subscribeTerminal(terminalId)).rejects.toThrow("Terminal not found");
     await waitForNoRawBinaryFrame(ws, 750);
   } finally {
     await closeWebSocket(ws);
@@ -1802,14 +1823,16 @@ describe("list terminals across directories", () => {
     expect(list).not.toHaveProperty("cwd");
     expect(list.terminals).toEqual(
       expect.arrayContaining([
-        {
+        expect.objectContaining({
           id: firstCreated.terminal!.id,
           name: "first-terminal",
-        },
-        {
+          cwd: cwd1,
+        }),
+        expect.objectContaining({
           id: secondCreated.terminal!.id,
           name: "second-terminal",
-        },
+          cwd: cwd2,
+        }),
       ]),
     );
   });
@@ -1828,10 +1851,11 @@ describe("list terminals across directories", () => {
     const list = await ctx.client.listTerminals(cwd1);
 
     expect(list.cwd).toBe(cwd1);
-    expect(list.terminals).toEqual([
+    expect(list.terminals).toMatchObject([
       {
         id: firstCreated.terminal!.id,
         name: "cwd-one-terminal",
+        cwd: cwd1,
       },
     ]);
   });

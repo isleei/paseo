@@ -623,6 +623,7 @@ export function resolveConfigFromPersisted(
     autoArchiveAfterMerge,
     enableTerminalAgentHooks: persisted.daemon?.enableTerminalAgentHooks ?? false,
     agentRetryAttempts: persisted.daemon?.agentRetryAttempts ?? 2,
+    terminalScrollbackLines: persisted.daemon?.terminalScrollbackLines,
     appendSystemPrompt,
     terminalProfiles,
     agentProfiles,

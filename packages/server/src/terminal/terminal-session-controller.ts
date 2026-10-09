@@ -30,6 +30,7 @@ import {
   MAX_TERMINAL_OUTPUT_FRAME_BYTES,
   encodeLegacyTerminalSnapshotFrame,
   encodeTerminalRestoreFrame,
+  LEGACY_SCROLLBACK_LINES,
   resolveRestoreAfterOutputOverflow,
   resolveTerminalRestoreSnapshotOptions,
   resolveTerminalSubscriptionSnapshotMode,
@@ -1047,6 +1048,9 @@ export class TerminalSessionController {
     terminalManager: TerminalManager,
   ): Promise<SnapshotSendResult> {
     const snapshot = await terminalManager.getTerminalState(activeStream.terminalId, {
+      // COMPAT(terminalRestoreModes): added in v0.11.1, remove after 2027-04-09 once
+      // legacy snapshot clients are retired. Cell snapshots keep their original retention.
+      scrollbackLines: LEGACY_SCROLLBACK_LINES,
       includeWrapFlags: this.clientSupportsWrapReflow(activeStream.owner.source),
     });
     if (this.activeStreams.get(activeStream.slot) !== activeStream) {
@@ -1082,6 +1086,7 @@ export class TerminalSessionController {
     const snapshot = await terminalManager.getTerminalState(activeStream.terminalId, {
       ...snapshotOptions,
       includeWrapFlags: this.clientSupportsWrapReflow(activeStream.owner.source),
+      renderAnsi: true,
     });
     if (this.activeStreams.get(activeStream.slot) !== activeStream) {
       return { shouldContinue: false };
