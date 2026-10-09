@@ -364,7 +364,8 @@ function useAgentPanelDescriptor(
 }
 
 function AgentPanel() {
-  const { serverId, workspaceId, target, openFileInWorkspace } = usePaneContext();
+  const { serverId, workspaceId, target, openFileInWorkspace, openUrlInBrowserTab } =
+    usePaneContext();
   const { isInteractive } = usePaneFocus();
   invariant(target.kind === "agent", "AgentPanel requires agent target");
 
@@ -376,6 +377,7 @@ function AgentPanel() {
         agentId={target.agentId}
         isPaneFocused={isInteractive}
         onOpenWorkspaceFile={openFileInWorkspace}
+        onOpenExternalUrl={openUrlInBrowserTab}
       />
     </RetainedChatContent>
   );
@@ -388,6 +390,7 @@ function DraftPanel() {
     tabId,
     target,
     openFileInWorkspace,
+    openUrlInBrowserTab,
     openImportSheet,
     retargetCurrentTab,
   } = usePaneContext();
@@ -413,6 +416,7 @@ function DraftPanel() {
       initialSetup={target.setup}
       isPaneFocused={isInteractive}
       onOpenWorkspaceFile={openFileInWorkspace}
+      onOpenExternalUrl={openUrlInBrowserTab}
       onCreated={handleCreated}
       onOpenImportSheet={openImportSheet}
     />
@@ -507,12 +511,14 @@ export function AgentPanelContent({
   agentId,
   isPaneFocused,
   onOpenWorkspaceFile,
+  onOpenExternalUrl,
 }: {
   serverId: string;
   workspaceId: string | null;
   agentId: string;
   isPaneFocused: boolean;
   onOpenWorkspaceFile?: (request: WorkspaceFileOpenRequest) => void;
+  onOpenExternalUrl?: (url: string) => void;
 }) {
   const { t } = useTranslation();
   const resolvedAgentId = agentId.trim() || undefined;
@@ -565,6 +571,7 @@ export function AgentPanelContent({
       client={runtimeClient}
       isConnected={runtimeIsConnected}
       onOpenWorkspaceFile={onOpenWorkspaceFile}
+      onOpenExternalUrl={onOpenExternalUrl}
     />
   );
 }
@@ -577,6 +584,7 @@ function AgentPanelBody({
   client,
   isConnected,
   onOpenWorkspaceFile,
+  onOpenExternalUrl,
 }: {
   serverId: string;
   workspaceId: string | null;
@@ -585,6 +593,7 @@ function AgentPanelBody({
   client: ReturnType<typeof useHostRuntimeClient>;
   isConnected: boolean;
   onOpenWorkspaceFile?: (request: WorkspaceFileOpenRequest) => void;
+  onOpenExternalUrl?: (url: string) => void;
 }) {
   const { t } = useTranslation();
   const { isArchivingAgent: _isArchivingAgent } = useArchiveAgent();
@@ -720,6 +729,7 @@ function AgentPanelBody({
       client={client}
       isConnected={isConnected}
       onOpenWorkspaceFile={onOpenWorkspaceFile}
+      onOpenExternalUrl={onOpenExternalUrl}
     />
   );
 }
@@ -732,6 +742,7 @@ function ChatAgentContent({
   client,
   isConnected,
   onOpenWorkspaceFile,
+  onOpenExternalUrl,
 }: {
   serverId: string;
   workspaceId: string | null;
@@ -740,6 +751,7 @@ function ChatAgentContent({
   client: ReturnType<typeof useHostRuntimeClient>;
   isConnected: boolean;
   onOpenWorkspaceFile?: (request: WorkspaceFileOpenRequest) => void;
+  onOpenExternalUrl?: (url: string) => void;
 }) {
   const { t } = useTranslation();
   const isPaneVisible = useRetainedPanelActive();
@@ -1097,6 +1109,7 @@ function ChatAgentContent({
       onAttentionInputFocus={attentionController.clearOnInputFocus}
       onAttentionPromptSend={attentionController.clearOnPromptSend}
       onOpenWorkspaceFile={onOpenWorkspaceFile}
+      onOpenExternalUrl={onOpenExternalUrl}
     />
   );
 }
@@ -1127,6 +1140,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
   onAttentionInputFocus,
   onAttentionPromptSend,
   onOpenWorkspaceFile,
+  onOpenExternalUrl,
 }: {
   serverId: string;
   workspaceId: string | null;
@@ -1153,6 +1167,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
   onAttentionInputFocus: () => void;
   onAttentionPromptSend: () => void;
   onOpenWorkspaceFile?: (request: WorkspaceFileOpenRequest) => void;
+  onOpenExternalUrl?: (url: string) => void;
 }) {
   const { t } = useTranslation();
   const isCompactFormFactor = useIsCompactFormFactor();
@@ -1256,6 +1271,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
           isPaneFocused={isPaneFocused}
           toast={toastApi}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
+          onOpenExternalUrl={onOpenExternalUrl}
         />
       </RenderProfile>
       {hasActiveComposer && workspaceId ? (
@@ -1382,6 +1398,7 @@ const AgentStreamSection = memo(function AgentStreamSection({
   isPaneFocused,
   toast,
   onOpenWorkspaceFile,
+  onOpenExternalUrl,
 }: {
   streamViewRef: React.RefObject<AgentStreamViewHandle | null>;
   serverId: string;
@@ -1395,6 +1412,7 @@ const AgentStreamSection = memo(function AgentStreamSection({
   isPaneFocused: boolean;
   toast: ReturnType<typeof useToastHost>["api"];
   onOpenWorkspaceFile?: (request: WorkspaceFileOpenRequest) => void;
+  onOpenExternalUrl?: (url: string) => void;
 }) {
   const isCompactFormFactor = useIsCompactFormFactor();
   const hasWorkspaceDiffStat = useWorkspaceHasDiffStat(serverId, workspaceId);
@@ -1468,6 +1486,7 @@ const AgentStreamSection = memo(function AgentStreamSection({
       turnPresentation={turnPresentation}
       onOpenWorkspaceFile={onOpenWorkspaceFile}
       isPaneFocused={isPaneFocused}
+      onOpenExternalUrl={onOpenExternalUrl}
     />
   );
 });

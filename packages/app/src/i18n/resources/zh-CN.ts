@@ -2042,6 +2042,12 @@ export const zhCN: TranslationResources = {
     externalBrowser: "外部浏览器",
     dontAskAgain: "不再询问",
   },
+  chatLink: {
+    title: "打开 URL",
+    message: "要在 Paseo 还是外部浏览器中打开 {{url}}？",
+    internalTab: "内置浏览器 — 标签页",
+    externalBrowser: "外部浏览器",
+  },
   downloads: {
     requestTokenFailed: "请求下载 token 失败。",
     hostUnavailable: "下载主机不可用。",
@@ -2267,6 +2273,9 @@ export const zhCN: TranslationResources = {
           serviceUrls: {
             label: "点击脚本的服务 URL",
           },
+          chatLinks: {
+            label: "点击聊天中的网页链接",
+          },
         },
       },
     },
@@ -2364,6 +2373,14 @@ export const zhCN: TranslationResources = {
         options: {
           ask: "询问",
           inApp: "在 Paimon 中",
+          external: "外部浏览器",
+        },
+      },
+      chatLinks: {
+        options: {
+          ask: "询问",
+          internalSide: "内置浏览器 — 侧边",
+          internalTab: "内置浏览器 — 标签页",
           external: "外部浏览器",
         },
       },

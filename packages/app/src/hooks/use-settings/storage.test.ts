@@ -469,6 +469,19 @@ describe("loadAppSettingsFromStorage", () => {
     expect(invalid.terminalOpenLocation).toBe("main");
   });
 
+  it("keeps external chat links for existing settings", async () => {
+    const deps = makeDeps({
+      storage: createInMemoryKeyValueStorage({
+        [APP_SETTINGS_KEY]: JSON.stringify({ openInSidePane: { chatFiles: true } }),
+      }),
+    });
+
+    const result = await loadAppSettingsFromStorage(deps);
+
+    expect(result.openInSidePane).toMatchObject({ chatFiles: true });
+    expect(result.chatLinkBehavior).toBe("external");
+  });
+
   it("uses the native terminal renderer by default", async () => {
     const deps = makeDeps();
 

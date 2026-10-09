@@ -98,6 +98,10 @@ panel. Mobile ignores them.
 
 Terminals have Main panel, On the side, and At the bottom choices. Main panel is the default.
 
+Chat URLs independently choose Ask, Internal browser — side, Internal browser — tab, or External
+browser. External browser is the default. Ask offers the internal tab and external browser for that click. Script service URLs keep
+their separate Ask, In Paseo, or External browser behavior.
+
 Pull requests have a three-way open location: Main panel, On the side, or Explorer sidebar. Explorer
 sidebar is the default. Compact layouts always open pull requests in Explorer regardless of this
 desktop preference.
