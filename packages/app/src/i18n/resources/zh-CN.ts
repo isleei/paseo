@@ -672,6 +672,7 @@ export const zhCN: TranslationResources = {
       hostDisconnected: "主机未连接",
       updateHost: "请更新主机以使用原生终端渲染器。",
       unableToSubscribe: "无法订阅终端",
+      pasteImageFailed: "粘贴图片失败",
     },
     tabs: {
       loading: "正在加载...",
