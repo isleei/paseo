@@ -1,3 +1,5 @@
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { floatingActionsClearance } from "@/components/ui/floating-action-button";
 import { useState, useCallback, useMemo, type ReactElement, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -33,6 +35,7 @@ import {
 import { type ParsedDiffFile } from "@/git/use-diff-query";
 import type { ChangesState } from "@/panels/changes/state";
 import { defaultChangesState } from "@/panels/changes/state";
+import { ReviewCommentSheet, ReviewFeedbackAction } from "@/review";
 import { DiffDocument, type DiffDocumentProps, type WorkingDiffMode } from "@/git/diff-document";
 import { ChangedFilesTree } from "@/git/changed-files-tree";
 import { FullFileDiffView } from "@/git/full-file-diff-view";
@@ -1738,7 +1741,9 @@ export function ChangesSurface({
     reviewActions,
     reviewAttachment,
     viewedFilesStorageKey,
+    reviewFeedback,
   } = useWorkingDiff({
+    presentation,
     serverId,
     workspaceId: workspaceId ?? undefined,
     cwd,
@@ -1921,6 +1926,7 @@ export function ChangesSurface({
     ],
   );
 
+  const { bottom: bottomInset } = useSafeAreaInsets();
   const hasChanges = files.length > 0;
   const { fullFile, fileNavigation } = useFullFileSelection({
     available: canUseSplitLayout,
@@ -1978,33 +1984,47 @@ export function ChangesSurface({
   });
 
   const diffContent: ReactElement = (
-    <DiffBodyContent
-      isStatusLoading={isStatusLoading}
-      statusErrorMessage={statusErrorMessage}
-      notGit={notGit}
-      isDiffLoading={isDiffLoading}
-      diffErrorMessage={diffErrorMessage}
-      diffTooLarge={diffTooLarge}
-      hasChanges={hasChanges}
-      emptyMessage={emptyMessage}
-      emptyAction={emptyAction}
-      checkingRepositoryLabel={t("workspace.git.diff.checkingRepository")}
-      notRepositoryLabel={t("workspace.git.diff.notRepository")}
-    >
-      <ChangesDiffDocument
+    <View style={styles.diffContainer}>
+      <DiffBodyContent
+        isStatusLoading={isStatusLoading}
+        statusErrorMessage={statusErrorMessage}
+        notGit={notGit}
+        isDiffLoading={isDiffLoading}
+        diffErrorMessage={diffErrorMessage}
+        diffTooLarge={diffTooLarge}
+        hasChanges={hasChanges}
+        emptyMessage={emptyMessage}
+        emptyAction={emptyAction}
+        checkingRepositoryLabel={t("workspace.git.diff.checkingRepository")}
+        notRepositoryLabel={t("workspace.git.diff.notRepository")}
+      >
+        <ChangesDiffDocument
+          serverId={serverId}
+          cwd={cwd}
+          files={files}
+          fullFile={fullFile}
+          diffMode={diffMode}
+          status={status}
+          contentInsetBottom={floatingActionsClearance(
+            [jumpToFileInset, reviewFeedback.clearance],
+            bottomInset,
+          )}
+          collapseState={collapseState}
+          displayPreferences={sharedDisplayPreferences}
+          mode={workingMode}
+          onSelectUncommitted={handleSelectUncommitted}
+        />
+      </DiffBodyContent>
+      <ReviewFeedbackAction
+        bottomOffset={jumpToFileInset}
+        enabled={enabled}
+        hasDiff={presentation !== "tree"}
+        model={reviewFeedback.model}
+        state={reviewFeedback.state}
         serverId={serverId}
-        cwd={cwd}
-        files={files}
-        fullFile={fullFile}
-        diffMode={diffMode}
-        status={status}
-        contentInsetBottom={jumpToFileInset}
-        collapseState={collapseState}
-        displayPreferences={sharedDisplayPreferences}
-        mode={workingMode}
-        onSelectUncommitted={handleSelectUncommitted}
+        workspaceId={workspaceId}
       />
-    </DiffBodyContent>
+    </View>
   );
   const bodyContent = (
     <ChangesBody
@@ -2145,6 +2165,13 @@ export function ChangesSurface({
           <JumpToFile files={files} mode={workingMode} onSelectFile={handleSelectTreeFile} />
         ) : null}
       </View>
+
+      <ReviewCommentSheet
+        enabled={enabled}
+        editor={reviewActions.sheetEditor}
+        reviewActions={reviewActions}
+        onChangeBody={reviewActions.onChangeEditorBody}
+      />
 
       <ChangesCommits
         presentation={presentation}

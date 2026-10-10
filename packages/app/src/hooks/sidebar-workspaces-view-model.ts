@@ -27,6 +27,7 @@ export interface SidebarWorkspacePlacement {
   workspaceDirectory?: string;
   projectKind: WorkspaceStructureProject["projectKind"];
   workspaceKind: WorkspaceDescriptor["workspaceKind"];
+  background?: boolean;
   name: string;
   /** Root agent this row represents. Null when the workspace has no conversation yet. */
   agentId?: string | null;
@@ -190,6 +191,7 @@ export function createSidebarWorkspaceEntry(input: {
       input.workspace.worktreeSlug ?? shortenPath(input.workspace.workspaceDirectory),
     projectKind: input.workspace.projectKind,
     workspaceKind: input.workspace.workspaceKind,
+    background: input.workspace.background,
     name: input.conversationTitle ?? input.workspace.name,
     title: input.workspace.title ?? null,
     agentId: input.agentId ?? null,

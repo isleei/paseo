@@ -357,6 +357,10 @@ After workspace readiness, a changed draft cannot reuse the workspace creation k
 initial agent startup failed conclusively before an agent exists, submit a new agent
 creation in the ready workspace with a new key. An unknown prompt outcome stays blocked.
 
+Agent registration commits creation. Rejecting the first prompt is a turn error on that
+agent; reporting creation failure leaves an orphaned agent and invites another Create.
+Receipt replay must not resend the prompt.
+
 `packages/client/src/creation/` owns capability selection and legacy orchestration.
 Callers always pass the initial prompt to agent creation. On an older host, the client
 adapts keyed creation to the legacy create/send sequence; it cannot continue that

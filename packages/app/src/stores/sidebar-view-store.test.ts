@@ -32,6 +32,7 @@ function createMemoryStorage(entries: Record<string, string | null>): MemoryStor
 describe("sidebar view store", () => {
   beforeEach(() => {
     useSidebarViewStore.setState({
+      showBackground: false,
       groupMode: "project",
       workspaceSortMode: "custom",
       sortMode: "custom",
@@ -181,6 +182,7 @@ describe("sidebar view store", () => {
         },
       }),
     ).toEqual({
+      showBackground: false,
       groupMode: "status",
       workspaceSortMode: "status",
       sortMode: "status",
@@ -204,6 +206,7 @@ describe("sidebar view store", () => {
         hostFilter: "host-a",
       }),
     ).toEqual({
+      showBackground: false,
       groupMode: "status",
       workspaceSortMode: "status",
       sortMode: "status",
@@ -227,6 +230,7 @@ describe("sidebar view store", () => {
         hostFilters: ["host-a", "host-b"],
       }),
     ).toEqual({
+      showBackground: false,
       groupMode: "status",
       workspaceSortMode: "status",
       sortMode: "status",
@@ -362,6 +366,7 @@ describe("sidebar view store", () => {
         projectFilters: ["project-a", "project-b"],
       }),
     ).toEqual({
+      showBackground: false,
       groupMode: "project",
       workspaceSortMode: "custom",
       sortMode: "custom",
@@ -376,6 +381,7 @@ describe("sidebar view store", () => {
 
   it("never keeps project filters from state the schema rejects", () => {
     expect(migrateSidebarViewState({ projectFilters: "project-a" })).toEqual({
+      showBackground: false,
       groupMode: "project",
       workspaceSortMode: "custom",
       sortMode: "custom",

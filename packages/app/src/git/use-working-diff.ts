@@ -7,6 +7,7 @@ import {
   buildReviewDraftKey,
   useInlineReviewController,
   useReviewAttachmentSnapshot,
+  useReviewFeedback,
 } from "@/review";
 import { useCheckoutDiffQuery } from "@/git/use-diff-query";
 import { useReviewContextFiles } from "@/git/full-file-review-context";
@@ -20,6 +21,7 @@ interface UseWorkingDiffOptions {
   ignoreWhitespace: boolean;
   enabled: boolean;
   queryScope?: string;
+  presentation?: string;
 }
 
 export function useWorkingDiff({
@@ -29,6 +31,7 @@ export function useWorkingDiff({
   ignoreWhitespace,
   enabled,
   queryScope,
+  presentation,
 }: UseWorkingDiffOptions) {
   const {
     status,
@@ -82,7 +85,7 @@ export function useWorkingDiff({
       }),
     [baseRef, cwd, diffMode, ignoreWhitespace, serverId, workspaceId],
   );
-  const reviewActions = useInlineReviewController({ reviewDraftKey });
+  const reviewActions = useInlineReviewController({ reviewDraftKey, presentation });
   const reviewContextFiles = useReviewContextFiles(cwd, files);
   const reviewAttachment = useReviewAttachmentSnapshot({
     key: reviewDraftKey,
@@ -90,6 +93,13 @@ export function useWorkingDiff({
     cwd,
     mode: diffMode,
     baseRef,
+  });
+
+  const reviewFeedback = useReviewFeedback({
+    serverId,
+    workspaceId,
+    reviewDraftKey,
+    attachment: reviewAttachment,
   });
 
   return {
@@ -110,6 +120,7 @@ export function useWorkingDiff({
     reviewActions,
     reviewAttachment,
     viewedFilesStorageKey: `@paseo:working-diff-viewed-files:${reviewDraftKey}`,
+    reviewFeedback,
   };
 }
 

@@ -37,6 +37,7 @@ function makeAgentPayload(input: {
   requiresAttention?: boolean;
   effectiveThinkingOptionId?: string | null;
   thinkingOptionId?: string | null;
+  internal?: boolean;
 }): AgentSnapshotPayload {
   const updatedAt = input.updatedAt ?? "2026-03-01T12:00:00.000Z";
   const provider = input.provider ?? "codex";
@@ -45,6 +46,7 @@ function makeAgentPayload(input: {
     provider,
     cwd: input.cwd ?? "/tmp/repo",
     ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
+    ...(input.internal ? { internal: true } : {}),
     model: null,
     thinkingOptionId: input.thinkingOptionId ?? null,
     effectiveThinkingOptionId: input.effectiveThinkingOptionId ?? null,
@@ -237,6 +239,15 @@ describe("matchesAgentUpdatesFilter", () => {
     const agent = makeAgentPayload({ id: "a", archivedAt: "2026-03-02T00:00:00.000Z" });
     expect(matchesAgentUpdatesFilter({ agent, project, filter: {} })).toBe(false);
     expect(matchesAgentUpdatesFilter({ agent, project, filter: { includeArchived: true } })).toBe(
+      true,
+    );
+  });
+
+  test("internal agents are excluded unless includeInternal", () => {
+    const agent = makeAgentPayload({ id: "a", internal: true });
+    expect(matchesAgentUpdatesFilter({ agent, project })).toBe(false);
+    expect(matchesAgentUpdatesFilter({ agent, project, filter: {} })).toBe(false);
+    expect(matchesAgentUpdatesFilter({ agent, project, filter: { includeInternal: true } })).toBe(
       true,
     );
   });

@@ -156,6 +156,7 @@ export function toAgentPayload(
     persistence: projectPersistenceHandleForWire(agent.persistence),
     title: options?.title ?? null,
     labels: agent.labels,
+    ...(agent.internal ? { internal: true } : {}),
   };
 
   const usage = sanitizeUsage(agent.lastUsage);
@@ -212,6 +213,32 @@ function buildStoredPersistenceHandle(
   return toAgentPersistenceHandle(validProviders, record.persistence);
 }
 
+function storedSettingsProfileFields(record: StoredAgentRecord): {
+  settingsProfileId?: string;
+  settingsProfileName?: string;
+} {
+  const settingsProfile = record.config?.settingsProfile;
+  return settingsProfile
+    ? { settingsProfileId: settingsProfile.id, settingsProfileName: settingsProfile.name }
+    : {};
+}
+
+function storedAgentDiagnosticFields(record: StoredAgentRecord): {
+  internal?: true;
+  lastError?: string;
+} {
+  return {
+    ...(record.internal ? { internal: true as const } : {}),
+    ...(typeof record.lastError === "string" ? { lastError: record.lastError } : {}),
+  };
+}
+
+function storedProviderAvailabilityFields(providerAvailable: boolean): {
+  providerUnavailable?: true;
+} {
+  return providerAvailable ? {} : { providerUnavailable: true };
+}
+
 export function buildStoredAgentPayload(
   record: StoredAgentRecord,
   validProviders: Iterable<AgentProvider>,
@@ -228,7 +255,6 @@ export function buildStoredAgentPayload(
     supportsRewindBoth: false,
   } as const;
 
-  const settingsProfile = record.config?.settingsProfile;
   const createdAt = new Date(record.createdAt);
   const updatedAt = new Date(resolveStoredAgentUpdatedAt(record));
   const lastUserMessageAt = record.lastUserMessageAt ? new Date(record.lastUserMessageAt) : null;
@@ -240,9 +266,7 @@ export function buildStoredAgentPayload(
   );
 
   return {
-    ...(settingsProfile
-      ? { settingsProfileId: settingsProfile.id, settingsProfileName: settingsProfile.name }
-      : {}),
+    ...storedSettingsProfileFields(record),
     id: record.id,
     provider: record.provider,
     cwd: record.cwd,
@@ -268,8 +292,9 @@ export function buildStoredAgentPayload(
     attentionReason: record.attentionReason ?? null,
     attentionTimestamp: record.attentionTimestamp ?? null,
     archivedAt: record.archivedAt ?? null,
+    ...storedAgentDiagnosticFields(record),
     labels: normalizeLabels(record.labels),
-    ...(providerAvailable ? {} : { providerUnavailable: true }),
+    ...storedProviderAvailabilityFields(providerAvailable),
   };
 }
 

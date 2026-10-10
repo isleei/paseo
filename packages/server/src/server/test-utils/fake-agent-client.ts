@@ -18,7 +18,6 @@ import type {
   AgentSessionConfig,
   AgentStreamEvent,
   AgentSlashCommand,
-  AgentTimelineItem,
   AgentUsage,
   FetchCatalogOptions,
 } from "../agent/agent-sdk-types.js";
@@ -59,28 +58,27 @@ interface FakeAgentSessionOptions {
   sessionId?: string;
   memoryMarker?: string | null;
   closeSession?: () => Promise<void>;
-  onStartTurn?: (
-    prompt: AgentPromptInput,
-    options: AgentRunOptions | undefined,
-    sessionId: string,
-  ) => AgentTimelineItem | void;
-  holdTurnFor?: (prompt: string) => Promise<void> | null;
-}
-
-export interface TestAgentClientOptions {
-  beforeCreateSession?: () => Promise<void>;
-  closeSession?: () => Promise<void>;
-  onStartTurn?: (
-    prompt: AgentPromptInput,
-    options: AgentRunOptions | undefined,
-    sessionId: string,
-  ) => AgentTimelineItem | void;
+  onStartTurn?: (prompt: AgentPromptInput, config: AgentSessionConfig) => void;
   /**
    * Test hook: after a turn starts, await the returned promise before emitting
    * any further events. Return null to let the turn run normally. Used to keep
    * a turn open while a caller drains or restarts the daemon.
    */
   holdTurnFor?: (prompt: string) => Promise<void> | null;
+  beforeTurnComplete?: (prompt: AgentPromptInput) => Promise<void>;
+}
+
+export interface TestAgentClientOptions {
+  beforeCreateSession?: (config: AgentSessionConfig) => Promise<void>;
+  closeSession?: () => Promise<void>;
+  onStartTurn?: (prompt: AgentPromptInput, config: AgentSessionConfig) => void;
+  /**
+   * Test hook: after a turn starts, await the returned promise before emitting
+   * any further events. Return null to let the turn run normally. Used to keep
+   * a turn open while a caller drains or restarts the daemon.
+   */
+  holdTurnFor?: (prompt: string) => Promise<void> | null;
+  beforeTurnComplete?: (prompt: AgentPromptInput) => Promise<void>;
   supportsMcpServers?: boolean;
 }
 
@@ -355,6 +353,7 @@ class FakeAgentSession implements AgentSession {
   private readonly closeSession: (() => Promise<void>) | undefined;
   private readonly onStartTurn: TestAgentClientOptions["onStartTurn"];
   private readonly holdTurnFor: TestAgentClientOptions["holdTurnFor"];
+  private readonly beforeTurnComplete: ((prompt: AgentPromptInput) => Promise<void>) | undefined;
 
   constructor(options: FakeAgentSessionOptions) {
     this.capabilities = {
@@ -368,6 +367,7 @@ class FakeAgentSession implements AgentSession {
     this.closeSession = options.closeSession;
     this.onStartTurn = options.onStartTurn;
     this.holdTurnFor = options.holdTurnFor;
+    this.beforeTurnComplete = options.beforeTurnComplete;
     this.historyPath = path.join(
       tmpdir(),
       "paseo-fake-provider-history",
@@ -458,7 +458,7 @@ class FakeAgentSession implements AgentSession {
 
     const turnId = `fake-turn-${this.nextTurnOrdinal++}`;
     this.activeForegroundTurnId = turnId;
-    this.onStartTurn?.(prompt);
+    this.onStartTurn?.(prompt, this.config);
 
     void this.emitTurnEvents(prompt);
 
@@ -822,6 +822,7 @@ class FakeAgentSession implements AgentSession {
         this.notifySubscribers(assistantChunkB);
       }
 
+      await this.beforeTurnComplete?.(prompt);
       const completed: AgentStreamEvent = {
         type: "turn_completed",
         provider: this.providerName,
@@ -1236,7 +1237,7 @@ class FakeAgentClient implements AgentClient {
     config: AgentSessionConfig,
     _launchContext?: AgentLaunchContext,
   ): Promise<AgentSession> {
-    await this.options.beforeCreateSession?.();
+    await this.options.beforeCreateSession?.(config);
     return new FakeAgentSession({
       providerName: this.provider,
       config: { ...config },
@@ -1244,6 +1245,7 @@ class FakeAgentClient implements AgentClient {
       closeSession: this.options.closeSession,
       onStartTurn: this.options.onStartTurn,
       holdTurnFor: this.options.holdTurnFor,
+      beforeTurnComplete: this.options.beforeTurnComplete,
     });
   }
 
@@ -1270,6 +1272,7 @@ class FakeAgentClient implements AgentClient {
       closeSession: this.options.closeSession,
       onStartTurn: this.options.onStartTurn,
       holdTurnFor: this.options.holdTurnFor,
+      beforeTurnComplete: this.options.beforeTurnComplete,
     });
   }
 
