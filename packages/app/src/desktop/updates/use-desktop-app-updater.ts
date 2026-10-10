@@ -90,13 +90,8 @@ export function useDesktopAppUpdater(): UseDesktopAppUpdaterReturn {
     [isDesktopApp, releaseChannel, updater],
   );
 
-  useEffect(() => {
-    if (!isDesktopApp) {
-      return;
-    }
-    void checkForUpdates({ intent: "automatic", silent: true });
-  }, [checkForUpdates, isDesktopApp]);
-
+  // No launch or interval check: this fork is updated by merging upstream.
+  // The timer below only refreshes a download the user already started.
   useEffect(() => {
     if (!isDesktopApp || snapshot.status !== "pending") {
       return undefined;

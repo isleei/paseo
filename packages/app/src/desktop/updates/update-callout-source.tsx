@@ -1,6 +1,6 @@
 import { Pressable, Text } from "react-native";
 import { Gift } from "lucide-react-native";
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useUnistyles } from "react-native-unistyles";
 import {
@@ -17,7 +17,6 @@ import { useDesktopAppUpdater } from "@/desktop/updates/use-desktop-app-updater"
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { openChangelog } from "@/changelog";
 
-const CHECK_INTERVAL_MS = 30 * 60 * 1000;
 const CHANGELOG_LINK_STYLE = { textDecorationLine: "underline" } as const;
 // Keeps the press target on the link text instead of the full callout width.
 const CHANGELOG_LINK_HIT_AREA_STYLE = { alignSelf: "flex-start" } as const;
@@ -56,7 +55,6 @@ export function UpdateCalloutSource() {
     cancelScheduledUpdate,
     isInstalling,
   } = useDesktopAppUpdater();
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const install = useStableEvent(() => {
     void installUpdate();
@@ -70,21 +68,6 @@ export function UpdateCalloutSource() {
   const retry = useStableEvent(() => {
     void checkForUpdates();
   });
-  useEffect(() => {
-    if (!isDesktopApp) return;
-
-    void checkForUpdates({ intent: "automatic", silent: true });
-
-    intervalRef.current = setInterval(() => {
-      void checkForUpdates({ intent: "automatic", silent: true });
-    }, CHECK_INTERVAL_MS);
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [isDesktopApp, checkForUpdates]);
 
   useEffect(() => {
     const descriptor = resolveUpdateCalloutDescriptor({
